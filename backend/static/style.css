@@ -1,0 +1,331 @@
+/* Estilo mobile-first do app de controle de gado. */
+:root {
+  --verde: #2e7d32;
+  --verde-claro: #e8f5e9;
+  --cinza: #6b7280;
+  --borda: #e0e0e0;
+  --bg: #f5f6f5;
+  --texto: #1f2937;
+  --vermelho: #c0392b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--texto);
+  padding-bottom: 40px;
+}
+
+header {
+  background: var(--verde);
+  color: #fff;
+  padding: 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+header h1 { margin: 0; font-size: 1.2rem; }
+
+.abas {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid var(--borda);
+  position: sticky;
+  top: 50px;
+  z-index: 4;
+}
+.abas button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: none;
+  font-size: 0.95rem;
+  color: var(--cinza);
+  border-bottom: 3px solid transparent;
+}
+.abas button.ativa {
+  color: var(--verde);
+  border-bottom-color: var(--verde);
+  font-weight: 600;
+}
+
+.aba { display: none; padding: 14px; }
+.aba.ativa { display: block; }
+
+.filtros {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.filtros input, .filtros select {
+  flex: 1;
+  min-width: 120px;
+}
+
+input, select, button {
+  padding: 11px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+}
+button {
+  background: var(--verde);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+button:active { opacity: 0.85; }
+#btn-novo { flex: 0 0 auto; }
+
+.info { color: var(--cinza); font-size: 0.85rem; margin: 6px 0; }
+
+/* Alternância Por animal / Por lote */
+.modo-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+.modo-toggle button {
+  flex: 1; background: #fff; color: var(--cinza); border: 1px solid var(--borda);
+}
+.modo-toggle button.ativa { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+/* Cartão de lote */
+.card-lote {
+  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  padding: 14px; margin-bottom: 8px; display: flex; justify-content: space-between;
+  align-items: center; cursor: pointer;
+}
+.card-lote .nome { font-weight: 700; font-size: 1.05rem; }
+.card-lote .qtd {
+  background: var(--verde-claro); color: var(--verde); font-weight: 700;
+  border-radius: 20px; padding: 4px 12px; font-size: 0.9rem;
+}
+
+/* Painel de edição de lote */
+.lote-animais { max-height: 40vh; overflow-y: auto; margin: 8px 0; }
+.lote-animais label {
+  display: flex; align-items: center; gap: 8px; padding: 7px 4px;
+  border-bottom: 1px solid var(--borda); font-weight: 400;
+}
+.lote-animais input[type=checkbox] { width: auto; }
+
+/* Cartões de animal na lista */
+.card-animal {
+  background: #fff;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.card-animal .brinco { font-weight: 700; font-size: 1.05rem; }
+.card-animal .sub { color: var(--cinza); font-size: 0.82rem; }
+.card-animal .gmd { text-align: right; flex: 0 0 auto; padding-left: 10px; }
+.card-animal .gmd b { font-size: 1.05rem; color: var(--verde); }
+.card-animal-info { min-width: 0; }   /* permite truncar a observação */
+.card-animal .sub.obs {
+  color: #8a6d3b; font-style: italic;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--verde-claro);
+  color: var(--verde);
+  margin-left: 4px;
+}
+.tag.vendido { background: #fdecea; color: var(--vermelho); }
+.tag.perdido { background: #fff3e0; color: #b26a00; }
+.tag.morto { background: #eee; color: #555; }
+
+/* Pesagem rápida */
+.linha-pesar { display: flex; gap: 8px; margin-top: 6px; }
+.linha-pesar input { flex: 1; }
+.linha-pesar button { flex: 0 0 90px; }
+#pesar-data { width: 100%; margin-top: 4px; }
+#pesar-historico { list-style: none; padding: 0; }
+#pesar-historico li {
+  background: #fff; border: 1px solid var(--borda);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 0.9rem;
+}
+
+/* Painel */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card {
+  background: #fff; border: 1px solid var(--borda);
+  border-radius: 10px; padding: 16px; text-align: center;
+}
+.card .num { font-size: 1.7rem; font-weight: 700; color: var(--verde); }
+.card .rotulo { color: var(--cinza); font-size: 0.85rem; }
+
+.botao-link {
+  display: inline-block; background: var(--verde); color: #fff;
+  padding: 14px 18px; border-radius: 8px; text-decoration: none; font-weight: 600;
+}
+.botao-link:active { opacity: 0.85; }
+
+/* Modal ficha */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: flex-end; justify-content: center; z-index: 10;
+}
+.modal.escondido { display: none; }
+.modal-conteudo {
+  background: #fff; width: 100%; max-width: 640px;
+  max-height: 92vh; overflow-y: auto;
+  border-radius: 16px 16px 0 0; padding: 18px;
+  position: relative;
+}
+.fechar {
+  position: absolute; top: 10px; right: 12px;
+  background: none; color: var(--cinza); font-size: 1.6rem; padding: 0 8px;
+}
+.ficha-secao { margin: 14px 0; }
+.ficha-secao h3 { margin: 0 0 8px; font-size: 1rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--borda); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.destaque { background: var(--verde-claro); border-radius: 10px; padding: 12px; }
+.destaque .num { font-size: 1.4rem; font-weight: 700; color: var(--verde); }
+
+@media (min-width: 700px) {
+  .cards { grid-template-columns: repeat(4, 1fr); }
+  .modal { align-items: center; }
+  .modal-conteudo { border-radius: 16px; }
+}
+
+/* ---------------------------------------------------- Mangueira */
+.escondido { display: none !important; }
+.aba label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 0.9rem; }
+.aba label.check { font-weight: 400; }
+#aba-mangueira select, #aba-mangueira input[type=date] { width: 100%; }
+button.secundario { background: #fff; color: var(--verde); border: 1px solid var(--verde); }
+
+#mg-sublotes-lista input { width: 100%; margin-bottom: 6px; }
+
+#mg-abertas { margin-top: 16px; }
+.mg-aberta {
+  background: #fff7e6; border: 1px solid #f0d9a0; border-radius: 8px;
+  padding: 10px; margin-top: 6px; display: flex; justify-content: space-between; align-items: center;
+}
+
+.mg-cabecalho {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+}
+.mg-cabecalho .info { display: block; }
+
+.mg-colunas { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.mg-col {
+  background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 12px;
+}
+.mg-col h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
+
+.mg-lista { max-height: 46vh; overflow-y: auto; }
+.mg-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 6px; border-bottom: 1px solid var(--borda); font-size: 0.9rem;
+}
+.mg-item .ordem {
+  background: var(--verde); color: #fff; border-radius: 50%;
+  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; margin-right: 8px; flex: 0 0 auto;
+}
+.mg-item .destino-tag {
+  font-size: 0.7rem; padding: 1px 6px; border-radius: 6px;
+  background: var(--verde-claro); color: var(--verde);
+}
+.mg-item .remover { background: none; color: var(--vermelho); padding: 2px 8px; font-size: 1rem; }
+
+.mg-lotes-ativos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.mg-lotes-ativos button {
+  background: #fff; color: var(--texto); border: 1px solid var(--borda);
+  padding: 8px 12px; font-weight: 600; font-size: 0.9rem;
+}
+.mg-lotes-ativos button.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+#mg-form { display: flex; flex-direction: column; gap: 8px; }
+#mg-brinco, #mg-peso { font-size: 1.3rem; text-align: center; padding: 14px; }
+#mg-enviar { font-size: 1.2rem; padding: 16px; }
+.mg-info-animal { min-height: 20px; font-size: 0.85rem; color: var(--cinza); text-align: center; }
+.mg-info-animal.fora { color: var(--vermelho); font-weight: 600; }
+
+.mg-msg { text-align: center; margin-top: 8px; font-weight: 600; min-height: 22px; }
+.mg-msg.ok { color: var(--verde); }
+.mg-msg.erro { color: var(--vermelho); }
+.mg-flash { animation: flash 0.5s; }
+@keyframes flash { 0% { background: var(--verde-claro); } 100% { background: transparent; } }
+
+.mg-por-sublote { font-size: 0.82rem; color: var(--cinza); margin-bottom: 8px; }
+.mg-por-sublote span { display: inline-block; margin-right: 10px; }
+
+.mg-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+.mg-acoes button { padding: 8px 10px; font-size: 0.85rem; }
+
+/* Painel de aviso na pesagem */
+.mg-alerta {
+  margin-top: 10px; padding: 12px; border-radius: 10px;
+  background: #fff7e6; border: 1px solid #f0c674;
+}
+.mg-alerta p { margin: 0 0 8px; font-weight: 600; }
+.mg-alerta .acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.mg-alerta input, .mg-alerta select { margin-bottom: 8px; width: 100%; }
+.mg-alerta button { padding: 10px 12px; }
+
+/* Vincular */
+.mg-vinc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mg-vinc-cols h4 { margin: 0 0 6px; font-size: 0.9rem; }
+.mg-opcao {
+  padding: 8px; border: 1px solid var(--borda); border-radius: 8px; margin-bottom: 6px; cursor: pointer;
+}
+.mg-opcao.sel { border-color: var(--verde); background: var(--verde-claro); }
+
+@media (min-width: 900px) {
+  .mg-colunas { grid-template-columns: 1fr 1.2fr 1fr; align-items: start; }
+  .mg-centro { order: 0; }
+}
+
+/* ---------------------------------------------------- Login / primeiro acesso */
+.tela-login {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: var(--bg);
+}
+.login-caixa {
+  background: #fff; border: 1px solid var(--borda); border-radius: 16px;
+  padding: 24px; width: 100%; max-width: 380px;
+}
+.login-caixa h1 { text-align: center; font-size: 1.3rem; margin: 0 0 18px; }
+.login-caixa h2 { font-size: 1rem; margin: 0 0 6px; }
+.login-caixa input { width: 100%; margin-bottom: 2px; }
+.login-caixa .info { min-height: 18px; color: var(--vermelho); }
+
+/* Cabeçalho com usuário logado */
+header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.header-usuario { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; flex: 0 0 auto; }
+.header-usuario button {
+  padding: 6px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.15);
+  color: #fff; border: 1px solid rgba(255,255,255,0.5);
+}
+
+/* Lista de usuários (aba Usuários) */
+.card-usuario {
+  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+}
+.card-usuario .nome { font-weight: 700; }
+.card-usuario .sub { color: var(--cinza); font-size: 0.82rem; }
+.card-usuario button { background: none; color: var(--vermelho); padding: 6px 10px; font-size: 0.85rem; }
+
+/* Fila de pesagens offline aguardando envio */
+.fila-status {
+  background: #fff3e0; color: #b26a00; border: 1px solid #f0c674;
+  border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; font-weight: 600;
+  margin-bottom: 10px; text-align: center;
+}

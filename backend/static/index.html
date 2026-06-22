@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gado Água do Tigre</title>
+  <link rel="manifest" href="/static/manifest.json" />
+  <meta name="theme-color" content="#2e7d32" />
+  <link rel="apple-touch-icon" href="/static/icon.png" />
+  <link rel="icon" href="/static/icon.png" />
+  <link rel="stylesheet" href="/static/style.css?v=8" />
+</head>
+<body>
+  <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
+  <div id="tela-login" class="tela-login escondido">
+    <div class="login-caixa">
+      <h1>🐂 Gado Água do Tigre</h1>
+
+      <div id="login-form-area">
+        <h2 id="login-titulo">Entrar</h2>
+        <label>Usuário</label>
+        <input id="login-usuario" autocomplete="username" />
+        <label>Senha</label>
+        <input id="login-senha" type="password" autocomplete="current-password" />
+        <button id="login-entrar" style="width:100%;margin-top:14px">Entrar</button>
+        <div id="login-msg" class="info"></div>
+      </div>
+
+      <div id="setup-form-area" class="escondido">
+        <h2>Primeiro acesso — cadastre o dono</h2>
+        <label>Seu nome</label>
+        <input id="setup-nome" />
+        <label>Usuário (login)</label>
+        <input id="setup-usuario" autocomplete="username" />
+        <label>Senha</label>
+        <input id="setup-senha" type="password" autocomplete="new-password" />
+        <button id="setup-criar" style="width:100%;margin-top:14px">Criar conta de dono</button>
+        <div id="setup-msg" class="info"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app-conteudo" class="escondido">
+  <header>
+    <h1>🐂 Gado Água do Tigre</h1>
+    <div class="header-usuario">
+      <span id="usuario-logado-nome"></span>
+      <button id="btn-logout" class="secundario">Saída</button>
+    </div>
+  </header>
+
+  <div id="fila-status-global" class="fila-status escondido"></div>
+
+  <nav class="abas">
+    <button data-aba="mangueira" class="ativa">Mangueira</button>
+    <button data-aba="rebanho">Rebanho</button>
+    <button data-aba="pesar">Pesar</button>
+    <button data-aba="painel">Painel</button>
+    <button data-aba="usuarios" id="aba-btn-usuarios" class="escondido">Usuários</button>
+  </nav>
+
+  <!-- ABA MANGUEIRA (lançamento de peso da sessão) -->
+  <section id="aba-mangueira" class="aba ativa">
+    <!-- Abertura / retomada de sessão -->
+    <div id="mg-abertura">
+      <h2>Nova pesagem na mangueira</h2>
+
+      <label>Tipo de sessão</label>
+      <select id="mg-tipo">
+        <option value="manejo">Manejo (controle de peso)</option>
+        <option value="compra">Compra (lote novo)</option>
+        <option value="venda_fazenda">Venda — peso fazenda</option>
+        <option value="venda_morto">Venda — peso morto (gancho)</option>
+      </select>
+
+      <label>Data</label>
+      <input type="date" id="mg-data" />
+
+      <!-- Campos de compra (preço/kg + vendedor) -->
+      <div id="mg-campos-compra" class="escondido">
+        <div class="grid-2">
+          <div><label>Preço por kg (R$)</label><input id="mg-preco-kg" inputmode="decimal" /></div>
+          <div><label>Vendedor</label><input id="mg-vendedor" /></div>
+        </div>
+      </div>
+
+      <!-- Campo de venda (preço da @) -->
+      <div id="mg-campos-venda" class="escondido">
+        <label>Preço da arroba (R$/@)</label>
+        <input id="mg-preco-arroba" inputmode="decimal" />
+      </div>
+
+      <label>Lote(s) a pesar <span class="info">(segure Ctrl/Cmd para marcar vários)</span></label>
+      <select id="mg-origens" multiple size="6"></select>
+
+      <label class="check"><input type="checkbox" id="mg-separar" /> Separar em novos lotes?</label>
+      <div id="mg-sublotes-area" class="escondido">
+        <label>Sublotes (nome de cada um)</label>
+        <div id="mg-sublotes-lista"></div>
+        <button type="button" id="mg-add-sublote" class="secundario">+ sublote</button>
+      </div>
+
+      <button id="mg-iniciar" style="width:100%;margin-top:12px">Iniciar pesagem</button>
+
+      <div id="mg-abertas"></div>
+    </div>
+
+    <!-- Sessão em andamento (3 colunas) -->
+    <div id="mg-sessao" class="escondido">
+      <div class="mg-cabecalho">
+        <div>
+          <b id="mg-titulo"></b>
+          <span class="info" id="mg-subtitulo"></span>
+        </div>
+        <div class="mg-acoes">
+          <button id="mg-vincular-btn" class="secundario">Vincular</button>
+          <button id="mg-finalizar" class="secundario">Finalizar</button>
+          <button id="mg-encerrar" class="secundario">Sair</button>
+        </div>
+      </div>
+
+      <div class="mg-colunas">
+        <!-- A pesar -->
+        <div class="mg-col">
+          <h3>A pesar (<span id="mg-falta">0</span>)</h3>
+          <div id="mg-a-pesar" class="mg-lista"></div>
+        </div>
+
+        <!-- Lançamento -->
+        <div class="mg-col mg-centro">
+          <div id="mg-lotes-ativos" class="mg-lotes-ativos"></div>
+          <form id="mg-form">
+            <input id="mg-brinco" placeholder="Brinco" inputmode="numeric" autocomplete="off" />
+            <div id="mg-info-animal" class="mg-info-animal"></div>
+            <input id="mg-peso" placeholder="Peso (kg)" inputmode="decimal" />
+            <button type="submit" id="mg-enviar">Enviar</button>
+          </form>
+          <button id="mg-sem-brinco" class="secundario" style="width:100%;margin-top:6px">Pesar SEM brinco</button>
+          <div id="mg-msg" class="mg-msg"></div>
+
+          <!-- Painel de aviso (fora do lote / já pesado / inexistente) -->
+          <div id="mg-alerta" class="mg-alerta escondido"></div>
+        </div>
+
+        <!-- Pesados -->
+        <div class="mg-col">
+          <h3>Pesados (<span id="mg-total">0</span>)</h3>
+          <div id="mg-por-sublote" class="mg-por-sublote"></div>
+          <div id="mg-pesados" class="mg-lista"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal da mangueira (resumo / vincular) -->
+    <div id="mg-modal" class="modal escondido">
+      <div class="modal-conteudo">
+        <button class="fechar" id="mg-modal-fechar">×</button>
+        <div id="mg-modal-conteudo"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABA REBANHO -->
+  <section id="aba-rebanho" class="aba">
+    <div class="modo-toggle">
+      <button data-modo="animal" class="ativa">Por animal</button>
+      <button data-modo="lote">Por lote</button>
+    </div>
+
+    <div class="filtros" id="filtros-animal">
+      <input id="busca" placeholder="Buscar brinco..." />
+      <select id="filtro-status">
+        <option value="">Todos</option>
+        <option value="ativo">Ativos</option>
+        <option value="vendido">Vendidos</option>
+        <option value="perdido">Perdidos</option>
+        <option value="morto">Mortos</option>
+      </select>
+      <button id="btn-novo">+ Animal</button>
+    </div>
+    <div class="info" id="contador"></div>
+    <div id="lista"></div>
+    <div id="lista-lotes"></div>
+  </section>
+
+  <!-- ABA PESAR -->
+  <section id="aba-pesar" class="aba">
+    <h2>Pesagem rápida</h2>
+    <label>Data da pesagem</label>
+    <input type="date" id="pesar-data" />
+    <form id="form-pesar">
+      <div class="linha-pesar">
+        <input id="pesar-brinco" placeholder="Brinco" inputmode="numeric" autocomplete="off" />
+        <input id="pesar-peso" placeholder="Peso (kg)" inputmode="decimal" />
+        <button type="submit">Salvar</button>
+      </div>
+    </form>
+    <div id="pesar-msg" class="info"></div>
+    <ul id="pesar-historico"></ul>
+  </section>
+
+  <!-- ABA PAINEL -->
+  <section id="aba-painel" class="aba">
+    <h2>Painel do rebanho</h2>
+    <div id="cards-painel" class="cards"></div>
+
+    <div class="ficha-secao" style="margin-top:18px">
+      <h3>Backup / Exportar</h3>
+      <p class="info">Baixa uma planilha Excel completa (animais, pesos e datas) — sua cópia de fácil acesso, sempre atual.</p>
+      <a id="btn-exportar" href="/api/exportar/excel" class="botao-link">⬇ Exportar planilha Excel</a>
+    </div>
+  </section>
+
+  <!-- ABA USUÁRIOS (só dono) -->
+  <section id="aba-usuarios" class="aba">
+    <h2>Usuários do app</h2>
+    <div id="lista-usuarios"></div>
+
+    <div class="ficha-secao">
+      <h3>Adicionar usuário</h3>
+      <label>Nome</label>
+      <input id="nu-nome" />
+      <label>Usuário (login)</label>
+      <input id="nu-usuario" autocomplete="off" />
+      <label>Senha</label>
+      <input id="nu-senha" type="password" autocomplete="new-password" />
+      <label>Perfil</label>
+      <select id="nu-papel">
+        <option value="peao">Peão (lança peso e mexe em lotes)</option>
+        <option value="dono">Dono (acesso completo)</option>
+      </select>
+      <button id="nu-criar" style="width:100%;margin-top:10px">Criar usuário</button>
+      <div id="nu-msg" class="info"></div>
+    </div>
+  </section>
+
+  <!-- MODAL FICHA DO ANIMAL -->
+  <div id="modal" class="modal escondido">
+    <div class="modal-conteudo">
+      <button class="fechar" id="fechar-modal">×</button>
+      <div id="ficha"></div>
+    </div>
+  </div>
+  </div>
+
+  <script src="/static/app.js?v=8"></script>
+  <script src="/static/fila-offline.js?v=8"></script>
+  <script src="/static/mangueira.js?v=8"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

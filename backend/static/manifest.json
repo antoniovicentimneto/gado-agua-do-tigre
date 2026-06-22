@@ -1,0 +1,15 @@
+{
+  "name": "Gado Água do Tigre",
+  "short_name": "Gado Água do Tigre",
+  "description": "Controle de peso e lotes do rebanho da fazenda Água do Tigre.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f5",
+  "theme_color": "#2e7d32",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/static/icon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icon.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,15 @@
+# Ambiente virtual
+backend/.venv/
+
+# Banco de dados local
+backend/*.db
+
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Configuração local
+backend/.env
+
+# Pytest
+.pytest_cache/
