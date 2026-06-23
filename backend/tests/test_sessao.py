@@ -1,7 +1,9 @@
 """Testes da lógica da sessão de pesagem na mangueira."""
 from datetime import date
 
-from app.models import Animal, StatusAnimal, TipoSessao
+import pytest
+
+from app.models import Animal, SessaoPesagem, StatusAnimal, TipoSessao
 from app.services import sessao as svc
 from app.services.consultas import lote_atual
 
@@ -39,6 +41,20 @@ def test_alerta_ja_pesado(db):
     # Com forçar, atualiza o peso.
     r2 = svc.registrar_pesagem(db, s, "101", 415, forcar=True)
     assert r2["ok"] and r2["peso"] == 415
+
+
+def test_cancela_sessao_sem_pesagens(db):
+    s = _abrir_manejo(db)
+    sessao_id = s.id
+    svc.cancelar_sessao(db, s)
+    assert db.get(SessaoPesagem, sessao_id) is None
+
+
+def test_nao_cancela_sessao_com_pesagem(db):
+    s = _abrir_manejo(db)
+    svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")
+    with pytest.raises(ValueError, match="já tem pesagens"):
+        svc.cancelar_sessao(db, s)
 
 
 def test_alerta_fora_do_lote(db):

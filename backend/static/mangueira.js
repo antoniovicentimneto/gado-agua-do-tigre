@@ -113,6 +113,20 @@ function mgMostrarSessao() {
   el("mg-sessao").classList.remove("escondido");
 }
 
+el("mg-cancelar").onclick = async () => {
+  if (!confirm("Cancelar esta sessão? Ela será apagada (só funciona porque ainda não tem nenhuma pesagem).")) return;
+  try {
+    await api.delete(`/api/sessoes/${mg.sessaoId}`);
+  } catch (e) {
+    alert("Erro ao cancelar: " + e.message);
+    return;
+  }
+  mg.sessaoId = null;
+  el("mg-sessao").classList.add("escondido");
+  el("mg-abertura").classList.remove("escondido");
+  await mgInit();
+};
+
 el("mg-encerrar").onclick = async () => {
   // Volta para a abertura; a sessão continua aberta e pode ser retomada.
   mg.sessaoId = null;
@@ -134,6 +148,8 @@ function mgRenderEstado(estado) {
   const s = estado.sessao;
   el("mg-titulo").textContent = `#${s.id} · ${s.tipo}`;
   el("mg-subtitulo").textContent = `${s.data.split("-").reverse().join("/")} · ${s.origens.join(", ")}`;
+  // Só dá pra cancelar enquanto não foi pesado nenhum animal.
+  el("mg-cancelar").classList.toggle("escondido", estado.contadores.pesados > 0);
 
   // Botões de lote ativo (sublotes).
   const box = el("mg-lotes-ativos");

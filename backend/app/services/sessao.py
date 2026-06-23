@@ -376,6 +376,17 @@ def editar_pesagem(db: Session, sessao: SessaoPesagem, pesagem_id: int,
     return True
 
 
+def cancelar_sessao(db: Session, sessao: SessaoPesagem) -> None:
+    """Cancela (apaga) uma sessão aberta que ainda não tem nenhuma pesagem."""
+    if sessao.pesagens:
+        raise ValueError(
+            "Essa sessão já tem pesagens lançadas — remova as pesagens primeiro "
+            "ou finalize a sessão em vez de cancelar."
+        )
+    db.delete(sessao)
+    db.commit()
+
+
 def remover_pesagem(db: Session, sessao: SessaoPesagem, pesagem_id: int) -> bool:
     """Remove uma pesagem da sessão (correção de erro)."""
     pesagem = db.get(Pesagem, pesagem_id)

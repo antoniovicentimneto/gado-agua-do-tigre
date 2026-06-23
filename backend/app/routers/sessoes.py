@@ -46,6 +46,17 @@ def criar(dados: schemas.SessaoCriar, db: Session = Depends(get_db),
     return svc.estado_sessao(db, s)
 
 
+@router.delete("/{sessao_id}")
+def cancelar(sessao_id: int, db: Session = Depends(get_db)):
+    """Cancela (apaga) uma sessão aberta sem nenhuma pesagem — desistir de lançar."""
+    s = _buscar_sessao(db, sessao_id)
+    try:
+        svc.cancelar_sessao(db, s)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True}
+
+
 @router.get("/abertas")
 def listar_abertas(db: Session = Depends(get_db)):
     """Sessões ainda abertas (para retomar de onde parou)."""
