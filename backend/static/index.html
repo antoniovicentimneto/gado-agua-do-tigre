@@ -248,9 +248,19 @@
   <script src="/static/fila-offline.js?v=9"></script>
   <script src="/static/mangueira.js?v=9"></script>
   <script>
+    // Registra o service worker e recarrega sozinho quando sai uma versão nova,
+    // pra nunca ficar travado mostrando uma tela antiga em cache.
     if ("serviceWorker" in navigator) {
+      let jaRecarregou = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (jaRecarregou) return;
+        jaRecarregou = true;
+        window.location.reload();
+      });
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(() => {});
+        navigator.serviceWorker.register("/sw.js").then((reg) => {
+          reg.update().catch(() => {});
+        }).catch(() => {});
       });
     }
   </script>
