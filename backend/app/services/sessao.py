@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models import (
     Animal,
@@ -98,7 +98,13 @@ def animais_a_pesar(db: Session, sessao: SessaoPesagem) -> list[Animal]:
     nomes_origem = {l.nome for l in sessao.origens}
     ja_pesados = {p.animal_id for p in sessao.pesagens}
     resultado = []
-    for animal in db.query(Animal).filter(Animal.status == StatusAnimal.ATIVO).all():
+    animais = (
+        db.query(Animal)
+        .filter(Animal.status == StatusAnimal.ATIVO)
+        .options(selectinload(Animal.lotes).selectinload(AnimalLote.lote))
+        .all()
+    )
+    for animal in animais:
         if animal.id in ja_pesados:
             continue
         if lote_atual(animal) in nomes_origem:
