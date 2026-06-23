@@ -97,7 +97,25 @@ apaga** o que foi lançado no app e faz um backup automático antes
 
 - No app, aba **Painel → Exportar planilha Excel**: baixa um `.xlsx` completo
   (abas *Animais* e *Pesos* em formato largo) — backup legível e de fácil acesso.
-- O banco fica em `backend/gado.db`. Backups manuais: é só copiar esse arquivo.
+  Esse arquivo é um **backup completo**: dá pra recriar o rebanho inteiro a
+  partir dele (veja "Restaurar de um backup" abaixo).
+- O banco fica em `backend/gado.db` (local) ou no Supabase (produção).
+  Backups manuais do SQLite: é só copiar o arquivo `gado.db`.
+
+## Restaurar de um backup (reinstalou o app / perdeu o banco)
+
+Se o app for reinstalado ou o banco for perdido, use o **Excel exportado pelo
+próprio app** (não a planilha original `2025_PLANILHA GADO BOAVISTINHA.xlsx`,
+que é só a fonte de pesagens manuais e fica desatualizada) para recriar tudo:
+
+```bash
+cd backend
+python restaurar.py "C:\caminho\para\gado_agua_do_tigre_2026-06-22.xlsx"
+```
+
+Recria cadastro, lotes e todas as pesagens. Só funciona num **banco vazio**
+(proteção contra restaurar em cima de dados que já existem — nesse caso use o
+`atualizar.py`).
 
 ## Rodar o app
 
@@ -152,8 +170,10 @@ backend/
     models.py        # tabelas (animais, pesagens, lotes, dentições, scores, venda...)
     schemas.py       # validação da API
     routers/api.py   # endpoints
-    services/        # regras de negócio (gmd, venda, importação, consultas)
-  static/            # frontend (HTML, CSS, JS)
+    services/        # regras de negócio (gmd, venda, importação, restauração, consultas)
+  static/            # frontend (HTML, CSS, JS, PWA)
   tests/             # testes (pytest)
-  importar.py        # importação da planilha
+  importar.py        # importação da planilha (primeira carga)
+  atualizar.py        # atualização incremental a partir da planilha original
+  restaurar.py        # restauração completa a partir do Excel exportado pelo app
 ```

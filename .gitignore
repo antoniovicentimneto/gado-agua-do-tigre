@@ -4,6 +4,9 @@ backend/.venv/
 # Banco de dados local
 backend/*.db
 
+# Backups de Excel exportados (podem conter dados reais do rebanho)
+backend/backup_*.xlsx
+
 # Cache do Python
 __pycache__/
 *.pyc
