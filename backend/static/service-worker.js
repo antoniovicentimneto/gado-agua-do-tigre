@@ -1,11 +1,11 @@
 // Service worker do app: guarda a casca do app (HTML/CSS/JS) pra abrir sem internet.
-const CACHE = "gado-agua-do-tigre-v1";
+const CACHE = "gado-agua-do-tigre-v2";
 const ARQUIVOS = [
   "/",
-  "/static/style.css?v=8",
-  "/static/app.js?v=8",
-  "/static/fila-offline.js?v=8",
-  "/static/mangueira.js?v=8",
+  "/static/style.css?v=9",
+  "/static/app.js?v=9",
+  "/static/fila-offline.js?v=9",
+  "/static/mangueira.js?v=9",
   "/static/manifest.json",
   "/static/icon.png",
 ];

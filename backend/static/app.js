@@ -80,6 +80,7 @@ function entrarNoApp(dados) {
   document.getElementById("usuario-logado-nome").textContent = `${dados.nome} (${dados.papel})`;
   aplicarPermissoes();
   carregarLista();
+  if (typeof mgInit === "function") mgInit();
 }
 
 document.getElementById("login-entrar").onclick = async () => {
@@ -534,6 +535,7 @@ async function carregarPainel() {
     document.getElementById("usuario-logado-nome").textContent = `${eu.nome} (${eu.papel})`;
     aplicarPermissoes();
     carregarLista();
+    if (typeof mgInit === "function") mgInit();
   } catch (e) {
     iniciarTelaLogin();
   }
