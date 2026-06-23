@@ -403,6 +403,10 @@ function mgModal(html) {
   el("mg-modal").classList.remove("escondido");
 }
 el("mg-modal-fechar").onclick = () => el("mg-modal").classList.add("escondido");
+// Clicar fora do conteúdo (no fundo escuro) também fecha.
+el("mg-modal").addEventListener("click", (e) => {
+  if (e.target === el("mg-modal")) el("mg-modal").classList.add("escondido");
+});
 
 // ----------------------------------------------------------- Finalizar + resumo
 el("mg-finalizar").onclick = async () => {

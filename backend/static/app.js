@@ -402,6 +402,8 @@ async function abrirLote(loteId, nome) {
 // ----------------------------------------------------------- Ficha do animal
 const modal = document.getElementById("modal");
 document.getElementById("fechar-modal").onclick = () => modal.classList.add("escondido");
+// Clicar fora do conteúdo (no fundo escuro) também fecha.
+modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("escondido"); });
 
 async function abrirFicha(id) {
   const a = await api.get("/api/animais/" + id);
