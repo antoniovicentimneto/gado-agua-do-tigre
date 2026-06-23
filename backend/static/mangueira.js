@@ -91,10 +91,21 @@ el("mg-iniciar").onclick = async () => {
     preco_arroba: parseFloat(el("mg-preco-arroba").value) || null,
     vendedor: el("mg-vendedor").value || null,
   };
-  const estado = await api.post("/api/sessoes", dados);
-  mg.sessaoId = estado.sessao.id;
-  mgRenderEstado(estado);
-  mgMostrarSessao();
+  const btn = el("mg-iniciar");
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Abrindo...";
+  try {
+    const estado = await api.post("/api/sessoes", dados);
+    mg.sessaoId = estado.sessao.id;
+    mgRenderEstado(estado);
+    mgMostrarSessao();
+  } catch (e) {
+    alert("Erro ao iniciar a pesagem: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 };
 
 function mgMostrarSessao() {
