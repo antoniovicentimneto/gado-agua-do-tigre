@@ -105,10 +105,10 @@ button:active { opacity: 0.85; }
 
 /* Painel de edição de lote */
 .lote-animais { max-height: 40vh; overflow-y: auto; margin: 8px 0; }
-.lote-animais label {
-  display: flex; align-items: center; gap: 8px; padding: 7px 4px;
-  border-bottom: 1px solid var(--borda); font-weight: 400;
-}
+.lote-animais table { font-size: 0.9rem; }
+.lote-animais th { position: sticky; top: 0; background: #fff; user-select: none; }
+.lote-animais th:hover { color: var(--verde); }
+.lote-animais td, .lote-animais th { padding: 7px 6px; }
 .lote-animais input[type=checkbox] { width: auto; }
 
 /* Cartões de animal na lista */

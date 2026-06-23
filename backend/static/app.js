@@ -283,12 +283,53 @@ async function carregarLotes() {
   if (!lotes.length) box.innerHTML = "<div class='info'>Nenhum lote com animais ativos.</div>";
 }
 
+// Ordena "9" antes de "10" (numérico quando dá, senão por texto).
+function comparaBrinco(a, b) {
+  const na = parseFloat(a), nb = parseFloat(b);
+  if (!isNaN(na) && !isNaN(nb)) return na - nb;
+  return String(a).localeCompare(String(b));
+}
+
 async function abrirLote(loteId, nome) {
   const animais = await api.get("/api/animais?lote=" + encodeURIComponent(nome) + "&status=ativo");
   const ficha = document.getElementById("ficha");
-  const linhas = animais.map((a) =>
-    `<label><input type="checkbox" class="lote-chk" value="${a.id}"> <b>${a.brinco}</b> · ${a.tipo || ""}</label>`
-  ).join("") || "<div class='info'>Sem animais ativos.</div>";
+  const ordem = { coluna: "brinco", dir: 1 };
+
+  function renderTabela() {
+    const marcadosAntes = new Set([...document.querySelectorAll(".lote-chk:checked")].map((c) => c.value));
+    const ordenados = animais.slice().sort((a, b) => {
+      const cmp = ordem.coluna === "peso"
+        ? (a.ultimo_peso ?? -Infinity) - (b.ultimo_peso ?? -Infinity)
+        : comparaBrinco(a.brinco, b.brinco);
+      return cmp * ordem.dir;
+    });
+    const seta = (col) => (ordem.coluna === col ? (ordem.dir === 1 ? " ▲" : " ▼") : "");
+    const box = document.querySelector(".lote-animais");
+    box.innerHTML = ordenados.length ? `
+      <table>
+        <thead><tr>
+          <th></th>
+          <th class="lote-th" data-col="brinco" style="cursor:pointer">Brinco${seta("brinco")}</th>
+          <th class="lote-th" data-col="peso" style="cursor:pointer">Último peso${seta("peso")}</th>
+        </tr></thead>
+        <tbody>
+          ${ordenados.map((a) => `
+            <tr>
+              <td><input type="checkbox" class="lote-chk" value="${a.id}" ${marcadosAntes.has(String(a.id)) ? "checked" : ""}></td>
+              <td><b>${a.brinco}</b> ${a.tipo ? `· ${a.tipo}` : ""}</td>
+              <td>${fmt.peso(a.ultimo_peso)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>` : "<div class='info'>Sem animais ativos.</div>";
+    box.querySelectorAll(".lote-th").forEach((th) => {
+      th.onclick = () => {
+        const col = th.dataset.col;
+        ordem.dir = ordem.coluna === col ? -ordem.dir : 1;
+        ordem.coluna = col;
+        renderTabela();
+      };
+    });
+  }
 
   ficha.innerHTML = `
     <h2>Lote ${nome}</h2>
@@ -311,14 +352,15 @@ async function abrirLote(loteId, nome) {
 
     <div class="ficha-secao">
       <h3>Animais (${animais.length})</h3>
-      <div class="info"><a href="#" id="lote-sel-todos">marcar todos</a> · <a href="#" id="lote-sel-nada">desmarcar</a></div>
-      <div class="lote-animais">${linhas}</div>
+      <div class="info"><a href="#" id="lote-sel-todos">marcar todos</a> · <a href="#" id="lote-sel-nada">desmarcar</a> · clique no título da coluna pra ordenar</div>
+      <div class="lote-animais"></div>
       <div class="linha-pesar">
         <input id="lote-mover-destino" placeholder="Mover marcados para..." />
         <button id="lote-mover">Mover</button>
       </div>
     </div>`;
 
+  renderTabela();
   modal.classList.remove("escondido");
 
   const marcados = () => [...document.querySelectorAll(".lote-chk:checked")].map((c) => parseInt(c.value));
