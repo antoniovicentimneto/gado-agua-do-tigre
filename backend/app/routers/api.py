@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..models import (
@@ -51,7 +51,10 @@ def listar_animais(
     status: StatusAnimal | None = None,
 ):
     """Lista animais com último peso, GMD e uGMD calculados."""
-    q = db.query(Animal)
+    q = db.query(Animal).options(
+        selectinload(Animal.pesagens),
+        selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+    )
     if busca:
         q = q.filter(Animal.brinco.contains(busca))
     if tipo:
@@ -216,8 +219,16 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
     animais ATIVOS na fazenda agora (com a contagem) — usado na tela de pesagem."""
     if somente_ativos:
         ids_por_nome = {l.nome: l.id for l in db.query(Lote).all()}
+        # Carrega os vínculos de lote numa tacada só (evita 1 consulta por animal,
+        # que ficava lento demais com o banco na nuvem em outra região).
+        animais = (
+            db.query(Animal)
+            .filter(Animal.status == StatusAnimal.ATIVO)
+            .options(selectinload(Animal.lotes).selectinload(AnimalLote.lote))
+            .all()
+        )
         contagem: dict[str, int] = {}
-        for animal in db.query(Animal).filter(Animal.status == StatusAnimal.ATIVO).all():
+        for animal in animais:
             nome = lote_atual(animal)
             if nome:
                 contagem[nome] = contagem.get(nome, 0) + 1
@@ -430,7 +441,13 @@ def dashboard(db: Session = Depends(get_db)):
 
     # GMD médio do rebanho ativo (média dos GMDs individuais).
     gmds = []
-    for animal in db.query(Animal).filter(Animal.status == StatusAnimal.ATIVO).all():
+    animais_ativos = (
+        db.query(Animal)
+        .filter(Animal.status == StatusAnimal.ATIVO)
+        .options(selectinload(Animal.pesagens), selectinload(Animal.lotes))
+        .all()
+    )
+    for animal in animais_ativos:
         r = montar_resumo(animal)
         if r["gmd"] is not None:
             gmds.append(r["gmd"])

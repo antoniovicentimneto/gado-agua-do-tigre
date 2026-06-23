@@ -12,9 +12,9 @@ from datetime import date
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from ..models import Animal
+from ..models import Animal, AnimalLote
 from .consultas import lote_atual, pontos_pesagem
 from .gmd import resumo_animal
 
@@ -23,7 +23,17 @@ NEGRITO = Font(bold=True)
 
 def gerar_planilha(db: Session) -> bytes:
     """Monta o arquivo .xlsx e devolve os bytes."""
-    animais = db.query(Animal).order_by(Animal.brinco).all()
+    animais = (
+        db.query(Animal)
+        .order_by(Animal.brinco)
+        .options(
+            selectinload(Animal.pesagens),
+            selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+            selectinload(Animal.compra),
+            selectinload(Animal.venda),
+        )
+        .all()
+    )
     wb = Workbook()
 
     # ----------------------------------------------------- Aba Animais
