@@ -119,6 +119,19 @@ def atualizar_animal(
     return montar_resumo(animal)
 
 
+@router.delete("/animais/{animal_id}")
+def excluir_animal(animal_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    """Apaga o animal e todo o histórico ligado a ele (pesagens, lotes...).
+
+    Irreversível — pensado pra corrigir um cadastro feito por engano
+    (ex.: brinco errado lançado sem querer). Não tem como desfazer.
+    """
+    animal = _buscar_animal(db, animal_id)
+    db.delete(animal)
+    db.commit()
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------- Pesagens
 
 @router.post("/animais/{animal_id}/pesagens", status_code=201)
@@ -136,6 +149,19 @@ def adicionar_pesagem(
         existente.peso = dados.peso
     else:
         db.add(Pesagem(animal_id=animal_id, data=dados.data, peso=dados.peso))
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/animais/{animal_id}/pesagens/{pesagem_id}")
+def excluir_pesagem_animal(
+    animal_id: int, pesagem_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)
+):
+    """Apaga uma pesagem específica do animal (corrige um lançamento errado)."""
+    pesagem = db.get(Pesagem, pesagem_id)
+    if pesagem is None or pesagem.animal_id != animal_id:
+        raise HTTPException(status_code=404, detail="Pesagem não encontrada")
+    db.delete(pesagem)
     db.commit()
     return {"ok": True}
 

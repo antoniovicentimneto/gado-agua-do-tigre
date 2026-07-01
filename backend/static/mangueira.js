@@ -136,6 +136,7 @@ el("mg-iniciar").onclick = async () => {
   btn.disabled = true;
   btn.textContent = "Abrindo...";
   try {
+    mgUltimoTipoCompra = mgUltimaRacaCompra = "";   // cada compra começa sem padrão
     const estado = await api.post("/api/sessoes", dados);
     mg.sessaoId = estado.sessao.id;
     mgRenderEstado(estado);
@@ -244,6 +245,8 @@ function mgRenderEstado(estado) {
   const porSub = estado.contadores.por_sublote;
   el("mg-por-sublote").innerHTML = Object.entries(porSub)
     .map(([k, v]) => `<span><b>${v}</b> ${k}</span>`).join("");
+
+  mgAtualizarCompraPadrao();   // mostra/esconde o "padrão da compra"
 }
 
 async function mgNovoSubloteRapido() {
@@ -387,8 +390,18 @@ el("mg-form").onsubmit = async (ev) => {
   const ehCompra = mg.estado && mg.estado.sessao.tipo === "compra";
   const cands = animaisPorBrinco(brinco);   // consulta local (cache)
 
-  // Compra: sempre cadastra um animal NOVO, pedindo tipo e raça (avisa se o brinco já existe).
-  if (ehCompra) return mgCadastroCompra(brinco, cands.length);
+  // Compra: cadastra um animal NOVO. Se já definiu o padrão (tipo/raça) e o brinco
+  // é novo, cadastra direto (ágil). Senão, ou se o brinco já existe, abre a caixa.
+  if (ehCompra) {
+    if (mgUltimoTipoCompra && cands.length === 0) {
+      return mgEnviarOuFila({
+        criar_animal: true,
+        novo_tipo: mgUltimoTipoCompra || null,
+        nova_raca: mgUltimaRacaCompra || null,
+      });
+    }
+    return mgCadastroCompra(brinco, cands.length);
+  }
 
   // Brinco repetido: escolhe localmente qual pesar (funciona online e offline).
   if (cands.length > 1) return mgEscolherDuplicadoLocal(cands);
@@ -410,7 +423,12 @@ function mgEscolherDuplicadoLocal(cands) {
   });
 }
 
-// Cadastro rápido de compra: pede tipo e raça (obrigatório escolher), cria e pesa.
+// Lembra a última escolha de tipo/raça na compra (o lote costuma ser igual).
+let mgUltimoTipoCompra = "";
+let mgUltimaRacaCompra = "";
+
+// Cadastro rápido de compra: pede tipo e raça, cria e pesa. Já vem com a última
+// escolha selecionada pra não precisar repetir a cada animal do lote.
 function mgCadastroCompra(brinco, jaExiste) {
   const box = el("mg-alerta");
   box.innerHTML = `
@@ -424,11 +442,54 @@ function mgCadastroCompra(brinco, jaExiste) {
       <button id="al-c-cancelar" class="secundario">Cancelar</button>
     </div>`;
   box.classList.remove("escondido");
-  el("al-c-ok").onclick = () => mgEnviarOuFila({
-    criar_animal: true,
-    novo_tipo: el("al-c-tipo").value || null,
-    nova_raca: el("al-c-raca").value || null,
-  });
+  // Restaura a última seleção, se ainda existir nas opções.
+  if (mgUltimoTipoCompra) el("al-c-tipo").value = mgUltimoTipoCompra;
+  if (mgUltimaRacaCompra) el("al-c-raca").value = mgUltimaRacaCompra;
+  el("al-c-ok").onclick = () => {
+    mgUltimoTipoCompra = el("al-c-tipo").value;
+    mgUltimaRacaCompra = el("al-c-raca").value;
+    mgAtualizarCompraPadrao();
+    mgEnviarOuFila({
+      criar_animal: true,
+      novo_tipo: mgUltimoTipoCompra || null,
+      nova_raca: mgUltimaRacaCompra || null,
+    });
+  };
+  el("al-c-cancelar").onclick = () => box.classList.add("escondido");
+}
+
+// Indicador do "padrão da compra" (tipo/raça lembrados) com opção de trocar.
+function mgAtualizarCompraPadrao() {
+  const box = el("mg-compra-padrao");
+  const ehCompra = mg.estado && mg.estado.sessao.tipo === "compra";
+  if (!ehCompra || !mgUltimoTipoCompra) { box.classList.add("escondido"); return; }
+  box.innerHTML = `Cadastrando como <b>${mgUltimoTipoCompra}${mgUltimaRacaCompra ? " · " + mgUltimaRacaCompra : ""}</b> · <a href="#" id="mg-compra-trocar">trocar</a>`;
+  box.classList.remove("escondido");
+  el("mg-compra-trocar").onclick = (e) => { e.preventDefault(); mgEditarPadraoCompra(); };
+}
+
+// Troca o padrão da compra (só define tipo/raça, sem pesar).
+function mgEditarPadraoCompra() {
+  const box = el("mg-alerta");
+  box.innerHTML = `
+    <p>Padrão da compra (vale para os próximos brincos novos):</p>
+    <label>Classificação</label>
+    <select id="al-c-tipo">${mgTiposOpcoesHTML()}</select>
+    <label>Raça</label>
+    <select id="al-c-raca">${mgRacasOpcoesHTML()}</select>
+    <div class="acoes">
+      <button id="al-c-salvar">Salvar padrão</button>
+      <button id="al-c-cancelar" class="secundario">Cancelar</button>
+    </div>`;
+  box.classList.remove("escondido");
+  if (mgUltimoTipoCompra) el("al-c-tipo").value = mgUltimoTipoCompra;
+  if (mgUltimaRacaCompra) el("al-c-raca").value = mgUltimaRacaCompra;
+  el("al-c-salvar").onclick = () => {
+    mgUltimoTipoCompra = el("al-c-tipo").value;
+    mgUltimaRacaCompra = el("al-c-raca").value;
+    box.classList.add("escondido");
+    mgAtualizarCompraPadrao();
+  };
   el("al-c-cancelar").onclick = () => box.classList.add("escondido");
 }
 

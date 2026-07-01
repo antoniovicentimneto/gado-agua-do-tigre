@@ -569,7 +569,10 @@ async function abrirFicha(id) {
   const pesagens = a.pesagens
     .slice()
     .reverse()
-    .map((p) => `<tr><td>${fmt.data(p.data)}</td><td>${fmt.peso(p.peso)}</td></tr>`)
+    .map((p) => `<tr>
+        <td>${fmt.data(p.data)}</td><td>${fmt.peso(p.peso)}</td>
+        <td><button class="pesagem-apagar" data-id="${p.id}" title="apagar esta pesagem">×</button></td>
+      </tr>`)
     .join("");
 
   // Histórico de lotes (com datas). a.lotes vem do detalhar_animal.
@@ -584,6 +587,15 @@ async function abrirFicha(id) {
   ficha.innerHTML = `
     <h2>Brinco ${esc(a.brinco)} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}</span>` : ""}</h2>
     <div class="sub">${esc(a.tipo || "")} · ${esc(a.raca || "sem raça")} · ${esc(a.lote_atual || "sem lote")}</div>
+
+    <div class="ficha-secao">
+      <label style="font-weight:600;font-size:0.85rem">Brinco</label>
+      <div class="linha-pesar">
+        <input id="f-brinco" value="${esc(a.brinco)}" />
+        <button id="f-brinco-salvar">Salvar</button>
+      </div>
+      <div class="info">Corrija aqui se o número foi digitado errado na hora de pesar.</div>
+    </div>
 
     <div class="grid-2 ficha-secao">
       <div>
@@ -650,7 +662,13 @@ async function abrirFicha(id) {
 
     <div class="ficha-secao">
       <h3>Pesagens (${a.pesagens.length})</h3>
-      <table><thead><tr><th>Data</th><th>Peso</th></tr></thead><tbody>${pesagens || "<tr><td colspan=2>Sem pesagens</td></tr>"}</tbody></table>
+      <table><thead><tr><th>Data</th><th>Peso</th><th></th></tr></thead><tbody>${pesagens || "<tr><td colspan=3>Sem pesagens</td></tr>"}</tbody></table>
+    </div>
+
+    <div class="ficha-secao ficha-perigo">
+      <h3>Excluir animal</h3>
+      <p class="info">Apaga o animal e todo o histórico (pesagens, lotes...). Use só se foi um cadastro feito por engano — não tem como desfazer.</p>
+      <button id="f-excluir" class="perigo" style="width:100%">Excluir este animal</button>
     </div>`;
 
   modal.classList.remove("escondido");
@@ -661,6 +679,17 @@ async function abrirFicha(id) {
   document.getElementById("gp-calcular").onclick = () => calcularGmdPeriodo(id);
   document.getElementById("btn-lote").onclick = () => moverLote(id);
   document.getElementById("btn-simular").onclick = () => simularVenda(id, a.tipo);
+
+  // Brinco (corrige número digitado errado).
+  document.getElementById("f-brinco-salvar").onclick = async () => {
+    const novo = document.getElementById("f-brinco").value.trim();
+    if (!novo) { alert("O brinco não pode ficar vazio."); return; }
+    try {
+      await api.put("/api/animais/" + id, { brinco: novo });
+      carregarLista();
+      abrirFicha(id);
+    } catch (e) { alert("Erro: " + e.message); }
+  };
 
   // Classificação e raça (salvam na hora ao trocar).
   document.getElementById("f-tipo").onchange = async (e) => {
@@ -684,6 +713,44 @@ async function abrirFicha(id) {
     await api.put("/api/animais/" + id, { status: selStatus.value });
     carregarLista();
   };
+
+  // Apagar uma pesagem específica (lançamento errado).
+  ficha.querySelectorAll(".pesagem-apagar").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Apagar esta pesagem?")) return;
+      try {
+        await api.delete(`/api/animais/${id}/pesagens/${btn.dataset.id}`);
+        abrirFicha(id);
+        carregarLista();
+      } catch (e) { alert("Erro: " + e.message); }
+    };
+  });
+
+  // Excluir o animal inteiro — exige digitar o brinco pra confirmar.
+  document.getElementById("f-excluir").onclick = async () => {
+    const digitado = prompt(`Isso vai apagar o animal ${a.brinco} e TODO o histórico dele.\n\nPra confirmar, digite o brinco (${a.brinco}):`);
+    if (digitado === null) return;
+    if (digitado.trim() !== a.brinco) { alert("Brinco não confere. Nada foi apagado."); return; }
+    try {
+      await api.delete("/api/animais/" + id);
+      modal.classList.add("escondido");
+      limparCacheLotes();
+      carregarLista();
+      if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
+    } catch (e) { alert("Erro: " + e.message); }
+  };
+
+  // Peão não edita cadastro/pesagens antigas nem exclui nada — esconde esses controles.
+  if (!usuarioAtual || usuarioAtual.papel !== "dono") {
+    ["f-brinco", "f-brinco-salvar", "f-tipo", "f-raca", "f-obs", "f-obs-salvar",
+     "f-status", "f-excluir"].forEach((elId) => {
+      const el2 = document.getElementById(elId);
+      if (el2) el2.disabled = true;
+    });
+    ficha.querySelectorAll(".pesagem-apagar").forEach((btn) => (btn.style.visibility = "hidden"));
+    const secaoExcluir = document.getElementById("f-excluir").closest(".ficha-secao");
+    if (secaoExcluir) secaoExcluir.classList.add("escondido");
+  }
 }
 
 async function calcularGmdPeriodo(id) {
