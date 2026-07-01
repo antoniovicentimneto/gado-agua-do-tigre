@@ -15,6 +15,7 @@ from ..models import (
     Animal,
     AnimalLote,
     Compra,
+    Denticao,
     HistoricoBrinco,
     Lote,
     ModoVenda,
@@ -231,11 +232,15 @@ def registrar_pesagem(
     forcar: bool = False,
     criar_animal: bool = False,
     tipo: str | None = None,
+    animal_id: int | None = None,
+    novo_tipo: str | None = None,
+    nova_raca: str | None = None,
+    dentes: int | None = None,
 ) -> dict:
     """Registra a pesagem de um animal na sessão.
 
     Devolve {"ok": True, ...} ou {"alerta": "<tipo>", ...} quando precisa de
-    confirmação do usuário (fora do lote / já pesado / inexistente).
+    confirmação do usuário (ambíguo / fora do lote / já pesado / inexistente).
     """
     brinco = brinco.strip()
     nomes_origem = {l.nome for l in sessao.origens}
@@ -252,12 +257,27 @@ def registrar_pesagem(
             return {"alerta": "inexistente", "brinco": brinco,
                     "mensagem": f"Brinco {brinco} não existe no sistema."}
     else:
-        # Prioriza um animal que esteja em um lote de origem.
-        no_lote = [a for a in candidatos if lote_atual(a) in nomes_origem]
-        animal = (no_lote or candidatos)[0]
+        # Brinco repetido: pede pro usuário escolher qual animal pesar.
+        if animal_id is not None:
+            animal = next((a for a in candidatos if a.id == animal_id), None) or candidatos[0]
+        elif len(candidatos) > 1:
+            return {
+                "alerta": "ambiguo", "brinco": brinco,
+                "mensagem": f"Há {len(candidatos)} animais com o brinco {brinco}. Escolha qual pesar.",
+                "candidatos": [
+                    {"animal_id": a.id, "tipo": a.tipo, "raca": a.raca,
+                     "lote": lote_atual(a),
+                     "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None}
+                    for a in candidatos
+                ],
+            }
+        else:
+            # Prioriza um animal que esteja em um lote de origem.
+            no_lote = [a for a in candidatos if lote_atual(a) in nomes_origem]
+            animal = (no_lote or candidatos)[0]
 
         # Aviso: brinco não está em nenhum lote de origem.
-        if not no_lote and not forcar:
+        if lote_atual(animal) not in nomes_origem and not forcar:
             return {"alerta": "fora_do_lote", "brinco": brinco, "animal_id": animal.id,
                     "lote": lote_atual(animal),
                     "mensagem": f"Brinco {brinco} não está no(s) lote(s) desta pesagem (está em {lote_atual(animal)})."}
@@ -268,6 +288,22 @@ def registrar_pesagem(
             return {"alerta": "ja_pesado", "brinco": brinco, "animal_id": animal.id,
                     "peso_anterior": ja.peso,
                     "mensagem": f"Brinco {brinco} já foi pesado nesta sessão ({ja.peso} kg)."}
+
+    # Edições opcionais do animal feitas na hora da pesagem (não obrigatórias).
+    if novo_tipo:
+        animal.tipo = novo_tipo.strip()
+    if nova_raca:
+        animal.raca = nova_raca.strip()
+    if dentes is not None:
+        d = (
+            db.query(Denticao)
+            .filter(Denticao.animal_id == animal.id, Denticao.data == sessao.data)
+            .first()
+        )
+        if d:
+            d.dentes = dentes
+        else:
+            db.add(Denticao(animal_id=animal.id, data=sessao.data, dentes=dentes))
 
     # Procura pesagem do animal NA MESMA DATA (mesma sessão ou outra do dia) p/ atualizar
     # em vez de duplicar (respeita a unicidade animal+data).
@@ -352,10 +388,12 @@ def info_animal(db: Session, sessao: SessaoPesagem, brinco: str) -> dict:
         "animal_id": animal.id,
         "brinco": animal.brinco,
         "tipo": animal.tipo,
+        "raca": animal.raca,
         "lote": lote_atual(animal),
         "no_lote_origem": bool(no_lote),
         "ultimo_peso": animal.pesagens[-1].peso if animal.pesagens else None,
         "gmd": _gmd_animal(animal),
+        "varios": len(candidatos),
     }
 
 

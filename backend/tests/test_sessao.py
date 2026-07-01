@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.models import Animal, SessaoPesagem, StatusAnimal, TipoSessao
+from app.models import Animal, Pesagem, SessaoPesagem, StatusAnimal, TipoSessao
 from app.services import sessao as svc
 from app.services.consultas import lote_atual
 
@@ -61,6 +61,39 @@ def test_alerta_fora_do_lote(db):
     s = _abrir_manejo(db)
     r = svc.registrar_pesagem(db, s, "201", 450)  # 201 está no LOTEB
     assert r["alerta"] == "fora_do_lote"
+
+
+def test_brinco_duplicado_pede_escolha(db):
+    # Cria um segundo animal "101" no mesmo lote (brinco repetido).
+    from app.models import AnimalLote
+    lote_a = db.query(Animal).filter(Animal.brinco == "101").first().lotes[0].lote
+    dup = Animal(brinco="101", tipo="Boi", status=StatusAnimal.ATIVO)
+    db.add(dup)
+    db.flush()
+    db.add(AnimalLote(animal_id=dup.id, lote_id=lote_a.id, data_inicio=HOJE))
+    db.commit()
+
+    r = svc.registrar_pesagem(db, s := _abrir_manejo(db), "101", 400)
+    assert r["alerta"] == "ambiguo"
+    assert len(r["candidatos"]) == 2
+    # Escolhendo um id específico, registra naquele animal.
+    escolhido = r["candidatos"][1]["animal_id"]
+    r2 = svc.registrar_pesagem(db, s, "101", 400, animal_id=escolhido)
+    assert r2["ok"]
+    p = db.query(Pesagem).filter(Pesagem.animal_id == escolhido, Pesagem.data == HOJE).first()
+    assert p is not None and p.peso == 400
+
+
+def test_pesagem_edita_tipo_raca_e_dentes(db):
+    from app.models import Denticao
+    s = _abrir_manejo(db)
+    r = svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo",
+                              novo_tipo="Vaca", nova_raca="Nelore", dentes=4)
+    assert r["ok"]
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    assert a.tipo == "Vaca" and a.raca == "Nelore"
+    d = db.query(Denticao).filter(Denticao.animal_id == a.id).first()
+    assert d is not None and d.dentes == 4
 
 
 def test_cadastro_rapido_inexistente(db):

@@ -13,6 +13,25 @@ async function mgInit() {
   if (!el("mg-data").value) el("mg-data").value = new Date().toISOString().slice(0, 10);
   await mgCarregarLotes();
   await mgCarregarAbertas();
+  await mgPreencherOpcoes();
+}
+
+// Preenche os selects de tipo/raça das "mais opções" com as listas da config.
+async function mgPreencherOpcoes() {
+  const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
+  if (el("mg-op-tipo")) el("mg-op-tipo").innerHTML = opcoesHTML(tipos, "", "— manter —");
+  if (el("mg-op-raca")) el("mg-op-raca").innerHTML = opcoesHTML(racas, "", "— manter —");
+}
+
+// Liga/desliga o painel de "mais opções".
+el("mg-mais-toggle").onclick = () => el("mg-mais").classList.toggle("escondido");
+
+function mgLimparMaisOpcoes() {
+  el("mg-mais").classList.add("escondido");
+  el("mg-op-tipo").value = "";
+  el("mg-op-raca").value = "";
+  el("mg-op-dentes").value = "";
+  el("mg-op-obs").value = "";
 }
 
 // Reage ao clique na aba Mangueira (em adição ao handler de troca de aba do app.js).
@@ -233,18 +252,31 @@ el("mg-brinco").oninput = () => {
       return;
     }
     const gmd = info.gmd == null ? "—" : info.gmd.toFixed(3);
-    box.textContent = `${info.tipo || ""} · último ${info.ultimo_peso ?? "—"} kg · GMD ${gmd}`
-      + (info.no_lote_origem ? "" : ` · ⚠ fora do lote (${info.lote})`);
-    box.className = info.no_lote_origem ? "mg-info-animal" : "mg-info-animal fora";
+    const dados = `${info.tipo || ""}${info.raca ? " · " + info.raca : ""} · último ${info.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+    const aviso = info.varios > 1 ? ` · ⚠ ${info.varios} animais com esse brinco`
+      : (info.no_lote_origem ? "" : ` · ⚠ fora do lote (${info.lote})`);
+    box.textContent = dados + aviso;
+    box.className = (info.no_lote_origem && info.varios <= 1) ? "mg-info-animal" : "mg-info-animal fora";
   }, 200);
 };
 
 // ----------------------------------------------------------- Enviar pesagem
+// Lê os campos opcionais de "mais opções" (só os preenchidos).
+function mgOpcoesExtras() {
+  const e = {};
+  const t = el("mg-op-tipo").value; if (t) e.novo_tipo = t;
+  const r = el("mg-op-raca").value; if (r) e.nova_raca = r;
+  const d = el("mg-op-dentes").value.trim(); if (d) e.dentes = parseInt(d, 10);
+  const o = el("mg-op-obs").value.trim(); if (o) e.observacao = o;
+  return e;
+}
+
 function mgEnviar(extra) {
   return api.post(`/api/sessoes/${mg.sessaoId}/pesar`, {
     brinco: el("mg-brinco").value.trim(),
     peso: parseFloat(el("mg-peso").value),
     destino_lote: mg.loteAtivo,
+    ...mgOpcoesExtras(),
     ...extra,
   });
 }
@@ -259,6 +291,7 @@ async function mgSucesso(r) {
   el("mg-peso").value = "";
   el("mg-info-animal").textContent = "";
   el("mg-alerta").classList.add("escondido");
+  mgLimparMaisOpcoes();
   el("mg-brinco").focus();
   mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
 }
@@ -274,6 +307,7 @@ function mgSucessoOffline(brinco, peso) {
   el("mg-peso").value = "";
   el("mg-info-animal").textContent = "";
   el("mg-alerta").classList.add("escondido");
+  mgLimparMaisOpcoes();
   el("mg-brinco").focus();
 }
 
@@ -289,7 +323,7 @@ el("mg-form").onsubmit = async (ev) => {
     filaAdicionar({
       sessaoId: mg.sessaoId,
       tipo: "pesar",
-      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true },
+      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras() },
     });
     mgSucessoOffline(brinco, peso);
     return;
@@ -305,7 +339,7 @@ el("mg-form").onsubmit = async (ev) => {
       filaAdicionar({
         sessaoId: mg.sessaoId,
         tipo: "pesar",
-        dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true },
+        dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras() },
       });
       mgSucessoOffline(brinco, peso);
       return;
@@ -315,15 +349,34 @@ el("mg-form").onsubmit = async (ev) => {
   }
 };
 
+// Opções de tipo (da config) pra usar nos selects síncronos do painel de aviso.
+function mgTiposOpcoesHTML() {
+  const tipos = (typeof cache !== "undefined" && cache.tipo) || ["Novilha", "Boi", "Vaca", "Bezerro"];
+  return tipos.map((t) => `<option>${t}</option>`).join("");
+}
+
 // Painel de aviso conforme o tipo de alerta.
 function mgMostrarAlerta(r) {
   const box = el("mg-alerta");
-  if (r.alerta === "inexistente") {
+  if (r.alerta === "ambiguo") {
+    // Brinco repetido: deixa o usuário escolher qual animal pesar.
+    box.innerHTML = `<p>⚠ ${r.mensagem}</p><div class="acoes" id="al-ambiguo"></div>`;
+    box.classList.remove("escondido");
+    r.candidatos.forEach((c) => {
+      const b = document.createElement("button");
+      b.className = "secundario";
+      b.textContent = `${c.tipo || "?"}${c.raca ? " " + c.raca : ""} · ${c.lote || "sem lote"} · ${c.ultimo_peso ?? "—"} kg`;
+      b.onclick = async () => {
+        const r2 = await mgEnviar({ animal_id: c.animal_id, forcar: true });
+        if (r2.alerta) return mgMostrarAlerta(r2);
+        if (r2.ok) await mgSucesso(r2);
+      };
+      el("al-ambiguo").appendChild(b);
+    });
+  } else if (r.alerta === "inexistente") {
     box.innerHTML = `
       <p>⚠ ${r.mensagem}</p>
-      <select id="al-tipo">
-        <option>Novilha</option><option>Boi</option><option>Vaca</option><option>Bezerro</option>
-      </select>
+      <select id="al-tipo">${mgTiposOpcoesHTML()}</select>
       <div class="acoes">
         <button id="al-cadastrar">Cadastrar e pesar</button>
         <button id="al-semb" class="secundario">Pesar sem brinco</button>

@@ -110,6 +110,10 @@ def pesar(sessao_id: int, dados: schemas.PesarDados, db: Session = Depends(get_d
         forcar=dados.forcar,
         criar_animal=dados.criar_animal,
         tipo=dados.tipo,
+        animal_id=dados.animal_id,
+        novo_tipo=dados.novo_tipo,
+        nova_raca=dados.nova_raca,
+        dentes=dados.dentes,
     )
 
 

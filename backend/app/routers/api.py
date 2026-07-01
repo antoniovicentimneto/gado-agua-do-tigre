@@ -20,6 +20,7 @@ from ..models import (
     Venda,
 )
 from .. import schemas
+from ..services import opcoes as svc_opcoes
 from ..services.auth import requer_dono, usuario_atual
 from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
 from ..services.exportacao import gerar_planilha, nome_arquivo
@@ -149,13 +150,18 @@ def pesagem_rapida(dados: schemas.PesagemRapida, db: Session = Depends(get_db)):
     animais = db.query(Animal).filter(Animal.brinco == dados.brinco).all()
     if not animais:
         raise HTTPException(status_code=404, detail=f"Brinco {dados.brinco} não encontrado")
-    if len(animais) > 1:
+    if dados.animal_id is not None:
+        animal = next((a for a in animais if a.id == dados.animal_id), None)
+        if animal is None:
+            raise HTTPException(status_code=404, detail="Animal escolhido não encontrado")
+    elif len(animais) > 1:
         return {
             "ambiguidade": True,
             "mensagem": f"Existem {len(animais)} animais com o brinco {dados.brinco}.",
             "animais": [montar_resumo(a) for a in animais],
         }
-    animal = animais[0]
+    else:
+        animal = animais[0]
     existente = (
         db.query(Pesagem)
         .filter(Pesagem.animal_id == animal.id, Pesagem.data == dados.data)
@@ -167,6 +173,63 @@ def pesagem_rapida(dados: schemas.PesagemRapida, db: Session = Depends(get_db)):
         db.add(Pesagem(animal_id=animal.id, data=dados.data, peso=dados.peso))
     db.commit()
     return {"ok": True, "animal": montar_resumo(animal)}
+
+
+# ---------------------------------------------------- Consulta rápida / opções
+
+@router.get("/info-animal")
+def info_animal_rapida(brinco: str, db: Session = Depends(get_db)):
+    """Dados de apoio ao digitar o brinco na pesagem rápida (sem sessão).
+
+    Se houver brincos repetidos, devolve a lista de candidatos pra escolher.
+    """
+    animais = db.query(Animal).filter(Animal.brinco == brinco.strip()).all()
+    if not animais:
+        return {"encontrado": False}
+    if len(animais) > 1:
+        return {
+            "encontrado": True, "ambiguo": True,
+            "candidatos": [
+                {"animal_id": a.id, "tipo": a.tipo, "raca": a.raca,
+                 "lote": lote_atual(a),
+                 "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None}
+                for a in animais
+            ],
+        }
+    a = animais[0]
+    r = montar_resumo(a)
+    return {
+        "encontrado": True, "ambiguo": False, "animal_id": a.id,
+        "tipo": a.tipo, "raca": a.raca, "lote": r["lote_atual"],
+        "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
+    }
+
+
+@router.get("/opcoes/{categoria}", response_model=list[schemas.OpcaoSaida])
+def listar_opcoes(categoria: str, db: Session = Depends(get_db)):
+    """Lista as opções de uma categoria ('tipo' ou 'raca')."""
+    if categoria not in svc_opcoes.CATEGORIAS:
+        raise HTTPException(status_code=404, detail="Categoria inválida")
+    return svc_opcoes.listar(db, categoria)
+
+
+@router.post("/opcoes/{categoria}", status_code=201, response_model=schemas.OpcaoSaida)
+def criar_opcao(categoria: str, dados: schemas.OpcaoCriar,
+                db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    if categoria not in svc_opcoes.CATEGORIAS:
+        raise HTTPException(status_code=404, detail="Categoria inválida")
+    try:
+        return svc_opcoes.criar(db, categoria, dados.nome)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/opcoes/{categoria}/{opcao_id}")
+def remover_opcao(categoria: str, opcao_id: int,
+                  db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    if not svc_opcoes.remover(db, categoria, opcao_id):
+        raise HTTPException(status_code=404, detail="Opção não encontrada")
+    return {"ok": True}
 
 
 # ---------------------------------------------------- Dentição e Score
@@ -303,10 +366,19 @@ def juntar_lotes(dados: schemas.LoteJuntar, db: Session = Depends(get_db)):
 
     hoje = date.today()
     movidos = 0
-    for animal in db.query(Animal).filter(Animal.status == StatusAnimal.ATIVO).all():
-        if lote_atual(animal) == origem.nome:
-            _mover_animal(db, animal, destino, hoje)
-            movidos += 1
+    # Pega direto os vínculos ABERTOS no lote de origem (evita varrer todos os
+    # animais um a um, que ficava lento demais com o banco na nuvem).
+    vinculos = (
+        db.query(AnimalLote)
+        .filter(AnimalLote.lote_id == origem.id, AnimalLote.data_fim.is_(None))
+        .all()
+    )
+    for vinculo in vinculos:
+        animal = vinculo.animal
+        if animal.status != StatusAnimal.ATIVO:
+            continue
+        _mover_animal(db, animal, destino, hoje)
+        movidos += 1
     db.commit()
     return {"ok": True, "movidos": movidos, "origem": origem.nome, "destino": destino.nome}
 

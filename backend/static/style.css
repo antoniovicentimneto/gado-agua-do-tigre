@@ -260,6 +260,16 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-info-animal { min-height: 20px; font-size: 0.85rem; color: var(--cinza); text-align: center; }
 .mg-info-animal.fora { color: var(--vermelho); font-weight: 600; }
 
+.mg-mais-toggle {
+  background: none; color: var(--cinza); border: none; font-size: 0.85rem;
+  font-weight: 600; padding: 6px; width: 100%; text-align: center;
+}
+.mg-mais {
+  border: 1px solid var(--borda); border-radius: 10px; padding: 10px; margin-top: 6px;
+}
+.mg-mais label { display: block; margin: 6px 0 2px; font-weight: 600; font-size: 0.82rem; }
+.mg-mais select, .mg-mais input { width: 100%; }
+
 .mg-msg { text-align: center; margin-top: 8px; font-weight: 600; min-height: 22px; }
 .mg-msg.ok { color: var(--verde); }
 .mg-msg.erro { color: var(--vermelho); }
@@ -326,6 +336,18 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 .card-usuario .nome { font-weight: 700; }
 .card-usuario .sub { color: var(--cinza); font-size: 0.82rem; }
 .card-usuario button { background: none; color: var(--vermelho); padding: 6px 10px; font-size: 0.85rem; }
+
+/* Listas de configuração (tipos/raças) */
+.cfg-lista { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.cfg-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--verde-claro); color: var(--verde); font-weight: 600;
+  border-radius: 20px; padding: 6px 6px 6px 12px; font-size: 0.9rem;
+}
+.cfg-tag button {
+  background: rgba(0,0,0,0.08); color: var(--texto); border: none;
+  width: 22px; height: 22px; border-radius: 50%; padding: 0; font-size: 1rem; line-height: 1;
+}
 
 /* Fila de pesagens offline aguardando envio */
 .fila-status {

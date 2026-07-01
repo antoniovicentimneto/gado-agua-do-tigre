@@ -65,6 +65,7 @@ window.logout = logout;
 function aplicarPermissoes() {
   const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
   document.getElementById("aba-btn-usuarios").classList.toggle("escondido", !ehDono);
+  document.getElementById("aba-btn-config").classList.toggle("escondido", !ehDono);
   document.getElementById("btn-exportar").classList.toggle("escondido", !ehDono);
   // Tipos de sessão de compra/venda na mangueira são só do dono.
   document.querySelectorAll("#mg-tipo option[value=compra], #mg-tipo option[value=venda_fazenda], #mg-tipo option[value=venda_morto]")
@@ -175,12 +176,120 @@ document.getElementById("nu-criar").onclick = async () => {
   }
 };
 
+// ----------------------------------------------------------- Config (tipos/raças)
+async function carregarConfig() {
+  await renderConfigLista("tipo", "cfg-tipos");
+  await renderConfigLista("raca", "cfg-racas");
+}
+
+async function renderConfigLista(categoria, boxId) {
+  const itens = await api.get("/api/opcoes/" + categoria);
+  const box = document.getElementById(boxId);
+  box.innerHTML = itens.length
+    ? itens.map((o) => `
+        <span class="cfg-tag">${esc(o.nome)}
+          <button data-id="${o.id}" title="remover">×</button>
+        </span>`).join("")
+    : "<span class='info'>Nenhum cadastrado ainda.</span>";
+  box.querySelectorAll("button").forEach((b) => {
+    b.onclick = async () => {
+      try {
+        await api.delete(`/api/opcoes/${categoria}/${b.dataset.id}`);
+        cache[categoria] = null;       // invalida o cache pra recarregar atualizado
+        renderConfigLista(categoria, boxId);
+      } catch (e) { document.getElementById("cfg-msg").textContent = e.message; }
+    };
+  });
+}
+
+async function adicionarOpcao(categoria, inputId, boxId) {
+  const inp = document.getElementById(inputId);
+  const nome = inp.value.trim();
+  if (!nome) return;
+  try {
+    await api.post("/api/opcoes/" + categoria, { nome });
+    inp.value = "";
+    cache[categoria] = null;
+    document.getElementById("cfg-msg").textContent = "";
+    renderConfigLista(categoria, boxId);
+  } catch (e) { document.getElementById("cfg-msg").textContent = e.message; }
+}
+
+document.getElementById("cfg-tipo-add").onclick = () => adicionarOpcao("tipo", "cfg-tipo-nome", "cfg-tipos");
+document.getElementById("cfg-raca-add").onclick = () => adicionarOpcao("raca", "cfg-raca-nome", "cfg-racas");
+
 const fmt = {
   gmd: (v) => (v == null ? "—" : v.toFixed(3) + " kg/dia"),
   peso: (v) => (v == null ? "—" : v.toFixed(0) + " kg"),
   data: (v) => (v == null ? "—" : v.split("-").reverse().join("/")),
   real: (v) => (v == null ? "—" : "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })),
 };
+
+// Escapa texto pra usar com segurança dentro de HTML/atributos.
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ----------------------------------------------------- Opções (tipos/raças) e lotes
+const cache = { tipo: null, raca: null, lotes: null };
+
+async function opcoes(categoria) {
+  if (!cache[categoria]) {
+    cache[categoria] = (await api.get("/api/opcoes/" + categoria)).map((o) => o.nome);
+  }
+  return cache[categoria];
+}
+
+async function nomesLotes() {
+  if (!cache.lotes) {
+    cache.lotes = (await api.get("/api/lotes")).map((l) => l.nome).sort((a, b) => a.localeCompare(b));
+  }
+  return cache.lotes;
+}
+
+function limparCacheLotes() { cache.lotes = null; }
+
+// Monta as <option> de um select a partir de uma lista de nomes.
+function opcoesHTML(nomes, atual, rotuloVazio = "—") {
+  const temAtual = atual && nomes.includes(atual);
+  let html = `<option value="">${rotuloVazio}</option>`;
+  // Se o valor atual não está na lista (ex.: dado antigo), mantém como opção.
+  if (atual && !temAtual) html += `<option value="${esc(atual)}" selected>${esc(atual)} (atual)</option>`;
+  html += nomes.map((n) => `<option value="${esc(n)}" ${n === atual ? "selected" : ""}>${esc(n)}</option>`).join("");
+  return html;
+}
+
+// Seletor de lote: dropdown dos lotes já cadastrados + opção de criar um novo.
+// Retorna o HTML; depois chame ligarSeletorLote(prefixo) e leia com valorLote(prefixo).
+async function seletorLoteHTML(prefixo, atual = "") {
+  const lotes = await nomesLotes();
+  return `
+    <select id="${prefixo}-sel">
+      <option value="">— escolher lote —</option>
+      ${lotes.map((n) => `<option value="${esc(n)}" ${n === atual ? "selected" : ""}>${esc(n)}</option>`).join("")}
+      <option value="__novo__">➕ novo lote...</option>
+    </select>
+    <input id="${prefixo}-novo" class="escondido" placeholder="Nome do novo lote" style="margin-top:6px" />`;
+}
+
+function ligarSeletorLote(prefixo) {
+  const sel = document.getElementById(prefixo + "-sel");
+  const inp = document.getElementById(prefixo + "-novo");
+  if (!sel || !inp) return;
+  sel.onchange = () => {
+    const novo = sel.value === "__novo__";
+    inp.classList.toggle("escondido", !novo);
+    if (novo) inp.focus();
+  };
+}
+
+function valorLote(prefixo) {
+  const sel = document.getElementById(prefixo + "-sel");
+  if (!sel) return "";
+  if (sel.value === "__novo__") return document.getElementById(prefixo + "-novo").value.trim();
+  return sel.value;
+}
 
 // ----------------------------------------------------------- Navegação por abas
 document.querySelectorAll(".abas button").forEach((b) => {
@@ -191,6 +300,7 @@ document.querySelectorAll(".abas button").forEach((b) => {
     document.getElementById("aba-" + b.dataset.aba).classList.add("ativa");
     if (b.dataset.aba === "painel") carregarPainel();
     if (b.dataset.aba === "usuarios") carregarUsuarios();
+    if (b.dataset.aba === "config") carregarConfig();
   };
 });
 
@@ -343,10 +453,8 @@ async function abrirLote(loteId, nome) {
 
     <div class="ficha-secao">
       <h3>Juntar com outro lote</h3>
-      <div class="linha-pesar">
-        <input id="lote-juntar-destino" placeholder="Nome do lote destino" />
-        <button id="lote-juntar">Juntar tudo</button>
-      </div>
+      ${await seletorLoteHTML("lote-juntar", "")}
+      <button id="lote-juntar" style="margin-top:8px;width:100%">Juntar tudo</button>
       <div class="info">Move todos os ${animais.length} animais para o outro lote.</div>
     </div>
 
@@ -354,13 +462,14 @@ async function abrirLote(loteId, nome) {
       <h3>Animais (${animais.length})</h3>
       <div class="info"><a href="#" id="lote-sel-todos">marcar todos</a> · <a href="#" id="lote-sel-nada">desmarcar</a> · clique no título da coluna pra ordenar</div>
       <div class="lote-animais"></div>
-      <div class="linha-pesar">
-        <input id="lote-mover-destino" placeholder="Mover marcados para..." />
-        <button id="lote-mover">Mover</button>
-      </div>
+      <label style="font-weight:600;font-size:0.85rem;margin-top:10px;display:block">Mover marcados para</label>
+      ${await seletorLoteHTML("lote-mover", "")}
+      <button id="lote-mover" style="margin-top:8px;width:100%">Mover marcados</button>
     </div>`;
 
   renderTabela();
+  ligarSeletorLote("lote-juntar");
+  ligarSeletorLote("lote-mover");
   modal.classList.remove("escondido");
 
   const marcados = () => [...document.querySelectorAll(".lote-chk:checked")].map((c) => parseInt(c.value));
@@ -379,23 +488,40 @@ async function abrirLote(loteId, nome) {
       carregarLotes();
     } catch (e) { alert(e.message); }
   };
-  document.getElementById("lote-mover").onclick = async () => {
+  document.getElementById("lote-mover").onclick = async (ev) => {
     const ids = marcados();
-    const destino = document.getElementById("lote-mover-destino").value.trim();
+    const destino = valorLote("lote-mover");
     if (!ids.length) { alert("Marque pelo menos um animal."); return; }
-    if (!destino) { alert("Informe o lote destino."); return; }
-    const r = await api.post("/api/lotes/mover", { animal_ids: ids, destino });
-    alert(`${r.movidos} animais movidos para ${r.destino}.`);
-    abrirLote(loteId, nome);
+    if (!destino) { alert("Escolha o lote destino."); return; }
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.textContent = "Movendo...";
+    try {
+      const r = await api.post("/api/lotes/mover", { animal_ids: ids, destino });
+      limparCacheLotes();
+      alert(`${r.movidos} animais movidos para ${r.destino}.`);
+      abrirLote(loteId, nome);
+    } catch (e) {
+      alert("Erro ao mover: " + e.message);
+      btn.disabled = false; btn.textContent = "Mover marcados";
+    }
   };
-  document.getElementById("lote-juntar").onclick = async () => {
-    const destino = document.getElementById("lote-juntar-destino").value.trim();
-    if (!destino) { alert("Informe o lote destino."); return; }
+  document.getElementById("lote-juntar").onclick = async (ev) => {
+    const destino = valorLote("lote-juntar");
+    if (!destino) { alert("Escolha o lote destino."); return; }
+    if (destino === nome) { alert("Escolha um lote diferente do atual."); return; }
     if (!confirm(`Juntar todo o lote ${nome} em ${destino}?`)) return;
-    const r = await api.post("/api/lotes/juntar", { origem_id: loteId, destino });
-    alert(`${r.movidos} animais movidos de ${r.origem} para ${r.destino}.`);
-    modal.classList.add("escondido");
-    carregarLotes();
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.textContent = "Juntando...";
+    try {
+      const r = await api.post("/api/lotes/juntar", { origem_id: loteId, destino });
+      limparCacheLotes();
+      alert(`${r.movidos} animais movidos de ${r.origem} para ${r.destino}.`);
+      modal.classList.add("escondido");
+      carregarLotes();
+    } catch (e) {
+      alert("Erro ao juntar: " + e.message);
+      btn.disabled = false; btn.textContent = "Juntar tudo";
+    }
   };
 }
 
@@ -407,6 +533,7 @@ modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList
 
 async function abrirFicha(id) {
   const a = await api.get("/api/animais/" + id);
+  const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
   const ficha = document.getElementById("ficha");
   const pesagens = a.pesagens
     .slice()
@@ -414,9 +541,29 @@ async function abrirFicha(id) {
     .map((p) => `<tr><td>${fmt.data(p.data)}</td><td>${fmt.peso(p.peso)}</td></tr>`)
     .join("");
 
+  // Histórico de lotes (com datas). a.lotes vem do detalhar_animal.
+  const historicoLotes = (a.lotes || [])
+    .slice()
+    .reverse()
+    .map((l) => {
+      const fim = l.data_fim ? fmt.data(l.data_fim) : "<b>atual</b>";
+      return `<tr><td>${esc(l.lote)}</td><td>${l.data_inicio ? fmt.data(l.data_inicio) : "—"}</td><td>${fim}</td></tr>`;
+    }).join("") || "<tr><td colspan=3>Sem histórico</td></tr>";
+
   ficha.innerHTML = `
-    <h2>Brinco ${a.brinco} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}</span>` : ""}</h2>
-    <div class="sub">${a.tipo || ""} · ${a.raca || "sem raça"} · ${a.lote_atual || "sem lote"}</div>
+    <h2>Brinco ${esc(a.brinco)} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}</span>` : ""}</h2>
+    <div class="sub">${esc(a.tipo || "")} · ${esc(a.raca || "sem raça")} · ${esc(a.lote_atual || "sem lote")}</div>
+
+    <div class="grid-2 ficha-secao">
+      <div>
+        <label style="font-weight:600;font-size:0.85rem">Classificação</label>
+        <select id="f-tipo">${opcoesHTML(tipos, a.tipo)}</select>
+      </div>
+      <div>
+        <label style="font-weight:600;font-size:0.85rem">Raça</label>
+        <select id="f-raca">${opcoesHTML(racas, a.raca)}</select>
+      </div>
+    </div>
 
     <div class="ficha-secao">
       <label style="font-weight:600;font-size:0.85rem">Situação</label>
@@ -426,6 +573,12 @@ async function abrirFicha(id) {
         <option value="perdido">Perdido</option>
         <option value="morto">Morto</option>
       </select>
+    </div>
+
+    <div class="ficha-secao">
+      <label style="font-weight:600;font-size:0.85rem">Observação</label>
+      <textarea id="f-obs" rows="2" style="width:100%">${esc(a.observacao || "")}</textarea>
+      <button id="f-obs-salvar" class="secundario" style="margin-top:6px">Salvar observação</button>
     </div>
 
     <div class="grid-2 ficha-secao">
@@ -445,10 +598,13 @@ async function abrirFicha(id) {
 
     <div class="ficha-secao">
       <h3>Mudar lote</h3>
-      <div class="linha-pesar">
-        <input id="novo-lote" placeholder="Novo lote" />
-        <button id="btn-lote">Mover</button>
-      </div>
+      <div id="ficha-lote-sel">${await seletorLoteHTML("ficha-lote", a.lote_atual || "")}</div>
+      <button id="btn-lote" style="margin-top:8px;width:100%">Mover de lote</button>
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Histórico de lotes</h3>
+      <table><thead><tr><th>Lote</th><th>Entrou</th><th>Saiu</th></tr></thead><tbody>${historicoLotes}</tbody></table>
     </div>
 
     <div class="ficha-secao">
@@ -470,9 +626,25 @@ async function abrirFicha(id) {
   modal.dataset.animalId = id;
   modal.dataset.tipo = a.tipo || "";
 
+  ligarSeletorLote("ficha-lote");
   document.getElementById("gp-calcular").onclick = () => calcularGmdPeriodo(id);
   document.getElementById("btn-lote").onclick = () => moverLote(id);
   document.getElementById("btn-simular").onclick = () => simularVenda(id, a.tipo);
+
+  // Classificação e raça (salvam na hora ao trocar).
+  document.getElementById("f-tipo").onchange = async (e) => {
+    await api.put("/api/animais/" + id, { tipo: e.target.value || null });
+    carregarLista();
+  };
+  document.getElementById("f-raca").onchange = async (e) => {
+    await api.put("/api/animais/" + id, { raca: e.target.value || null });
+    carregarLista();
+  };
+  document.getElementById("f-obs-salvar").onclick = async () => {
+    await api.put("/api/animais/" + id, { observacao: document.getElementById("f-obs").value || null });
+    document.getElementById("f-obs-salvar").textContent = "Salvo ✓";
+    carregarLista();
+  };
 
   // Situação do animal (ativo/vendido/perdido/morto).
   const selStatus = document.getElementById("f-status");
@@ -500,9 +672,10 @@ async function calcularGmdPeriodo(id) {
 }
 
 async function moverLote(id) {
-  const nome = document.getElementById("novo-lote").value.trim();
-  if (!nome) return;
+  const nome = valorLote("ficha-lote");
+  if (!nome) { alert("Escolha ou digite o lote destino."); return; }
   await api.post(`/api/animais/${id}/lote?nome_lote=${encodeURIComponent(nome)}`, {});
+  limparCacheLotes();
   abrirFicha(id);
   carregarLista();
 }
@@ -530,8 +703,36 @@ async function simularVenda(id, tipo) {
 const hoje = new Date().toISOString().slice(0, 10);
 document.getElementById("pesar-data").value = hoje;
 
-document.getElementById("form-pesar").onsubmit = async (ev) => {
-  ev.preventDefault();
+// Mostra dados do animal ao digitar o brinco (igual à mangueira).
+let pesarEscolhido = null;   // animal_id escolhido quando há brinco repetido
+let pesarInfoTimer;
+document.getElementById("pesar-brinco").oninput = () => {
+  clearTimeout(pesarInfoTimer);
+  pesarEscolhido = null;
+  document.getElementById("pesar-escolha").classList.add("escondido");
+  const brinco = document.getElementById("pesar-brinco").value.trim();
+  const box = document.getElementById("pesar-info");
+  if (!brinco) { box.textContent = ""; box.className = "mg-info-animal"; return; }
+  pesarInfoTimer = setTimeout(async () => {
+    let info;
+    try {
+      info = await api.get("/api/info-animal?brinco=" + encodeURIComponent(brinco));
+    } catch { return; }
+    if (!info.encontrado) {
+      box.textContent = "⚠ brinco não cadastrado"; box.className = "mg-info-animal fora"; return;
+    }
+    if (info.ambiguo) {
+      box.textContent = `⚠ ${info.candidatos.length} animais com esse brinco — escolha ao salvar`;
+      box.className = "mg-info-animal fora";
+      return;
+    }
+    const gmd = info.gmd == null ? "—" : info.gmd.toFixed(3);
+    box.textContent = `${info.tipo || ""}${info.raca ? " · " + info.raca : ""} · ${info.lote || "sem lote"} · último ${info.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+    box.className = "mg-info-animal";
+  }, 200);
+};
+
+async function salvarPesagemRapida(animalId) {
   const brinco = document.getElementById("pesar-brinco").value.trim();
   const peso = parseFloat(document.getElementById("pesar-peso").value);
   const data = document.getElementById("pesar-data").value;
@@ -539,9 +740,9 @@ document.getElementById("form-pesar").onsubmit = async (ev) => {
   if (!brinco || !peso || !data) return;
 
   try {
-    const r = await api.post("/api/pesagem-rapida", { brinco, peso, data });
+    const r = await api.post("/api/pesagem-rapida", { brinco, peso, data, animal_id: animalId });
     if (r.ambiguidade) {
-      msg.textContent = r.mensagem + " Use a aba Rebanho para escolher o animal certo.";
+      mostrarEscolhaPesarRapida(r.animais);
       return;
     }
     const li = document.createElement("li");
@@ -550,10 +751,32 @@ document.getElementById("form-pesar").onsubmit = async (ev) => {
     msg.textContent = "Salvo!";
     document.getElementById("pesar-brinco").value = "";
     document.getElementById("pesar-peso").value = "";
+    document.getElementById("pesar-info").textContent = "";
+    document.getElementById("pesar-escolha").classList.add("escondido");
+    pesarEscolhido = null;
     document.getElementById("pesar-brinco").focus();
   } catch (e) {
     msg.textContent = "Erro: " + e.message;
   }
+}
+
+function mostrarEscolhaPesarRapida(animais) {
+  const box = document.getElementById("pesar-escolha");
+  box.innerHTML = `<p>Qual animal pesar?</p><div class="acoes"></div>`;
+  const acoes = box.querySelector(".acoes");
+  animais.forEach((a) => {
+    const b = document.createElement("button");
+    b.className = "secundario";
+    b.textContent = `${a.tipo || "?"} · ${a.lote_atual || "sem lote"} · ${fmt.peso(a.ultimo_peso)}`;
+    b.onclick = () => { pesarEscolhido = a.id; salvarPesagemRapida(a.id); };
+    acoes.appendChild(b);
+  });
+  box.classList.remove("escondido");
+}
+
+document.getElementById("form-pesar").onsubmit = (ev) => {
+  ev.preventDefault();
+  salvarPesagemRapida(pesarEscolhido);
 };
 
 // ----------------------------------------------------------- Painel

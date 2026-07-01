@@ -66,6 +66,7 @@ class PesagemRapida(BaseModel):
     brinco: str
     data: date
     peso: float
+    animal_id: int | None = None  # escolha quando há brincos repetidos
 
 
 class DenticaoCriar(BaseModel):
@@ -81,6 +82,16 @@ class ScoreCriar(BaseModel):
 class LoteSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    nome: str
+
+
+class OpcaoSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    nome: str
+
+
+class OpcaoCriar(BaseModel):
     nome: str
 
 
@@ -124,6 +135,10 @@ class PesarDados(BaseModel):
     forcar: bool = False
     criar_animal: bool = False   # cadastro rápido quando o brinco não existe
     tipo: str | None = None      # tipo do animal no cadastro rápido
+    animal_id: int | None = None  # desambiguação quando há brincos repetidos
+    novo_tipo: str | None = None  # editar a classificação do animal na hora
+    nova_raca: str | None = None  # editar a raça do animal na hora
+    dentes: int | None = None     # registrar a dentição com a data da pesagem
 
 
 class PesarSemBrinco(BaseModel):

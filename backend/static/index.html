@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=13" />
+  <link rel="stylesheet" href="/static/style.css?v=14" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -57,6 +57,7 @@
     <button data-aba="rebanho">Rebanho</button>
     <button data-aba="pesar">Pesar</button>
     <button data-aba="painel">Painel</button>
+    <button data-aba="config" id="aba-btn-config" class="escondido">Config</button>
     <button data-aba="usuarios" id="aba-btn-usuarios" class="escondido">Usuários</button>
   </nav>
 
@@ -136,6 +137,18 @@
             <div id="mg-info-animal" class="mg-info-animal"></div>
             <input id="mg-peso" placeholder="Peso (kg)" inputmode="decimal" />
             <button type="submit" id="mg-enviar">Enviar</button>
+            <button type="button" id="mg-mais-toggle" class="mg-mais-toggle">⚙ mais opções (tipo, raça, dentes, obs)</button>
+            <div id="mg-mais" class="mg-mais escondido">
+              <label>Classificação</label>
+              <select id="mg-op-tipo"></select>
+              <label>Raça</label>
+              <select id="mg-op-raca"></select>
+              <div class="grid-2">
+                <div><label>Dentes (nº)</label><input id="mg-op-dentes" inputmode="numeric" /></div>
+                <div><label>Observação</label><input id="mg-op-obs" /></div>
+              </div>
+              <div class="info">Estes campos são opcionais — só preencha se quiser editar o animal.</div>
+            </div>
           </form>
           <button id="mg-sem-brinco" class="secundario" style="width:100%;margin-top:6px">Pesar SEM brinco</button>
           <div id="mg-msg" class="mg-msg"></div>
@@ -197,6 +210,8 @@
         <button type="submit">Salvar</button>
       </div>
     </form>
+    <div id="pesar-info" class="mg-info-animal"></div>
+    <div id="pesar-escolha" class="mg-alerta escondido"></div>
     <div id="pesar-msg" class="info"></div>
     <ul id="pesar-historico"></ul>
   </section>
@@ -211,6 +226,31 @@
       <p class="info">Baixa uma planilha Excel completa (animais, pesos e datas) — sua cópia de fácil acesso, sempre atual.</p>
       <a id="btn-exportar" href="/api/exportar/excel" class="botao-link">⬇ Exportar planilha Excel</a>
     </div>
+  </section>
+
+  <!-- ABA CONFIG (só dono) -->
+  <section id="aba-config" class="aba">
+    <h2>Configurações</h2>
+    <p class="info">Listas que aparecem pra escolher ao cadastrar/pesar um animal.</p>
+
+    <div class="ficha-secao">
+      <h3>Classificações (tipos de animal)</h3>
+      <div id="cfg-tipos" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-tipo-nome" placeholder="Ex.: Novilha, Boi, Vaca, Bezerro" />
+        <button id="cfg-tipo-add">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Raças</h3>
+      <div id="cfg-racas" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-raca-nome" placeholder="Ex.: Nelore, Angus, Cruzado" />
+        <button id="cfg-raca-add">Adicionar</button>
+      </div>
+    </div>
+    <div id="cfg-msg" class="info"></div>
   </section>
 
   <!-- ABA USUÁRIOS (só dono) -->
@@ -245,9 +285,9 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=13"></script>
-  <script src="/static/fila-offline.js?v=13"></script>
-  <script src="/static/mangueira.js?v=13"></script>
+  <script src="/static/app.js?v=14"></script>
+  <script src="/static/fila-offline.js?v=14"></script>
+  <script src="/static/mangueira.js?v=14"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

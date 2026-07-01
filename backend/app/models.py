@@ -274,3 +274,14 @@ class Venda(Base):
     valor_recebido: Mapped[float | None] = mapped_column(Float)  # calculado
 
     animal: Mapped[Animal] = relationship(back_populates="venda")
+
+
+class OpcaoCadastro(Base):
+    """Opções pré-cadastradas pra preencher campos do animal escolhendo de uma
+    lista em vez de digitar livre. Categoria: 'tipo' (Novilha, Boi...) ou 'raca'."""
+    __tablename__ = "opcoes_cadastro"
+    __table_args__ = (UniqueConstraint("categoria", "nome", name="uq_opcao_categoria_nome"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    categoria: Mapped[str] = mapped_column(String(20), index=True)  # 'tipo' ou 'raca'
+    nome: Mapped[str] = mapped_column(String(60))
