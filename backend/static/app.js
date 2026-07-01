@@ -436,8 +436,15 @@ const TIPO_MANEJO_LABEL = {
 
 async function carregarManejos() {
   const box = document.getElementById("lista-manejos");
-  box.innerHTML = "<div class='info'>Carregando...</div>";
-  const lista = await api.get("/api/manejos");
+  box.innerHTML = "<div class='info'>⏳ Carregando manejos... (pode levar alguns segundos na primeira vez)</div>";
+  let lista;
+  try {
+    lista = await api.get("/api/manejos");
+  } catch (e) {
+    box.innerHTML = `<div class="info">⚠ Erro ao carregar: ${esc(e.message)}. <a href="#" id="manejos-retentar">Tentar de novo</a></div>`;
+    document.getElementById("manejos-retentar").onclick = (ev) => { ev.preventDefault(); carregarManejos(); };
+    return;
+  }
   box.innerHTML = "";
   if (!lista.length) { box.innerHTML = "<div class='info'>Nenhum manejo registrado ainda.</div>"; return; }
   lista.forEach((m) => {
@@ -464,7 +471,13 @@ async function carregarManejos() {
 async function abrirManejo(chave) {
   const [prefixo, valor] = [chave.slice(0, 1), chave.slice(2)];
   const url = prefixo === "s" ? `/api/manejos/sessao/${valor}` : `/api/manejos/legado/${valor}`;
-  const d = await api.get(url);
+  let d;
+  try {
+    d = await api.get(url);
+  } catch (e) {
+    alert("Erro ao abrir o manejo: " + e.message);
+    return;
+  }
   const s = d.sessao;
   const linhas = d.pesados
     .map((p) => `
