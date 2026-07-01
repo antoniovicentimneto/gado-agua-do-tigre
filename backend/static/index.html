@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=14" />
+  <link rel="stylesheet" href="/static/style.css?v=15" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -78,12 +78,14 @@
       <label>Data</label>
       <input type="date" id="mg-data" />
 
-      <!-- Campos de compra (preço/kg + vendedor) -->
+      <!-- Campos de compra (preço/kg + vendedor + lote de destino) -->
       <div id="mg-campos-compra" class="escondido">
         <div class="grid-2">
           <div><label>Preço por kg (R$)</label><input id="mg-preco-kg" inputmode="decimal" /></div>
           <div><label>Vendedor</label><input id="mg-vendedor" /></div>
         </div>
+        <label>Lote de destino <span class="info">(onde entram os comprados)</span></label>
+        <div id="mg-compra-destino"></div>
       </div>
 
       <!-- Campo de venda (preço da @) -->
@@ -92,14 +94,17 @@
         <input id="mg-preco-arroba" inputmode="decimal" />
       </div>
 
-      <label>Lote(s) a pesar <span class="info">(segure Ctrl/Cmd para marcar vários)</span></label>
-      <select id="mg-origens" multiple size="6"></select>
+      <!-- Bloco de origens (manejo/venda) — some na compra -->
+      <div id="mg-bloco-origens">
+        <label>Lote(s) a pesar <span class="info">(segure Ctrl/Cmd para marcar vários)</span></label>
+        <select id="mg-origens" multiple size="6"></select>
 
-      <label class="check"><input type="checkbox" id="mg-separar" /> Separar em novos lotes?</label>
-      <div id="mg-sublotes-area" class="escondido">
-        <label>Sublotes (nome de cada um)</label>
-        <div id="mg-sublotes-lista"></div>
-        <button type="button" id="mg-add-sublote" class="secundario">+ sublote</button>
+        <label class="check"><input type="checkbox" id="mg-separar" /> Separar em novos lotes?</label>
+        <div id="mg-sublotes-area" class="escondido">
+          <label>Sublotes (nome de cada um)</label>
+          <div id="mg-sublotes-lista"></div>
+          <button type="button" id="mg-add-sublote" class="secundario">+ sublote</button>
+        </div>
       </div>
 
       <button id="mg-iniciar" style="width:100%;margin-top:12px">Iniciar pesagem</button>
@@ -285,9 +290,9 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=14"></script>
-  <script src="/static/fila-offline.js?v=14"></script>
-  <script src="/static/mangueira.js?v=14"></script>
+  <script src="/static/app.js?v=15"></script>
+  <script src="/static/fila-offline.js?v=15"></script>
+  <script src="/static/mangueira.js?v=15"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

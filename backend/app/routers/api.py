@@ -177,6 +177,29 @@ def pesagem_rapida(dados: schemas.PesagemRapida, db: Session = Depends(get_db)):
 
 # ---------------------------------------------------- Consulta rápida / opções
 
+@router.get("/animais-cache")
+def animais_cache(db: Session = Depends(get_db)):
+    """Lista compacta de todos os animais ATIVOS pra o app guardar em memória e
+    consultar o brinco localmente (sem ir à internet a cada tecla)."""
+    animais = (
+        db.query(Animal)
+        .filter(Animal.status == StatusAnimal.ATIVO)
+        .options(
+            selectinload(Animal.pesagens),
+            selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+        )
+        .all()
+    )
+    saida = []
+    for a in animais:
+        r = montar_resumo(a)
+        saida.append({
+            "id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
+            "lote": r["lote_atual"], "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
+        })
+    return saida
+
+
 @router.get("/info-animal")
 def info_animal_rapida(brinco: str, db: Session = Depends(get_db)):
     """Dados de apoio ao digitar o brinco na pesagem rápida (sem sessão).

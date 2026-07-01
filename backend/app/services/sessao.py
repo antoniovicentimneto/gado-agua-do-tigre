@@ -175,10 +175,11 @@ def _proxima_ordem(sessao: SessaoPesagem) -> int:
 
 def _criar_animal_na_sessao(
     db: Session, sessao: SessaoPesagem, brinco: str, tipo: str | None,
-    destino: Lote | None, sem_brinco: bool = False,
+    destino: Lote | None, sem_brinco: bool = False, raca: str | None = None,
 ) -> Animal:
     """Cadastra um animal novo durante a sessão e o coloca num lote (cadastro rápido)."""
-    animal = Animal(brinco=brinco, tipo=tipo, sem_brinco=sem_brinco, status=StatusAnimal.ATIVO)
+    animal = Animal(brinco=brinco, tipo=tipo, raca=raca, sem_brinco=sem_brinco,
+                    status=StatusAnimal.ATIVO)
     db.add(animal)
     db.flush()
     # Coloca no lote de destino (se separa) ou no 1º lote de origem.
@@ -249,9 +250,20 @@ def registrar_pesagem(
     # Encontra o animal pelo brinco (pode haver brincos repetidos na base).
     candidatos = db.query(Animal).filter(Animal.brinco == brinco).all()
 
-    if not candidatos:
-        # Em sessão de COMPRA os brincos são novos: cadastra automático.
-        if criar_animal or sessao.tipo == TipoSessao.COMPRA:
+    # COMPRA: são sempre animais NOVOS. Cria direto (com tipo/raça informados),
+    # sem tratar como existente — só avisa se o brinco já é usado por outro.
+    if sessao.tipo == TipoSessao.COMPRA:
+        if not criar_animal:
+            return {"alerta": "compra_novo", "brinco": brinco,
+                    "ja_existe": len(candidatos),
+                    "mensagem": (f"⚠ Já existe {len(candidatos)} animal com o brinco {brinco}. "
+                                 if candidatos else "")
+                                + "Cadastre o tipo e a raça do animal comprado."}
+        animal = _criar_animal_na_sessao(db, sessao, brinco, novo_tipo or tipo, destino,
+                                         raca=nova_raca)
+        novo_tipo = nova_raca = None  # já aplicados na criação
+    elif not candidatos:
+        if criar_animal:
             animal = _criar_animal_na_sessao(db, sessao, brinco, tipo, destino)
         else:
             return {"alerta": "inexistente", "brinco": brinco,
@@ -341,7 +353,11 @@ def registrar_pesagem(
         "ok": True,
         "pesagem_id": pesagem.id,
         "ordem": pesagem.ordem,
+        "animal_id": animal.id,
         "brinco": animal.brinco,
+        "tipo": animal.tipo,
+        "raca": animal.raca,
+        "lote_atual": lote_atual(animal),
         "peso": pesagem.peso,
         "destino": destino.nome if destino else None,
         # Dados de apoio que a tela mostra ao digitar o brinco.

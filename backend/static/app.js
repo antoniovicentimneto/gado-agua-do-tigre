@@ -81,6 +81,7 @@ function entrarNoApp(dados) {
   document.getElementById("usuario-logado-nome").textContent = `${dados.nome} (${dados.papel})`;
   aplicarPermissoes();
   carregarLista();
+  carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
   if (typeof mgInit === "function") mgInit();
 }
 
@@ -249,6 +250,36 @@ async function nomesLotes() {
 }
 
 function limparCacheLotes() { cache.lotes = null; }
+
+// Cache dos animais ATIVOS carregado uma vez (fica na memória da página).
+// Assim a consulta do brinco é local e instantânea, sem ir à internet a cada tecla.
+const cacheAnimais = { porBrinco: new Map(), carregadoEm: 0 };
+
+async function carregarCacheAnimais() {
+  const lista = await api.get("/api/animais-cache");
+  const m = new Map();
+  for (const a of lista) {
+    const k = String(a.brinco);
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(a);
+  }
+  cacheAnimais.porBrinco = m;
+  cacheAnimais.carregadoEm = Date.now();
+}
+
+function animaisPorBrinco(brinco) {
+  return cacheAnimais.porBrinco.get(String(brinco).trim()) || [];
+}
+
+// Insere/atualiza um animal no cache local (após pesar/cadastrar), sem ir à rede.
+function cacheUpsertAnimal(a) {
+  const k = String(a.brinco);
+  let arr = cacheAnimais.porBrinco.get(k);
+  if (!arr) { arr = []; cacheAnimais.porBrinco.set(k, arr); }
+  const i = arr.findIndex((x) => x.id === a.id);
+  if (i >= 0) arr[i] = { ...arr[i], ...a };
+  else arr.push(a);
+}
 
 // Monta as <option> de um select a partir de uma lista de nomes.
 function opcoesHTML(nomes, atual, rotuloVazio = "—") {
@@ -705,31 +736,26 @@ document.getElementById("pesar-data").value = hoje;
 
 // Mostra dados do animal ao digitar o brinco (igual à mangueira).
 let pesarEscolhido = null;   // animal_id escolhido quando há brinco repetido
-let pesarInfoTimer;
+// Consulta LOCAL no cache (instantânea, sem internet a cada tecla / sem trocar brinco errado).
 document.getElementById("pesar-brinco").oninput = () => {
-  clearTimeout(pesarInfoTimer);
   pesarEscolhido = null;
   document.getElementById("pesar-escolha").classList.add("escondido");
   const brinco = document.getElementById("pesar-brinco").value.trim();
   const box = document.getElementById("pesar-info");
   if (!brinco) { box.textContent = ""; box.className = "mg-info-animal"; return; }
-  pesarInfoTimer = setTimeout(async () => {
-    let info;
-    try {
-      info = await api.get("/api/info-animal?brinco=" + encodeURIComponent(brinco));
-    } catch { return; }
-    if (!info.encontrado) {
-      box.textContent = "⚠ brinco não cadastrado"; box.className = "mg-info-animal fora"; return;
-    }
-    if (info.ambiguo) {
-      box.textContent = `⚠ ${info.candidatos.length} animais com esse brinco — escolha ao salvar`;
-      box.className = "mg-info-animal fora";
-      return;
-    }
-    const gmd = info.gmd == null ? "—" : info.gmd.toFixed(3);
-    box.textContent = `${info.tipo || ""}${info.raca ? " · " + info.raca : ""} · ${info.lote || "sem lote"} · último ${info.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
-    box.className = "mg-info-animal";
-  }, 200);
+  const cands = animaisPorBrinco(brinco);
+  if (!cands.length) {
+    box.textContent = "⚠ brinco não cadastrado"; box.className = "mg-info-animal fora"; return;
+  }
+  if (cands.length > 1) {
+    box.textContent = `⚠ ${cands.length} animais com esse brinco — escolha ao salvar`;
+    box.className = "mg-info-animal fora";
+    return;
+  }
+  const a = cands[0];
+  const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
+  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+  box.className = "mg-info-animal";
 };
 
 async function salvarPesagemRapida(animalId) {
@@ -744,6 +770,12 @@ async function salvarPesagemRapida(animalId) {
     if (r.ambiguidade) {
       mostrarEscolhaPesarRapida(r.animais);
       return;
+    }
+    if (r.animal) {
+      cacheUpsertAnimal({
+        id: r.animal.id, brinco: r.animal.brinco, tipo: r.animal.tipo, raca: r.animal.raca,
+        lote: r.animal.lote_atual, ultimo_peso: r.animal.ultimo_peso, gmd: r.animal.gmd,
+      });
     }
     const li = document.createElement("li");
     li.textContent = `✓ Brinco ${brinco}: ${peso} kg`;
@@ -802,6 +834,7 @@ async function carregarPainel() {
     document.getElementById("usuario-logado-nome").textContent = `${eu.nome} (${eu.papel})`;
     aplicarPermissoes();
     carregarLista();
+    carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
     if (typeof mgInit === "function") mgInit();
   } catch (e) {
     iniciarTelaLogin();

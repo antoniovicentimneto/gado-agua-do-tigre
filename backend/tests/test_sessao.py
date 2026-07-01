@@ -145,11 +145,30 @@ def test_vincular_sem_brinco_definindo_brinco_novo(db):
     assert faltante.brinco == "9001"
 
 
-def test_compra_calcula_valor(db):
-    s = svc.criar_sessao(db, TipoSessao.COMPRA, HOJE, ["CompraX"], False, preco_kg=11.5)
-    svc.registrar_pesagem(db, s, "7001", 300)
+def test_compra_pede_cadastro_e_calcula_valor(db):
+    s = svc.criar_sessao(db, TipoSessao.COMPRA, HOJE, [], True, sublotes=["Novos"],
+                         preco_kg=11.5)
+    # Sem criar_animal, compra pede o cadastro (tipo/raça).
+    r = svc.registrar_pesagem(db, s, "7001", 300)
+    assert r["alerta"] == "compra_novo"
+    # Com o cadastro, cria o animal novo (tipo/raça) e calcula o valor.
+    r2 = svc.registrar_pesagem(db, s, "7001", 300, criar_animal=True,
+                               novo_tipo="Boi", nova_raca="Nelore")
+    assert r2["ok"]
     a = db.query(Animal).filter(Animal.brinco == "7001").first()
+    assert a.tipo == "Boi" and a.raca == "Nelore"
     assert a.compra.valor == 300 * 11.5
+
+
+def test_compra_avisa_brinco_ja_existente(db):
+    # Já existe o brinco 101 no fixture; comprar outro 101 deve só avisar.
+    s = svc.criar_sessao(db, TipoSessao.COMPRA, HOJE, [], True, sublotes=["Novos"])
+    r = svc.registrar_pesagem(db, s, "101", 320)
+    assert r["alerta"] == "compra_novo" and r["ja_existe"] >= 1
+    r2 = svc.registrar_pesagem(db, s, "101", 320, criar_animal=True, novo_tipo="Vaca")
+    assert r2["ok"]
+    # Passou a existir mais de um animal com brinco 101.
+    assert db.query(Animal).filter(Animal.brinco == "101").count() == 2
 
 
 def test_venda_fazenda_valor_e_status(db):

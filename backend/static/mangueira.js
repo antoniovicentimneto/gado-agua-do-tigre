@@ -69,10 +69,18 @@ async function mgCarregarAbertas() {
 }
 
 // Mostra os campos certos conforme o tipo de sessão.
-el("mg-tipo").onchange = () => {
+el("mg-tipo").onchange = async () => {
   const t = el("mg-tipo").value;
-  el("mg-campos-compra").classList.toggle("escondido", t !== "compra");
+  const ehCompra = t === "compra";
+  el("mg-campos-compra").classList.toggle("escondido", !ehCompra);
   el("mg-campos-venda").classList.toggle("escondido", t !== "venda_fazenda" && t !== "venda_morto");
+  // Na compra não se escolhe lote de origem (são animais novos) — só o destino.
+  el("mg-bloco-origens").classList.toggle("escondido", ehCompra);
+  if (ehCompra && !el("mg-compra-destino").dataset.pronto) {
+    el("mg-compra-destino").innerHTML = await seletorLoteHTML("mg-compra", "");
+    ligarSeletorLote("mg-compra");
+    el("mg-compra-destino").dataset.pronto = "1";
+  }
 };
 
 // ----------------------------------------------------------- Sublotes na abertura
@@ -93,15 +101,28 @@ el("mg-add-sublote").onclick = mgAddSubloteInput;
 
 // ----------------------------------------------------------- Iniciar sessão
 el("mg-iniciar").onclick = async () => {
-  const origens = [...el("mg-origens").selectedOptions].map((o) => o.value);
-  if (!origens.length) { alert("Escolha pelo menos um lote para pesar."); return; }
-  const separar = el("mg-separar").checked;
-  const sublotes = separar
-    ? [...document.querySelectorAll(".mg-sublote-input")].map((i) => i.value.trim()).filter(Boolean)
-    : [];
+  const tipo = el("mg-tipo").value;
+  const ehCompra = tipo === "compra";
+
+  let origens, separar, sublotes;
+  if (ehCompra) {
+    // Compra: sem lote de origem; o destino vira o lote ativo (onde entram os comprados).
+    const destino = valorLote("mg-compra");
+    if (!destino) { alert("Escolha o lote de destino dos animais comprados."); return; }
+    origens = [];
+    separar = true;
+    sublotes = [destino];
+  } else {
+    origens = [...el("mg-origens").selectedOptions].map((o) => o.value);
+    if (!origens.length) { alert("Escolha pelo menos um lote para pesar."); return; }
+    separar = el("mg-separar").checked;
+    sublotes = separar
+      ? [...document.querySelectorAll(".mg-sublote-input")].map((i) => i.value.trim()).filter(Boolean)
+      : [];
+  }
 
   const dados = {
-    tipo: el("mg-tipo").value,
+    tipo,
     data: el("mg-data").value,
     lotes_origem: origens,
     separar_lotes: separar,
@@ -119,6 +140,7 @@ el("mg-iniciar").onclick = async () => {
     mg.sessaoId = estado.sessao.id;
     mgRenderEstado(estado);
     mgMostrarSessao();
+    await carregarCacheAnimais();   // carrega os animais na memória p/ consulta local
   } catch (e) {
     alert("Erro ao iniciar a pesagem: " + e.message);
   } finally {
@@ -159,6 +181,7 @@ async function mgAbrirSessao(id) {
   const estado = await api.get("/api/sessoes/" + id);
   mgRenderEstado(estado);
   mgMostrarSessao();
+  await carregarCacheAnimais();   // carrega os animais na memória p/ consulta local
 }
 
 // ----------------------------------------------------------- Render do estado
@@ -232,32 +255,37 @@ async function mgNovoSubloteRapido() {
 }
 
 // ----------------------------------------------------------- Info ao digitar o brinco
-let mgInfoTimer;
+// Consulta LOCAL (no cache carregado na abertura da sessão): instantânea, sem
+// internet a cada tecla e sem risco de "puxar o brinco errado" por resposta atrasada.
 el("mg-brinco").oninput = () => {
-  clearTimeout(mgInfoTimer);
   const brinco = el("mg-brinco").value.trim();
   const box = el("mg-info-animal");
   if (!brinco) { box.textContent = ""; box.className = "mg-info-animal"; return; }
-  mgInfoTimer = setTimeout(async () => {
-    if (!navigator.onLine) { box.textContent = "(sem conexão — sem consulta)"; box.className = "mg-info-animal"; return; }
-    let info;
-    try {
-      info = await api.get(`/api/sessoes/${mg.sessaoId}/info?brinco=${encodeURIComponent(brinco)}`);
-    } catch {
-      box.textContent = "(sem conexão — sem consulta)"; box.className = "mg-info-animal"; return;
-    }
-    if (!info.encontrado) {
-      box.textContent = "⚠ brinco não cadastrado";
-      box.className = "mg-info-animal fora";
-      return;
-    }
-    const gmd = info.gmd == null ? "—" : info.gmd.toFixed(3);
-    const dados = `${info.tipo || ""}${info.raca ? " · " + info.raca : ""} · último ${info.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
-    const aviso = info.varios > 1 ? ` · ⚠ ${info.varios} animais com esse brinco`
-      : (info.no_lote_origem ? "" : ` · ⚠ fora do lote (${info.lote})`);
-    box.textContent = dados + aviso;
-    box.className = (info.no_lote_origem && info.varios <= 1) ? "mg-info-animal" : "mg-info-animal fora";
-  }, 200);
+  const ehCompra = mg.estado && mg.estado.sessao.tipo === "compra";
+  const cands = animaisPorBrinco(brinco);
+
+  if (!cands.length) {
+    box.textContent = ehCompra ? "novo — cadastre o tipo/raça ao enviar" : "⚠ brinco não cadastrado";
+    box.className = ehCompra ? "mg-info-animal" : "mg-info-animal fora";
+    return;
+  }
+  if (ehCompra) {
+    box.textContent = `⚠ já existe ${cands.length} animal com esse brinco — vai cadastrar um novo`;
+    box.className = "mg-info-animal fora";
+    return;
+  }
+  if (cands.length > 1) {
+    box.textContent = `⚠ ${cands.length} animais com esse brinco — escolha ao enviar`;
+    box.className = "mg-info-animal fora";
+    return;
+  }
+  const a = cands[0];
+  const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
+  const nomesOrig = new Set((mg.estado.sessao.origens) || []);
+  const fora = !nomesOrig.has(a.lote);
+  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+  box.textContent = dados + (fora ? " · ⚠ fora do lote" : "");
+  box.className = fora ? "mg-info-animal fora" : "mg-info-animal";
 };
 
 // ----------------------------------------------------------- Enviar pesagem
@@ -287,6 +315,13 @@ async function mgSucesso(r) {
   msg.className = "mg-msg ok";
   el("mg-form").classList.add("mg-flash");
   setTimeout(() => el("mg-form").classList.remove("mg-flash"), 500);
+  // Mantém o cache local atualizado (animal novo ou peso/tipo/raça mudados).
+  if (r.animal_id) {
+    cacheUpsertAnimal({
+      id: r.animal_id, brinco: r.brinco, tipo: r.tipo, raca: r.raca,
+      lote: r.destino || r.lote_atual, ultimo_peso: r.peso, gmd: r.gmd,
+    });
+  }
   el("mg-brinco").value = "";
   el("mg-peso").value = "";
   el("mg-info-animal").textContent = "";
@@ -311,35 +346,28 @@ function mgSucessoOffline(brinco, peso) {
   el("mg-brinco").focus();
 }
 
-el("mg-form").onsubmit = async (ev) => {
-  ev.preventDefault();
+// Faz o envio de fato: online manda pro servidor; offline guarda na fila.
+async function mgEnviarOuFila(extra) {
   const brinco = el("mg-brinco").value.trim();
   const peso = parseFloat(el("mg-peso").value);
-  if (!brinco || !peso) return;
-  el("mg-alerta").classList.add("escondido");
-
   if (!navigator.onLine) {
-    // Sem sinal: não dá pra checar duplicidade/fora-do-lote, então lança direto.
     filaAdicionar({
-      sessaoId: mg.sessaoId,
-      tipo: "pesar",
-      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras() },
+      sessaoId: mg.sessaoId, tipo: "pesar",
+      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
     });
     mgSucessoOffline(brinco, peso);
     return;
   }
-
   try {
-    const r = await mgEnviar({ forcar: false });
+    const r = await mgEnviar({ forcar: false, ...extra });
     if (r.alerta) return mgMostrarAlerta(r);
     if (r.ok) await mgSucesso(r);
   } catch (e) {
     if (e instanceof TypeError) {
       // Caiu o sinal durante o envio: guarda na fila e segue.
       filaAdicionar({
-        sessaoId: mg.sessaoId,
-        tipo: "pesar",
-        dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras() },
+        sessaoId: mg.sessaoId, tipo: "pesar",
+        dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
       });
       mgSucessoOffline(brinco, peso);
       return;
@@ -347,17 +375,80 @@ el("mg-form").onsubmit = async (ev) => {
     el("mg-msg").textContent = "Erro: " + e.message;
     el("mg-msg").className = "mg-msg erro";
   }
+}
+
+el("mg-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const brinco = el("mg-brinco").value.trim();
+  const peso = parseFloat(el("mg-peso").value);
+  if (!brinco || !peso) return;
+  el("mg-alerta").classList.add("escondido");
+
+  const ehCompra = mg.estado && mg.estado.sessao.tipo === "compra";
+  const cands = animaisPorBrinco(brinco);   // consulta local (cache)
+
+  // Compra: sempre cadastra um animal NOVO, pedindo tipo e raça (avisa se o brinco já existe).
+  if (ehCompra) return mgCadastroCompra(brinco, cands.length);
+
+  // Brinco repetido: escolhe localmente qual pesar (funciona online e offline).
+  if (cands.length > 1) return mgEscolherDuplicadoLocal(cands);
+
+  await mgEnviarOuFila({});
 };
 
-// Opções de tipo (da config) pra usar nos selects síncronos do painel de aviso.
+// Seletor de brinco repetido montado a partir do cache (sem depender da rede).
+function mgEscolherDuplicadoLocal(cands) {
+  const box = el("mg-alerta");
+  box.innerHTML = `<p>⚠ ${cands.length} animais com esse brinco. Escolha qual pesar:</p><div class="acoes" id="al-ambiguo"></div>`;
+  box.classList.remove("escondido");
+  cands.forEach((c) => {
+    const b = document.createElement("button");
+    b.className = "secundario";
+    b.textContent = `${c.tipo || "?"}${c.raca ? " " + c.raca : ""} · ${c.lote || "sem lote"} · ${c.ultimo_peso ?? "—"} kg`;
+    b.onclick = () => mgEnviarOuFila({ animal_id: c.id, forcar: true });
+    el("al-ambiguo").appendChild(b);
+  });
+}
+
+// Cadastro rápido de compra: pede tipo e raça (obrigatório escolher), cria e pesa.
+function mgCadastroCompra(brinco, jaExiste) {
+  const box = el("mg-alerta");
+  box.innerHTML = `
+    ${jaExiste ? `<p>⚠ Já existe ${jaExiste} animal com o brinco ${brinco}. Vai cadastrar um NOVO.</p>` : `<p>Novo animal (compra) — brinco ${brinco}.</p>`}
+    <label>Classificação</label>
+    <select id="al-c-tipo">${mgTiposOpcoesHTML()}</select>
+    <label>Raça</label>
+    <select id="al-c-raca">${mgRacasOpcoesHTML()}</select>
+    <div class="acoes">
+      <button id="al-c-ok">Cadastrar e pesar</button>
+      <button id="al-c-cancelar" class="secundario">Cancelar</button>
+    </div>`;
+  box.classList.remove("escondido");
+  el("al-c-ok").onclick = () => mgEnviarOuFila({
+    criar_animal: true,
+    novo_tipo: el("al-c-tipo").value || null,
+    nova_raca: el("al-c-raca").value || null,
+  });
+  el("al-c-cancelar").onclick = () => box.classList.add("escondido");
+}
+
+// Opções de tipo/raça (da config) pra usar nos selects síncronos do painel de aviso.
 function mgTiposOpcoesHTML() {
   const tipos = (typeof cache !== "undefined" && cache.tipo) || ["Novilha", "Boi", "Vaca", "Bezerro"];
   return tipos.map((t) => `<option>${t}</option>`).join("");
+}
+function mgRacasOpcoesHTML() {
+  const racas = (typeof cache !== "undefined" && cache.raca) || [];
+  return `<option value="">— sem raça —</option>` + racas.map((r) => `<option>${r}</option>`).join("");
 }
 
 // Painel de aviso conforme o tipo de alerta.
 function mgMostrarAlerta(r) {
   const box = el("mg-alerta");
+  if (r.alerta === "compra_novo") {
+    // Servidor pediu cadastro de compra (rede de segurança se o front não pegou).
+    return mgCadastroCompra(r.brinco, r.ja_existe || 0);
+  }
   if (r.alerta === "ambiguo") {
     // Brinco repetido: deixa o usuário escolher qual animal pesar.
     box.innerHTML = `<p>⚠ ${r.mensagem}</p><div class="acoes" id="al-ambiguo"></div>`;
@@ -551,6 +642,7 @@ el("mg-vincular-btn").onclick = async () => {
     });
     el("mg-modal").classList.add("escondido");
     mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
+    await carregarCacheAnimais();   // vínculo pode ter mudado brincos
   };
 };
 
