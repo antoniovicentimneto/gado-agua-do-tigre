@@ -401,12 +401,16 @@ document.querySelectorAll(".modo-toggle button").forEach((b) => {
     b.classList.add("ativa");
     modoRebanho = b.dataset.modo;
     const porAnimal = modoRebanho === "animal";
+    const porLote = modoRebanho === "lote";
+    const porManejo = modoRebanho === "manejos";
     document.getElementById("filtros-animal").style.display = porAnimal ? "flex" : "none";
     document.getElementById("lista").style.display = porAnimal ? "block" : "none";
-    document.getElementById("lista-lotes").style.display = porAnimal ? "none" : "block";
+    document.getElementById("lista-lotes").style.display = porLote ? "block" : "none";
+    document.getElementById("lista-manejos").style.display = porManejo ? "block" : "none";
     document.getElementById("contador").style.display = porAnimal ? "block" : "none";
     if (porAnimal) carregarLista();
-    else carregarLotes();
+    else if (porLote) carregarLotes();
+    else carregarManejos();
   };
 });
 
@@ -422,6 +426,80 @@ async function carregarLotes() {
     box.appendChild(div);
   });
   if (!lotes.length) box.innerHTML = "<div class='info'>Nenhum lote com animais ativos.</div>";
+}
+
+// ----------------------------------------------------------- Manejos (histórico)
+const TIPO_MANEJO_LABEL = {
+  manejo: "Manejo", compra: "Compra", venda_fazenda: "Venda (fazenda)",
+  venda_morto: "Venda (morto)", legado: "Pesagem (planilha)",
+};
+
+async function carregarManejos() {
+  const box = document.getElementById("lista-manejos");
+  box.innerHTML = "<div class='info'>Carregando...</div>";
+  const lista = await api.get("/api/manejos");
+  box.innerHTML = "";
+  if (!lista.length) { box.innerHTML = "<div class='info'>Nenhum manejo registrado ainda.</div>"; return; }
+  lista.forEach((m) => {
+    const div = document.createElement("div");
+    div.className = "card-manejo";
+    const badgeStatus = m.status === "aberta" ? `<span class="tag">em andamento</span>` : "";
+    const lotesTxt = m.lotes.length ? m.lotes.join(", ") : "";
+    div.innerHTML = `
+      <div class="card-manejo-topo">
+        <b>${fmt.data(m.data)}</b>
+        <span class="tipo-manejo">${TIPO_MANEJO_LABEL[m.tipo] || m.tipo}</span>
+        ${badgeStatus}
+      </div>
+      <div class="sub">${lotesTxt || (m.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
+      <div class="card-manejo-numeros">
+        <span><b>${m.total}</b> pesados</span>
+        <span>peso médio <b>${fmt.peso(m.peso_medio)}</b></span>
+      </div>`;
+    div.onclick = () => abrirManejo(m.chave);
+    box.appendChild(div);
+  });
+}
+
+async function abrirManejo(chave) {
+  const [prefixo, valor] = [chave.slice(0, 1), chave.slice(2)];
+  const url = prefixo === "s" ? `/api/manejos/sessao/${valor}` : `/api/manejos/legado/${valor}`;
+  const d = await api.get(url);
+  const s = d.sessao;
+  const linhas = d.pesados
+    .map((p) => `
+      <tr>
+        <td>${p.ordem ?? "—"}</td>
+        <td><b>${esc(p.brinco)}</b></td>
+        <td>${esc(p.tipo || "")}${p.raca ? " · " + esc(p.raca) : ""}</td>
+        <td>${fmt.peso(p.peso)}</td>
+        ${"destino" in p ? `<td>${esc(p.destino || "—")}</td>` : ""}
+      </tr>`)
+    .join("");
+  const colDestino = d.pesados.length && "destino" in d.pesados[0] ? "<th>Destino</th>" : "";
+
+  const ficha = document.getElementById("ficha");
+  ficha.innerHTML = `
+    <h2>${TIPO_MANEJO_LABEL[s.tipo] || s.tipo} — ${fmt.data(s.data)}</h2>
+    <div class="sub">${[...s.origens, ...s.sublotes].join(", ") || (s.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
+
+    <div class="grid-2 ficha-secao">
+      <div class="destaque"><div class="rotulo">Pesados</div><div class="num">${d.total}</div></div>
+      <div class="destaque"><div class="rotulo">Peso médio</div><div class="num">${fmt.peso(d.peso_medio)}</div></div>
+    </div>
+    <div class="grid-2 ficha-secao">
+      <div class="destaque"><div class="rotulo">GMD médio</div><div class="num">${d.gmd_medio == null ? "—" : d.gmd_medio.toFixed(3)}</div></div>
+      ${s.status ? `<div class="destaque"><div class="rotulo">Situação</div><div class="num" style="font-size:1rem">${s.status === "aberta" ? "Em andamento" : "Finalizada"}</div></div>` : "<div></div>"}
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Animais pesados</h3>
+      <table>
+        <thead><tr><th>#</th><th>Brinco</th><th>Tipo/Raça</th><th>Peso</th>${colDestino}</tr></thead>
+        <tbody>${linhas || "<tr><td colspan=5>Nenhum animal</td></tr>"}</tbody>
+      </table>
+    </div>`;
+  modal.classList.remove("escondido");
 }
 
 // Ordena "9" antes de "10" (numérico quando dá, senão por texto).

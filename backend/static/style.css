@@ -103,6 +103,20 @@ button:active { opacity: 0.85; }
   border-radius: 20px; padding: 4px 12px; font-size: 0.9rem;
 }
 
+/* Cartão de manejo (histórico) */
+.card-manejo {
+  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+}
+.card-manejo-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-manejo-topo b { font-size: 1rem; }
+.tipo-manejo {
+  background: var(--verde-claro); color: var(--verde); font-weight: 700;
+  border-radius: 20px; padding: 2px 10px; font-size: 0.78rem;
+}
+.card-manejo-numeros { display: flex; gap: 14px; margin-top: 6px; font-size: 0.85rem; color: var(--texto); }
+.card-manejo-numeros b { color: var(--verde); }
+
 /* Painel de edição de lote */
 .lote-animais { max-height: 40vh; overflow-y: auto; margin: 8px 0; }
 .lote-animais table { font-size: 0.9rem; }

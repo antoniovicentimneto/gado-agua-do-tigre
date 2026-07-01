@@ -2,10 +2,10 @@
 const CACHE = "gado-agua-do-tigre-v9";
 const ARQUIVOS = [
   "/",
-  "/static/style.css?v=16",
-  "/static/app.js?v=16",
-  "/static/fila-offline.js?v=16",
-  "/static/mangueira.js?v=16",
+  "/static/style.css?v=17",
+  "/static/app.js?v=17",
+  "/static/fila-offline.js?v=17",
+  "/static/mangueira.js?v=17",
   "/static/manifest.json",
   "/static/icon.png",
 ];

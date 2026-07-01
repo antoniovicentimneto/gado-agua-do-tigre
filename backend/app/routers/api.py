@@ -20,6 +20,7 @@ from ..models import (
     Venda,
 )
 from .. import schemas
+from ..services import manejos as svc_manejos
 from ..services import opcoes as svc_opcoes
 from ..services.auth import requer_dono, usuario_atual
 from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
@@ -321,6 +322,27 @@ def gmd_por_periodo(
             detail="Pesagens insuficientes no período para calcular GMD",
         )
     return resultado
+
+
+# ---------------------------------------------------------------- Manejos (histórico)
+
+@router.get("/manejos")
+def listar_manejos(db: Session = Depends(get_db)):
+    """Lista todos os manejos já feitos (sessões do app + histórico antigo)."""
+    return svc_manejos.listar(db)
+
+
+@router.get("/manejos/sessao/{sessao_id}")
+def detalhe_manejo_sessao(sessao_id: int, db: Session = Depends(get_db)):
+    detalhe = svc_manejos.detalhe_sessao(db, sessao_id)
+    if detalhe is None:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    return detalhe
+
+
+@router.get("/manejos/legado/{data}")
+def detalhe_manejo_legado(data: date, db: Session = Depends(get_db)):
+    return svc_manejos.detalhe_legado(db, data)
 
 
 # ---------------------------------------------------------------- Lotes
