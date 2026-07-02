@@ -98,6 +98,7 @@ button:active { opacity: 0.85; }
   align-items: center; cursor: pointer;
 }
 .card-lote .nome { font-weight: 700; font-size: 1.05rem; }
+.card-lote-ind { color: var(--cinza); font-size: 0.8rem; margin-top: 3px; }
 .card-lote .qtd {
   background: var(--verde-claro); color: var(--verde); font-weight: 700;
   border-radius: 20px; padding: 4px 12px; font-size: 0.9rem;
@@ -306,6 +307,8 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-flash { animation: flash 0.5s; }
 @keyframes flash { 0% { background: var(--verde-claro); } 100% { background: transparent; } }
 
+.mg-totais { font-size: 0.85rem; color: var(--texto); margin-bottom: 6px; }
+.mg-totais b { color: var(--verde); }
 .mg-por-sublote { font-size: 0.82rem; color: var(--cinza); margin-bottom: 8px; }
 .mg-por-sublote span { display: inline-block; margin-right: 10px; }
 

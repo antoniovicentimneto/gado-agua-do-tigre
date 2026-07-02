@@ -241,6 +241,13 @@ function mgRenderEstado(estado) {
     ps.appendChild(d);
   });
 
+  // Totais dos pesados: peso somado + uGMD médio do lote em pesagem.
+  const c = estado.contadores;
+  const totais = [];
+  if (c.peso_total) totais.push(`total <b>${c.peso_total} kg</b>`);
+  if (c.ugmd_medio != null) totais.push(`uGMD médio <b>${c.ugmd_medio.toFixed(3)}</b>`);
+  el("mg-totais").innerHTML = totais.join(" · ");
+
   // Contagem por sublote.
   const porSub = estado.contadores.por_sublote;
   el("mg-por-sublote").innerHTML = Object.entries(porSub)
@@ -250,11 +257,20 @@ function mgRenderEstado(estado) {
 }
 
 async function mgNovoSubloteRapido() {
-  const nome = prompt("Nome do novo sublote:");
-  if (!nome) return;
-  const estado = await api.post(`/api/sessoes/${mg.sessaoId}/sublotes`, { nome });
-  mg.loteAtivo = nome;
-  mgRenderEstado(estado);
+  mgModal(`
+    <h2>Adicionar sublote</h2>
+    <p class="info">Escolha um lote já existente ou crie um novo. Os animais pesados vão pra ele.</p>
+    <div id="mg-sub-sel">${await seletorLoteHTML("mg-sub", "")}</div>
+    <button id="mg-sub-ok" style="width:100%;margin-top:12px">Adicionar</button>`);
+  ligarSeletorLote("mg-sub");
+  el("mg-sub-ok").onclick = async () => {
+    const nome = valorLote("mg-sub");
+    if (!nome) { alert("Escolha ou digite o nome do sublote."); return; }
+    const estado = await api.post(`/api/sessoes/${mg.sessaoId}/sublotes`, { nome });
+    mg.loteAtivo = nome;
+    el("mg-modal").classList.add("escondido");
+    mgRenderEstado(estado);
+  };
 }
 
 // ----------------------------------------------------------- Info ao digitar o brinco
@@ -597,9 +613,12 @@ el("mg-sem-brinco").onclick = mgPesarSemBrinco;
 
 async function mgRemover(pesagemId) {
   if (!confirm("Remover esta pesagem?")) return;
-  await fetch(`/api/sessoes/${mg.sessaoId}/pesagens/${pesagemId}`, { method: "DELETE" });
-  const estado = await api.get(`/api/sessoes/${mg.sessaoId}`);
-  mgRenderEstado(estado);
+  try {
+    await api.delete(`/api/sessoes/${mg.sessaoId}/pesagens/${pesagemId}`);
+    mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
+  } catch (e) {
+    alert("Erro ao remover: " + e.message);
+  }
 }
 
 // ----------------------------------------------------------- Modal (resumo / vincular)

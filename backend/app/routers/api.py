@@ -353,22 +353,46 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
     animais ATIVOS na fazenda agora (com a contagem) — usado na tela de pesagem."""
     if somente_ativos:
         ids_por_nome = {l.nome: l.id for l in db.query(Lote).all()}
-        # Carrega os vínculos de lote numa tacada só (evita 1 consulta por animal,
-        # que ficava lento demais com o banco na nuvem em outra região).
+        # Carrega os animais ativos com lotes + pesagens numa tacada só (evita 1
+        # consulta por animal, que ficava lento demais com o banco na nuvem).
         animais = (
             db.query(Animal)
             .filter(Animal.status == StatusAnimal.ATIVO)
-            .options(selectinload(Animal.lotes).selectinload(AnimalLote.lote))
+            .options(
+                selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+                selectinload(Animal.pesagens),
+            )
             .all()
         )
-        contagem: dict[str, int] = {}
+        # Acumula, por lote atual: contagem, GMDs, uGMDs e soma do último peso (p/ UA).
+        agg: dict[str, dict] = {}
         for animal in animais:
             nome = lote_atual(animal)
-            if nome:
-                contagem[nome] = contagem.get(nome, 0) + 1
+            if not nome:
+                continue
+            r = montar_resumo(animal)
+            a = agg.setdefault(nome, {"ativos": 0, "gmds": [], "ugmds": [], "peso": 0.0})
+            a["ativos"] += 1
+            if r["gmd"] is not None:
+                a["gmds"].append(r["gmd"])
+            if r["ugmd"] is not None:
+                a["ugmds"].append(r["ugmd"])
+            if r["ultimo_peso"] is not None:
+                a["peso"] += r["ultimo_peso"]
+
+        def _media(xs):
+            return round(sum(xs) / len(xs), 3) if xs else None
+
         return [
-            {"id": ids_por_nome.get(nome), "nome": nome, "ativos": qtd}
-            for nome, qtd in sorted(contagem.items())
+            {
+                "id": ids_por_nome.get(nome),
+                "nome": nome,
+                "ativos": a["ativos"],
+                "gmd_medio": _media(a["gmds"]),
+                "ugmd_medio": _media(a["ugmds"]),
+                "ua": round(a["peso"] / 450, 1) if a["peso"] else 0,
+            }
+            for nome, a in sorted(agg.items())
         ]
     return [{"id": l.id, "nome": l.nome} for l in db.query(Lote).order_by(Lote.nome).all()]
 

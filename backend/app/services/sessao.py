@@ -94,32 +94,68 @@ def _gmd_animal(animal: Animal) -> float | None:
     return resumo_animal([PontoPesagem(p.data, p.peso) for p in animal.pesagens])["gmd"]
 
 
-def animais_a_pesar(db: Session, sessao: SessaoPesagem) -> list[Animal]:
-    """Animais ativos nos lotes de origem que ainda não foram pesados na sessão."""
+def _ugmd_animal(animal: Animal) -> float | None:
+    return resumo_animal([PontoPesagem(p.data, p.peso) for p in animal.pesagens])["ugmd"]
+
+
+def animais_a_pesar(db: Session, sessao: SessaoPesagem,
+                    ja_pesados: set[int] | None = None) -> list[Animal]:
+    """Animais ativos nos lotes de origem que ainda não foram pesados na sessão.
+
+    Consulta só os animais com vínculo ABERTO nos lotes de origem (via AnimalLote),
+    em vez de carregar todos os animais da fazenda — importante porque o banco fica
+    na nuvem e varrer o rebanho inteiro a cada pesagem ficava lento.
+    """
+    origem_ids = [l.id for l in sessao.origens]
+    if not origem_ids:
+        return []
+    if ja_pesados is None:
+        ja_pesados = {p.animal_id for p in sessao.pesagens}
     nomes_origem = {l.nome for l in sessao.origens}
-    ja_pesados = {p.animal_id for p in sessao.pesagens}
-    resultado = []
-    animais = (
-        db.query(Animal)
-        .filter(Animal.status == StatusAnimal.ATIVO)
-        .options(selectinload(Animal.lotes).selectinload(AnimalLote.lote))
+
+    vinculos = (
+        db.query(AnimalLote)
+        .filter(AnimalLote.lote_id.in_(origem_ids), AnimalLote.data_fim.is_(None))
+        .options(
+            selectinload(AnimalLote.animal)
+            .selectinload(Animal.lotes)
+            .selectinload(AnimalLote.lote)
+        )
         .all()
     )
-    for animal in animais:
-        if animal.id in ja_pesados:
+    resultado, vistos = [], set()
+    for v in vinculos:
+        a = v.animal
+        if a.id in vistos or a.id in ja_pesados or a.status != StatusAnimal.ATIVO:
             continue
-        if lote_atual(animal) in nomes_origem:
-            resultado.append(animal)
+        # Confirma que o lote ATUAL do animal é de origem (não um vínculo antigo aberto).
+        if lote_atual(a) in nomes_origem:
+            vistos.add(a.id)
+            resultado.append(a)
     return resultado
 
 
 def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
     """Monta tudo que a tela precisa: a pesar, pesados e contadores."""
-    a_pesar = animais_a_pesar(db, sessao)
+    # Carrega as pesagens da sessão com animal (+ pesagens do animal, p/ uGMD) e
+    # destino, tudo de uma vez — evita uma consulta por linha sobre a rede.
+    pesagens = (
+        db.query(Pesagem)
+        .filter(Pesagem.sessao_id == sessao.id)
+        .options(
+            selectinload(Pesagem.animal).selectinload(Animal.pesagens),
+            selectinload(Pesagem.destino_lote),
+        )
+        .all()
+    )
+    ja_pesados = {p.animal_id for p in pesagens}
+    a_pesar = animais_a_pesar(db, sessao, ja_pesados=ja_pesados)
 
     pesados = []
     por_sublote: dict[str, int] = {}
-    for p in sorted(sessao.pesagens, key=lambda x: x.ordem or 0):
+    peso_total = 0.0
+    ugmds = []
+    for p in sorted(pesagens, key=lambda x: x.ordem or 0):
         destino = p.destino_lote.nome if p.destino_lote else None
         pesados.append(
             {
@@ -135,6 +171,10 @@ def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
         )
         chave = destino or "(sem separação)"
         por_sublote[chave] = por_sublote.get(chave, 0) + 1
+        peso_total += p.peso or 0
+        u = _ugmd_animal(p.animal)
+        if u is not None:
+            ugmds.append(u)
 
     return {
         "sessao": {
@@ -163,6 +203,8 @@ def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
             "a_pesar": len(a_pesar),
             "pesados": len(pesados),
             "por_sublote": por_sublote,
+            "peso_total": round(peso_total, 1),
+            "ugmd_medio": round(sum(ugmds) / len(ugmds), 3) if ugmds else None,
         },
     }
 
@@ -537,7 +579,14 @@ def vincular(db: Session, sessao: SessaoPesagem, animal_temp_id: int,
 
 def finalizar(db: Session, sessao: SessaoPesagem) -> dict:
     """Aplica as mudanças de lote (sublotes) e fecha a sessão."""
-    for p in sessao.pesagens:
+    # Eager-load das pesagens + animal + histórico de lotes (evita N+1 na rede).
+    pesagens = (
+        db.query(Pesagem)
+        .filter(Pesagem.sessao_id == sessao.id)
+        .options(selectinload(Pesagem.animal).selectinload(Animal.lotes))
+        .all()
+    )
+    for p in pesagens:
         if p.destino_lote_id is None:
             continue
         animal = p.animal
@@ -556,14 +605,24 @@ def finalizar(db: Session, sessao: SessaoPesagem) -> dict:
 
 def resumo(db: Session, sessao: SessaoPesagem) -> dict:
     """Resumo da sessão: total, peso médio, GMD médio, distribuição e faltantes."""
-    pesos = [p.peso for p in sessao.pesagens]
-    gmds = [g for g in (_gmd_animal(p.animal) for p in sessao.pesagens) if g is not None]
+    pesagens = (
+        db.query(Pesagem)
+        .filter(Pesagem.sessao_id == sessao.id)
+        .options(
+            selectinload(Pesagem.animal).selectinload(Animal.pesagens),
+            selectinload(Pesagem.animal).selectinload(Animal.venda),
+            selectinload(Pesagem.destino_lote),
+        )
+        .all()
+    )
+    pesos = [p.peso for p in pesagens]
+    gmds = [g for g in (_gmd_animal(p.animal) for p in pesagens) if g is not None]
     por_sublote: dict[str, int] = {}
-    for p in sessao.pesagens:
+    for p in pesagens:
         chave = p.destino_lote.nome if p.destino_lote else "(sem separação)"
         por_sublote[chave] = por_sublote.get(chave, 0) + 1
     falt = faltantes(db, sessao)
-    pendentes = [p.animal.brinco for p in sessao.pesagens
+    pendentes = [p.animal.brinco for p in pesagens
                  if p.animal.venda and p.animal.venda.pendente]
     return {
         "tipo": sessao.tipo.value,

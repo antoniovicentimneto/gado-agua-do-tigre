@@ -421,7 +421,14 @@ async function carregarLotes() {
   lotes.forEach((l) => {
     const div = document.createElement("div");
     div.className = "card-lote";
-    div.innerHTML = `<span class="nome">${l.nome}</span><span class="qtd">${l.ativos} animais</span>`;
+    const gmd = l.gmd_medio == null ? "—" : l.gmd_medio.toFixed(3);
+    const ugmd = l.ugmd_medio == null ? "—" : l.ugmd_medio.toFixed(3);
+    div.innerHTML = `
+      <div class="card-lote-info">
+        <span class="nome">${esc(l.nome)}</span>
+        <div class="card-lote-ind">GMD ${gmd} · uGMD ${ugmd} · ${l.ua ?? 0} UA</div>
+      </div>
+      <span class="qtd">${l.ativos} animais</span>`;
     div.onclick = () => abrirLote(l.id, l.nome);
     box.appendChild(div);
   });

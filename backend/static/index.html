@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=18" />
+  <link rel="stylesheet" href="/static/style.css?v=19" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -166,6 +166,7 @@
         <!-- Pesados -->
         <div class="mg-col">
           <h3>Pesados (<span id="mg-total">0</span>)</h3>
+          <div id="mg-totais" class="mg-totais"></div>
           <div id="mg-por-sublote" class="mg-por-sublote"></div>
           <div id="mg-pesados" class="mg-lista"></div>
         </div>
@@ -293,9 +294,9 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=18"></script>
-  <script src="/static/fila-offline.js?v=18"></script>
-  <script src="/static/mangueira.js?v=18"></script>
+  <script src="/static/app.js?v=19"></script>
+  <script src="/static/fila-offline.js?v=19"></script>
+  <script src="/static/mangueira.js?v=19"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.
