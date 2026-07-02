@@ -84,18 +84,24 @@ el("mg-tipo").onchange = async () => {
 };
 
 // ----------------------------------------------------------- Sublotes na abertura
-el("mg-separar").onchange = (e) => {
+el("mg-separar").onchange = async (e) => {
   el("mg-sublotes-area").classList.toggle("escondido", !e.target.checked);
   if (e.target.checked && !el("mg-sublotes-lista").children.length) {
-    mgAddSubloteInput(); mgAddSubloteInput();
+    await mgAddSubloteInput(); await mgAddSubloteInput();
   }
 };
 
-function mgAddSubloteInput() {
-  const inp = document.createElement("input");
-  inp.placeholder = "Nome do sublote (ex.: Gordo)";
-  inp.className = "mg-sublote-input";
-  el("mg-sublotes-lista").appendChild(inp);
+let mgSubloteSeq = 0;
+// Cada sublote é escolhido de uma lista (lotes já cadastrados) ou criado novo.
+async function mgAddSubloteInput() {
+  const prefixo = "mg-sub-ab-" + (mgSubloteSeq++);
+  const row = document.createElement("div");
+  row.className = "mg-sublote-row";
+  row.dataset.prefixo = prefixo;
+  row.style.marginBottom = "6px";
+  row.innerHTML = await seletorLoteHTML(prefixo, "");
+  el("mg-sublotes-lista").appendChild(row);
+  ligarSeletorLote(prefixo);
 }
 el("mg-add-sublote").onclick = mgAddSubloteInput;
 
@@ -117,7 +123,7 @@ el("mg-iniciar").onclick = async () => {
     if (!origens.length) { alert("Escolha pelo menos um lote para pesar."); return; }
     separar = el("mg-separar").checked;
     sublotes = separar
-      ? [...document.querySelectorAll(".mg-sublote-input")].map((i) => i.value.trim()).filter(Boolean)
+      ? [...document.querySelectorAll(".mg-sublote-row")].map((r) => valorLote(r.dataset.prefixo)).filter(Boolean)
       : [];
   }
 
