@@ -491,7 +491,7 @@ async function abrirManejo(chave) {
     .map((p) => `
       <tr data-id="${p.id}" data-animal="${p.animal_id}">
         <td>${p.ordem ?? "—"}</td>
-        <td><b>${esc(p.brinco)}</b></td>
+        <td><a href="#" class="brinco-link" data-id="${p.animal_id}"><b>${esc(p.brinco)}</b></a></td>
         <td>${esc(p.tipo || "")}${p.raca ? " · " + esc(p.raca) : ""}</td>
         <td>${ehDono
           ? `<input type="number" step="0.1" class="manejo-peso" value="${p.peso}" style="width:5.5em">`
@@ -529,6 +529,10 @@ async function abrirManejo(chave) {
       </table>
     </div>`;
   modal.classList.remove("escondido");
+
+  ficha.querySelectorAll(".brinco-link").forEach((el) => {
+    el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id)); };
+  });
 
   if (ehDono) {
     const urlEditar = (pid, animalId) => prefixo === "s"
@@ -592,7 +596,7 @@ async function abrirLote(loteId, nome) {
           ${ordenados.map((a) => `
             <tr>
               <td><input type="checkbox" class="lote-chk" value="${a.id}" ${marcadosAntes.has(String(a.id)) ? "checked" : ""}></td>
-              <td><b>${a.brinco}</b> ${a.tipo ? `· ${a.tipo}` : ""}</td>
+              <td><a href="#" class="brinco-link" data-id="${a.id}"><b>${esc(a.brinco)}</b></a> ${a.tipo ? `· ${esc(a.tipo)}` : ""}</td>
               <td>${fmt.peso(a.ultimo_peso)}</td>
             </tr>`).join("")}
         </tbody>
@@ -604,6 +608,9 @@ async function abrirLote(loteId, nome) {
         ordem.coluna = col;
         renderTabela();
       };
+    });
+    box.querySelectorAll(".brinco-link").forEach((el) => {
+      el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id)); };
     });
   }
 

@@ -213,6 +213,7 @@ th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--bord
   background: none; color: var(--vermelho); padding: 2px 8px; font-size: 1rem;
   border: none; line-height: 1;
 }
+.brinco-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--verde); }
 .manejo-peso { padding: 2px 4px; font-size: 0.88rem; }
 .manejo-salvar {
   background: none; color: var(--verde); padding: 2px 6px; font-size: 1rem;
