@@ -711,9 +711,13 @@ async function abrirFicha(id) {
   const pesagens = a.pesagens
     .slice()
     .reverse()
-    .map((p) => `<tr>
-        <td>${fmt.data(p.data)}</td><td>${fmt.peso(p.peso)}</td>
-        <td><button class="pesagem-apagar" data-id="${p.id}" title="apagar esta pesagem">×</button></td>
+    .map((p) => `<tr data-id="${p.id}">
+        <td>${fmt.data(p.data)}</td>
+        <td><input type="number" step="0.1" class="pesagem-peso" value="${p.peso}" style="width:5.5em"></td>
+        <td style="white-space:nowrap">
+          <button class="pesagem-salvar" title="salvar peso">✓</button>
+          <button class="pesagem-apagar" data-id="${p.id}" title="apagar esta pesagem">×</button>
+        </td>
       </tr>`)
     .join("");
 
@@ -856,6 +860,20 @@ async function abrirFicha(id) {
     carregarLista();
   };
 
+  // Editar o peso de uma pesagem específica (corrige lançamento errado).
+  ficha.querySelectorAll(".pesagem-salvar").forEach((btn) => {
+    btn.onclick = async () => {
+      const tr = btn.closest("tr");
+      const peso = parseFloat(tr.querySelector(".pesagem-peso").value);
+      if (isNaN(peso) || peso <= 0) { alert("Peso inválido."); return; }
+      try {
+        await api.put(`/api/animais/${id}/pesagens/${tr.dataset.id}`, { peso });
+        abrirFicha(id);
+        carregarLista();
+      } catch (e) { alert("Erro ao salvar: " + e.message); }
+    };
+  });
+
   // Apagar uma pesagem específica (lançamento errado).
   ficha.querySelectorAll(".pesagem-apagar").forEach((btn) => {
     btn.onclick = async () => {
@@ -889,7 +907,8 @@ async function abrirFicha(id) {
       const el2 = document.getElementById(elId);
       if (el2) el2.disabled = true;
     });
-    ficha.querySelectorAll(".pesagem-apagar").forEach((btn) => (btn.style.visibility = "hidden"));
+    ficha.querySelectorAll(".pesagem-apagar, .pesagem-salvar").forEach((btn) => (btn.style.visibility = "hidden"));
+    ficha.querySelectorAll(".pesagem-peso").forEach((inp) => (inp.disabled = true));
     const secaoExcluir = document.getElementById("f-excluir").closest(".ficha-secao");
     if (secaoExcluir) secaoExcluir.classList.add("escondido");
   }
