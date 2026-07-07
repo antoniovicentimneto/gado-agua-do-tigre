@@ -486,17 +486,26 @@ async function abrirManejo(chave) {
     return;
   }
   const s = d.sessao;
+  const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
   const linhas = d.pesados
     .map((p) => `
-      <tr>
+      <tr data-id="${p.id}" data-animal="${p.animal_id}">
         <td>${p.ordem ?? "—"}</td>
         <td><b>${esc(p.brinco)}</b></td>
         <td>${esc(p.tipo || "")}${p.raca ? " · " + esc(p.raca) : ""}</td>
-        <td>${fmt.peso(p.peso)}</td>
+        <td>${ehDono
+          ? `<input type="number" step="0.1" class="manejo-peso" value="${p.peso}" style="width:5.5em">`
+          : fmt.peso(p.peso)}</td>
         ${"destino" in p ? `<td>${esc(p.destino || "—")}</td>` : ""}
+        ${ehDono ? `<td style="white-space:nowrap">
+          <button class="manejo-salvar" title="salvar peso">✓</button>
+          <button class="manejo-apagar perigo" title="apagar esta pesagem">×</button>
+        </td>` : ""}
       </tr>`)
     .join("");
   const colDestino = d.pesados.length && "destino" in d.pesados[0] ? "<th>Destino</th>" : "";
+  const colAcoes = ehDono ? "<th></th>" : "";
+  const ncols = 4 + (colDestino ? 1 : 0) + (colAcoes ? 1 : 0);
 
   const ficha = document.getElementById("ficha");
   ficha.innerHTML = `
@@ -515,11 +524,39 @@ async function abrirManejo(chave) {
     <div class="ficha-secao">
       <h3>Animais pesados</h3>
       <table>
-        <thead><tr><th>#</th><th>Brinco</th><th>Tipo/Raça</th><th>Peso</th>${colDestino}</tr></thead>
-        <tbody>${linhas || "<tr><td colspan=5>Nenhum animal</td></tr>"}</tbody>
+        <thead><tr><th>#</th><th>Brinco</th><th>Tipo/Raça</th><th>Peso</th>${colDestino}${colAcoes}</tr></thead>
+        <tbody>${linhas || `<tr><td colspan=${ncols}>Nenhum animal</td></tr>`}</tbody>
       </table>
     </div>`;
   modal.classList.remove("escondido");
+
+  if (ehDono) {
+    const urlEditar = (pid, animalId) => prefixo === "s"
+      ? `/api/sessoes/${valor}/pesagens/${pid}` : `/api/animais/${animalId}/pesagens/${pid}`;
+    ficha.querySelectorAll(".manejo-salvar").forEach((btn) => {
+      btn.onclick = async () => {
+        const tr = btn.closest("tr");
+        const peso = parseFloat(tr.querySelector(".manejo-peso").value);
+        if (isNaN(peso) || peso <= 0) { alert("Peso inválido."); return; }
+        try {
+          await api.put(urlEditar(tr.dataset.id, tr.dataset.animal), { peso });
+          abrirManejo(chave);
+          carregarLista();
+        } catch (e) { alert("Erro ao salvar: " + e.message); }
+      };
+    });
+    ficha.querySelectorAll(".manejo-apagar").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!confirm("Apagar esta pesagem do manejo? Não tem como desfazer.")) return;
+        const tr = btn.closest("tr");
+        try {
+          await api.delete(urlEditar(tr.dataset.id, tr.dataset.animal));
+          abrirManejo(chave);
+          carregarLista();
+        } catch (e) { alert("Erro ao apagar: " + e.message); }
+      };
+    });
+  }
 }
 
 // Ordena "9" antes de "10" (numérico quando dá, senão por texto).

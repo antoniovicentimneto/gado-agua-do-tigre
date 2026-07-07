@@ -40,6 +40,7 @@ def _montar_pesados(pesagens: list[Pesagem], animais: dict[int, Animal],
         if gmd is not None:
             gmds.append(gmd)
         item = {
+            "id": p.id,
             "animal_id": p.animal_id,
             "brinco": a.brinco if a else "?",
             "tipo": a.tipo if a else None,

@@ -154,6 +154,24 @@ def adicionar_pesagem(
     return {"ok": True}
 
 
+@router.put("/animais/{animal_id}/pesagens/{pesagem_id}")
+def editar_pesagem_animal(
+    animal_id: int, pesagem_id: int, dados: schemas.PesagemEditar,
+    db: Session = Depends(get_db), _dono=Depends(requer_dono),
+):
+    """Edita peso/observação de uma pesagem avulsa (sem sessão — ex.: histórico da
+    planilha ou correção feita pela aba Manejos). Corrige um lançamento errado."""
+    pesagem = db.get(Pesagem, pesagem_id)
+    if pesagem is None or pesagem.animal_id != animal_id:
+        raise HTTPException(status_code=404, detail="Pesagem não encontrada")
+    if dados.peso is not None:
+        pesagem.peso = dados.peso
+    if dados.observacao is not None:
+        pesagem.observacao = dados.observacao
+    db.commit()
+    return {"ok": True}
+
+
 @router.delete("/animais/{animal_id}/pesagens/{pesagem_id}")
 def excluir_pesagem_animal(
     animal_id: int, pesagem_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)
