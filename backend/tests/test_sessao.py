@@ -111,7 +111,7 @@ def test_sem_brinco_e_vinculo_herda_historico(db):
     temp = db.query(Animal).filter(Animal.brinco == sb["brinco"]).first()
     faltante = db.query(Animal).filter(Animal.brinco == "101").first()
     qtd_antes = len(faltante.pesagens)
-    svc.vincular(db, s, temp.id, faltante.id)
+    svc.vincular(db, s.data, temp.id, faltante.id)
     db.refresh(faltante)
     assert len(faltante.pesagens) == qtd_antes + 1   # herdou a pesagem
     assert db.query(Animal).filter(Animal.brinco == sb["brinco"]).count() == 0  # provisório removido
@@ -127,7 +127,7 @@ def test_vincular_cadastro_brinco_novo_adota_numero(db):
 
     temp = db.query(Animal).filter(Animal.brinco == "5001").first()
     faltante = db.query(Animal).filter(Animal.brinco == "101").first()
-    svc.vincular(db, s, temp.id, faltante.id)
+    svc.vincular(db, s.data, temp.id, faltante.id)
     db.refresh(faltante)
     # O animal antigo passa a usar o brinco novo e guarda o antigo no histórico.
     assert faltante.brinco == "5001"
@@ -140,7 +140,7 @@ def test_vincular_sem_brinco_definindo_brinco_novo(db):
     temp = db.query(Animal).filter(Animal.sem_brinco.is_(True)).first()
     faltante = db.query(Animal).filter(Animal.brinco == "101").first()
     # Informa o brinco novo na hora de vincular.
-    svc.vincular(db, s, temp.id, faltante.id, novo_brinco="9001")
+    svc.vincular(db, s.data, temp.id, faltante.id, novo_brinco="9001")
     db.refresh(faltante)
     assert faltante.brinco == "9001"
 

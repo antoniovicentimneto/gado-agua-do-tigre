@@ -525,7 +525,7 @@ def pesados_provisorios(db: Session, sessao: SessaoPesagem) -> list[dict]:
     return out
 
 
-def vincular(db: Session, sessao: SessaoPesagem, animal_temp_id: int,
+def vincular(db: Session, data: date, animal_temp_id: int,
              animal_faltante_id: int, novo_brinco: str | None = None) -> dict:
     """Vincula um animal provisório (sem brinco / brinco novo) a um animal antigo.
 
@@ -566,7 +566,7 @@ def vincular(db: Session, sessao: SessaoPesagem, animal_temp_id: int,
         brinco_alvo = temp.brinco
     if brinco_alvo and brinco_alvo != faltante.brinco:
         db.add(HistoricoBrinco(animal_id=faltante.id, brinco_antigo=faltante.brinco,
-                               data_troca=sessao.data))
+                               data_troca=data))
         faltante.brinco = brinco_alvo
     faltante.sem_brinco = False
 

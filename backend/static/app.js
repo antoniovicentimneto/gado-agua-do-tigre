@@ -751,6 +751,19 @@ async function abrirFicha(id) {
       <div class="info">Corrija aqui se o número foi digitado errado na hora de pesar.</div>
     </div>
 
+    ${a.sem_brinco ? `
+    <div class="ficha-secao ficha-perigo" id="f-vincular-secao">
+      <h3>Vincular a outro animal</h3>
+      <p class="info">Esse animal foi pesado sem brinco (registro provisório). Se você já sabe
+        qual é o brinco antigo dele, busque abaixo — o animal antigo herda essa pesagem e o
+        registro provisório é removido.</p>
+      <div class="linha-pesar">
+        <input id="f-vinc-busca" placeholder="Brinco do animal antigo" />
+        <button id="f-vinc-buscar">Buscar</button>
+      </div>
+      <div id="f-vinc-resultado"></div>
+    </div>` : ""}
+
     <div class="grid-2 ficha-secao">
       <div>
         <label style="font-weight:600;font-size:0.85rem">Classificação</label>
@@ -894,6 +907,47 @@ async function abrirFicha(id) {
     };
   });
 
+  // Vincular (animal sem brinco) a um animal antigo já existente — herda o histórico.
+  if (a.sem_brinco) {
+    let vincSelId = null;
+    const resultadoBox = document.getElementById("f-vinc-resultado");
+    document.getElementById("f-vinc-buscar").onclick = async () => {
+      const termo = document.getElementById("f-vinc-busca").value.trim();
+      if (!termo) { alert("Digite o brinco a buscar."); return; }
+      const candidatos = (await api.get("/api/animais?busca=" + encodeURIComponent(termo)))
+        .filter((c) => c.id !== id);
+      vincSelId = null;
+      if (!candidatos.length) {
+        resultadoBox.innerHTML = "<p class='info'>Nenhum animal encontrado com esse brinco.</p>";
+        return;
+      }
+      resultadoBox.innerHTML = candidatos.map((c) => `
+        <div class="mg-opcao" data-id="${c.id}">
+          <b>${esc(c.brinco)}</b> · ${esc(c.tipo || "")} · ${c.status}
+          ${c.status !== "ativo" ? "" : `· último ${fmt.peso(c.ultimo_peso)}`}
+        </div>`).join("") + `
+        <button id="f-vinc-ok" style="width:100%;margin-top:8px">Vincular</button>`;
+      resultadoBox.querySelectorAll(".mg-opcao").forEach((o) => {
+        o.onclick = () => {
+          resultadoBox.querySelectorAll(".mg-opcao").forEach((x) => x.classList.remove("sel"));
+          o.classList.add("sel");
+          vincSelId = parseInt(o.dataset.id);
+        };
+      });
+      document.getElementById("f-vinc-ok").onclick = async () => {
+        if (!vincSelId) { alert("Escolha um animal da lista."); return; }
+        if (!confirm(`Vincular este registro ao brinco ${termo}? O animal ${termo} vai herdar essa pesagem e o registro provisório será apagado. Não tem como desfazer.`)) return;
+        try {
+          await api.post(`/api/animais/${id}/vincular`, { animal_destino_id: vincSelId });
+          modal.classList.add("escondido");
+          limparCacheLotes();
+          carregarLista();
+          if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
+        } catch (e) { alert("Erro ao vincular: " + e.message); }
+      };
+    };
+  }
+
   // Excluir o animal inteiro — exige digitar o brinco pra confirmar.
   document.getElementById("f-excluir").onclick = async () => {
     const digitado = prompt(`Isso vai apagar o animal ${a.brinco} e TODO o histórico dele.\n\nPra confirmar, digite o brinco (${a.brinco}):`);
@@ -919,6 +973,8 @@ async function abrirFicha(id) {
     ficha.querySelectorAll(".pesagem-peso").forEach((inp) => (inp.disabled = true));
     const secaoExcluir = document.getElementById("f-excluir").closest(".ficha-secao");
     if (secaoExcluir) secaoExcluir.classList.add("escondido");
+    const secaoVincular = document.getElementById("f-vincular-secao");
+    if (secaoVincular) secaoVincular.classList.add("escondido");
   }
 }
 

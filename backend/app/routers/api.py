@@ -26,7 +26,7 @@ from ..services.auth import requer_dono, usuario_atual
 from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
 from ..services.exportacao import gerar_planilha, nome_arquivo
 from ..services.gmd import gmd_periodo
-from ..services.sessao import completar_venda_morto
+from ..services.sessao import completar_venda_morto, vincular
 from ..services.venda import calcular_venda, rendimento_padrao
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -118,6 +118,20 @@ def atualizar_animal(
     db.commit()
     db.refresh(animal)
     return montar_resumo(animal)
+
+
+@router.post("/animais/{animal_id}/vincular")
+def vincular_animal(
+    animal_id: int, dados: schemas.VincularAvulso, db: Session = Depends(get_db),
+    _dono=Depends(requer_dono),
+):
+    """Vincula um animal (ex.: pesado sem brinco) a outro já existente, que herda
+    o histórico de pesagens. Usado quando o vínculo não foi feito na hora, durante
+    a sessão de pesagem (ver também POST /sessoes/{id}/vincular)."""
+    r = vincular(db, date.today(), animal_id, dados.animal_destino_id, dados.novo_brinco)
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("erro", "Erro ao vincular"))
+    return r
 
 
 @router.delete("/animais/{animal_id}")

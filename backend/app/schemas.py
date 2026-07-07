@@ -154,6 +154,11 @@ class VincularBrinco(BaseModel):
     novo_brinco: str | None = None  # brinco novo a aplicar no animal antigo (opcional)
 
 
+class VincularAvulso(BaseModel):
+    animal_destino_id: int  # animal já existente que vai herdar o histórico
+    novo_brinco: str | None = None  # brinco a aplicar no animal destino (opcional)
+
+
 class CompletarVendaMorto(BaseModel):
     rendimento: float | None = None
     peso_carcaca: float | None = None

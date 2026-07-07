@@ -31,6 +31,7 @@ def montar_resumo(animal: Animal) -> dict:
         "vendedor": animal.vendedor,
         "nascimento": animal.nascimento,
         "capado": animal.capado,
+        "sem_brinco": animal.sem_brinco,
         "status": animal.status,
         "observacao": animal.observacao,
         "lote_atual": lote_atual(animal),

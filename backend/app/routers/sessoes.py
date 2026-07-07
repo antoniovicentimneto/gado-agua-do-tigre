@@ -140,7 +140,7 @@ def faltantes(sessao_id: int, db: Session = Depends(get_db)):
 def vincular(sessao_id: int, dados: schemas.VincularBrinco, db: Session = Depends(get_db),
              _dono=Depends(requer_dono)):
     s = _buscar_sessao(db, sessao_id)
-    r = svc.vincular(db, s, dados.animal_temp_id, dados.animal_faltante_id, dados.novo_brinco)
+    r = svc.vincular(db, s.data, dados.animal_temp_id, dados.animal_faltante_id, dados.novo_brinco)
     if not r.get("ok"):
         raise HTTPException(status_code=400, detail=r.get("erro", "Erro ao vincular"))
     return r
