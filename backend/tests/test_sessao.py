@@ -33,6 +33,23 @@ def test_pesar_grava_ordem_e_destino(db):
     assert ordens == {"101": 1, "102": 2}
 
 
+def test_pesar_nao_pula_numero_apos_apagar(db):
+    s = _abrir_manejo(db)
+    svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")
+    r2 = svc.registrar_pesagem(db, s, "102", 330, destino_lote="Magro")
+    r3 = svc.registrar_pesagem(db, s, "103", 350, destino_lote="Gordo",
+                               criar_animal=True, tipo="Boi")
+    assert r3["ordem"] == 3
+    # Apaga o do meio (corrige um lançamento errado) e pesa mais um.
+    svc.remover_pesagem(db, s, r2["pesagem_id"])
+    r4 = svc.registrar_pesagem(db, s, "104", 360, destino_lote="Magro",
+                               criar_animal=True, tipo="Boi")
+    # A numeração exibida (posição na lista) não deve pular nenhum número.
+    assert r4["ordem"] == 3
+    est = svc.estado_sessao(db, s)
+    assert sorted(p["ordem"] for p in est["pesados"]) == [1, 2, 3]
+
+
 def test_alerta_ja_pesado(db):
     s = _abrir_manejo(db)
     svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")

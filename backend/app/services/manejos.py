@@ -111,6 +111,10 @@ def detalhe_sessao(db: Session, sessao_id: int) -> dict | None:
     pesagens = sorted(sessao.pesagens, key=lambda p: p.ordem or 0)
     animais = _animais_por_id(db, [p.animal_id for p in pesagens])
     pesados, gmds = _montar_pesados(pesagens, animais, com_destino=True)
+    # Renumera pela posição (1, 2, 3...) em vez do número bruto salvo no banco, pra
+    # não mostrar "buraco" na numeração quando um lançamento foi apagado.
+    for i, item in enumerate(pesados, start=1):
+        item["ordem"] = i
     pesos = [p.peso for p in pesagens]
     return {
         "sessao": {

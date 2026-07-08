@@ -296,6 +296,7 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 #mg-form { display: flex; flex-direction: column; gap: 8px; }
 #mg-brinco, #mg-peso { font-size: 1.3rem; text-align: center; padding: 14px; }
 #mg-enviar { font-size: 1.2rem; padding: 16px; }
+button:disabled { opacity: 0.6; cursor: wait; }
 .mg-info-animal { min-height: 20px; font-size: 0.85rem; color: var(--cinza); text-align: center; }
 .mg-info-animal.fora { color: var(--vermelho); font-weight: 600; }
 

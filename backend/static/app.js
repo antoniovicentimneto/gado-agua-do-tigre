@@ -1057,6 +1057,10 @@ async function salvarPesagemRapida(animalId) {
   const msg = document.getElementById("pesar-msg");
   if (!brinco || !peso || !data) return;
 
+  const btn = document.querySelector("#form-pesar button[type=submit]");
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
   try {
     const r = await api.post("/api/pesagem-rapida", { brinco, peso, data, animal_id: animalId });
     if (r.ambiguidade) {
@@ -1081,6 +1085,9 @@ async function salvarPesagemRapida(animalId) {
     document.getElementById("pesar-brinco").focus();
   } catch (e) {
     msg.textContent = "Erro: " + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
   }
 }
 

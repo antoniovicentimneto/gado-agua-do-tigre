@@ -155,11 +155,13 @@ def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
     por_sublote: dict[str, int] = {}
     peso_total = 0.0
     ugmds = []
-    for p in sorted(pesagens, key=lambda x: x.ordem or 0):
+    # A ordem exibida é a posição na lista (1, 2, 3...), não o número bruto salvo no
+    # banco — assim, apagar um lançamento errado não deixa "buraco" na numeração.
+    for i, p in enumerate(sorted(pesagens, key=lambda x: x.ordem or 0), start=1):
         destino = p.destino_lote.nome if p.destino_lote else None
         pesados.append(
             {
-                "ordem": p.ordem,
+                "ordem": i,
                 "pesagem_id": p.id,
                 "animal_id": p.animal_id,
                 "brinco": p.animal.brinco,
@@ -391,10 +393,13 @@ def registrar_pesagem(
 
     db.commit()
     db.refresh(pesagem)
+    # Posição exibida = quantos animais já foram pesados nesta sessão (não o número
+    # bruto salvo no banco), pra não pular número quando um lançamento foi apagado.
+    ordem_exibida = db.query(Pesagem).filter(Pesagem.sessao_id == sessao.id).count()
     return {
         "ok": True,
         "pesagem_id": pesagem.id,
-        "ordem": pesagem.ordem,
+        "ordem": ordem_exibida,
         "animal_id": animal.id,
         "brinco": animal.brinco,
         "tipo": animal.tipo,
@@ -428,7 +433,8 @@ def pesar_sem_brinco(
     _aplicar_financeiro(db, sessao, animal, peso)
     db.commit()
     db.refresh(pesagem)
-    return {"ok": True, "pesagem_id": pesagem.id, "ordem": pesagem.ordem,
+    ordem_exibida = db.query(Pesagem).filter(Pesagem.sessao_id == sessao.id).count()
+    return {"ok": True, "pesagem_id": pesagem.id, "ordem": ordem_exibida,
             "brinco": brinco, "peso": peso, "destino": destino.nome if destino else None,
             "sem_brinco": True}
 

@@ -371,25 +371,30 @@ function mgSucessoOffline(brinco, peso) {
   el("mg-brinco").focus();
 }
 
+// Desabilita o botão (com texto de "carregando") enquanto a ação assíncrona roda —
+// mostra que o app está trabalhando em vez de parecer travado.
+async function mgComCarregando(btn, textoCarregando, fn) {
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = textoCarregando;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+}
+
 // Faz o envio de fato: online manda pro servidor; offline guarda na fila.
 async function mgEnviarOuFila(extra) {
   const brinco = el("mg-brinco").value.trim();
   const peso = parseFloat(el("mg-peso").value);
-  if (!navigator.onLine) {
-    filaAdicionar({
-      sessaoId: mg.sessaoId, tipo: "pesar",
-      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
-    });
-    mgSucessoOffline(brinco, peso);
-    return;
-  }
+  const btn = el("mg-enviar");
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
   try {
-    const r = await mgEnviar({ forcar: false, ...extra });
-    if (r.alerta) return mgMostrarAlerta(r);
-    if (r.ok) await mgSucesso(r);
-  } catch (e) {
-    if (e instanceof TypeError) {
-      // Caiu o sinal durante o envio: guarda na fila e segue.
+    if (!navigator.onLine) {
       filaAdicionar({
         sessaoId: mg.sessaoId, tipo: "pesar",
         dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
@@ -397,8 +402,26 @@ async function mgEnviarOuFila(extra) {
       mgSucessoOffline(brinco, peso);
       return;
     }
-    el("mg-msg").textContent = "Erro: " + e.message;
-    el("mg-msg").className = "mg-msg erro";
+    try {
+      const r = await mgEnviar({ forcar: false, ...extra });
+      if (r.alerta) return mgMostrarAlerta(r);
+      if (r.ok) await mgSucesso(r);
+    } catch (e) {
+      if (e instanceof TypeError) {
+        // Caiu o sinal durante o envio: guarda na fila e segue.
+        filaAdicionar({
+          sessaoId: mg.sessaoId, tipo: "pesar",
+          dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
+        });
+        mgSucessoOffline(brinco, peso);
+        return;
+      }
+      el("mg-msg").textContent = "Erro: " + e.message;
+      el("mg-msg").className = "mg-msg erro";
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
   }
 }
 
@@ -471,11 +494,11 @@ function mgCadastroCompra(brinco, jaExiste) {
     mgUltimoTipoCompra = el("al-c-tipo").value;
     mgUltimaRacaCompra = el("al-c-raca").value;
     mgAtualizarCompraPadrao();
-    mgEnviarOuFila({
+    mgComCarregando(el("al-c-ok"), "Cadastrando...", () => mgEnviarOuFila({
       criar_animal: true,
       novo_tipo: mgUltimoTipoCompra || null,
       nova_raca: mgUltimaRacaCompra || null,
-    });
+    }));
   };
   el("al-c-cancelar").onclick = () => box.classList.add("escondido");
 }
@@ -540,11 +563,11 @@ function mgMostrarAlerta(r) {
       const b = document.createElement("button");
       b.className = "secundario";
       b.textContent = `${c.tipo || "?"}${c.raca ? " " + c.raca : ""} · ${c.lote || "sem lote"} · ${c.ultimo_peso ?? "—"} kg`;
-      b.onclick = async () => {
+      b.onclick = () => mgComCarregando(b, "Pesando...", async () => {
         const r2 = await mgEnviar({ animal_id: c.animal_id, forcar: true });
         if (r2.alerta) return mgMostrarAlerta(r2);
         if (r2.ok) await mgSucesso(r2);
-      };
+      });
       el("al-ambiguo").appendChild(b);
     });
   } else if (r.alerta === "inexistente") {
@@ -557,10 +580,10 @@ function mgMostrarAlerta(r) {
         <button id="al-cancelar" class="secundario">Cancelar</button>
       </div>`;
     box.classList.remove("escondido");
-    el("al-cadastrar").onclick = async () => {
+    el("al-cadastrar").onclick = () => mgComCarregando(el("al-cadastrar"), "Cadastrando...", async () => {
       const r2 = await mgEnviar({ criar_animal: true, tipo: el("al-tipo").value, forcar: true });
       if (r2.ok) await mgSucesso(r2);
-    };
+    });
     el("al-semb").onclick = mgPesarSemBrinco;
     el("al-cancelar").onclick = () => box.classList.add("escondido");
   } else {
@@ -573,36 +596,25 @@ function mgMostrarAlerta(r) {
         <button id="al-cancelar" class="secundario">Cancelar</button>
       </div>`;
     box.classList.remove("escondido");
-    el("al-forcar").onclick = async () => {
+    el("al-forcar").onclick = () => mgComCarregando(el("al-forcar"), "Pesando...", async () => {
       const r2 = await mgEnviar({ forcar: true, observacao: el("al-obs").value || null });
       if (r2.ok) await mgSucesso(r2);
-    };
+    });
     el("al-cancelar").onclick = () => box.classList.add("escondido");
   }
 }
 
 // ----------------------------------------------------------- Pesar sem brinco
-async function mgPesarSemBrinco() {
+// Botão compartilhado (mg-sem-brinco e al-semb) — pega o botão clicado pelo evento.
+async function mgPesarSemBrinco(ev) {
   const peso = parseFloat(el("mg-peso").value);
   if (!peso) { alert("Digite o peso primeiro."); return; }
 
-  if (!navigator.onLine) {
-    filaAdicionar({
-      sessaoId: mg.sessaoId,
-      tipo: "pesar-sem-brinco",
-      dados: { peso, destino_lote: mg.loteAtivo },
-    });
-    mgSucessoOffline("(sem brinco)", peso);
-    return;
-  }
-
+  const btn = ev && ev.currentTarget;
+  const textoOriginal = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Pesando..."; }
   try {
-    const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, {
-      peso, destino_lote: mg.loteAtivo,
-    });
-    if (r.ok) await mgSucesso(r);
-  } catch (e) {
-    if (e instanceof TypeError) {
+    if (!navigator.onLine) {
       filaAdicionar({
         sessaoId: mg.sessaoId,
         tipo: "pesar-sem-brinco",
@@ -611,8 +623,27 @@ async function mgPesarSemBrinco() {
       mgSucessoOffline("(sem brinco)", peso);
       return;
     }
-    el("mg-msg").textContent = "Erro: " + e.message;
-    el("mg-msg").className = "mg-msg erro";
+
+    try {
+      const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, {
+        peso, destino_lote: mg.loteAtivo,
+      });
+      if (r.ok) await mgSucesso(r);
+    } catch (e) {
+      if (e instanceof TypeError) {
+        filaAdicionar({
+          sessaoId: mg.sessaoId,
+          tipo: "pesar-sem-brinco",
+          dados: { peso, destino_lote: mg.loteAtivo },
+        });
+        mgSucessoOffline("(sem brinco)", peso);
+        return;
+      }
+      el("mg-msg").textContent = "Erro: " + e.message;
+      el("mg-msg").className = "mg-msg erro";
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
   }
 }
 el("mg-sem-brinco").onclick = mgPesarSemBrinco;
