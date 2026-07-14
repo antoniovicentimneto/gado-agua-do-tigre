@@ -554,6 +554,7 @@ async function abrirManejo(chave) {
           await api.put(urlEditar(tr.dataset.id, tr.dataset.animal), { peso });
           abrirManejo(chave);
           carregarLista();
+          if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
         } catch (e) { alert("Erro ao salvar: " + e.message); }
       };
     });
@@ -565,6 +566,7 @@ async function abrirManejo(chave) {
           await api.delete(urlEditar(tr.dataset.id, tr.dataset.animal));
           abrirManejo(chave);
           carregarLista();
+          if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
         } catch (e) { alert("Erro ao apagar: " + e.message); }
       };
     });
@@ -808,7 +810,7 @@ async function abrirFicha(id) {
 
     <div class="ficha-secao">
       <h3>Mudar lote</h3>
-      <div id="ficha-lote-sel">${await seletorLoteHTML("ficha-lote", a.lote_atual || "")}</div>
+      <div id="ficha-lote-caixa">${await seletorLoteHTML("ficha-lote", a.lote_atual || "")}</div>
       <button id="btn-lote" style="margin-top:8px;width:100%">Mover de lote</button>
     </div>
 
@@ -891,6 +893,8 @@ async function abrirFicha(id) {
         await api.put(`/api/animais/${id}/pesagens/${tr.dataset.id}`, { peso });
         abrirFicha(id);
         carregarLista();
+        // Senão o "último peso" mostrado na mangueira/pesagem rápida fica com o valor errado.
+        if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
       } catch (e) { alert("Erro ao salvar: " + e.message); }
     };
   });
@@ -903,6 +907,7 @@ async function abrirFicha(id) {
         await api.delete(`/api/animais/${id}/pesagens/${btn.dataset.id}`);
         abrirFicha(id);
         carregarLista();
+        if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
       } catch (e) { alert("Erro: " + e.message); }
     };
   });

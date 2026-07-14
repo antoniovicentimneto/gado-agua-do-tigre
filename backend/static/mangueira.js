@@ -266,7 +266,7 @@ async function mgNovoSubloteRapido() {
   mgModal(`
     <h2>Adicionar sublote</h2>
     <p class="info">Escolha um lote já existente ou crie um novo. Os animais pesados vão pra ele.</p>
-    <div id="mg-sub-sel">${await seletorLoteHTML("mg-sub", "", true)}</div>
+    <div id="mg-sub-caixa">${await seletorLoteHTML("mg-sub", "", true)}</div>
     <button id="mg-sub-ok" style="width:100%;margin-top:12px">Adicionar</button>`);
   ligarSeletorLote("mg-sub");
   el("mg-sub-ok").onclick = async () => {
@@ -653,6 +653,10 @@ async function mgRemover(pesagemId) {
   try {
     await api.delete(`/api/sessoes/${mg.sessaoId}/pesagens/${pesagemId}`);
     mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
+    // Atualiza o cache local — senão o "último peso" mostrado ao digitar o brinco
+    // de novo continua com o valor apagado (errado).
+    await carregarCacheAnimais();
+    el("mg-msg").textContent = "";
   } catch (e) {
     alert("Erro ao remover: " + e.message);
   }
