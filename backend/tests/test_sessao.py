@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.models import Animal, Pesagem, SessaoPesagem, StatusAnimal, TipoSessao
+from app.models import Animal, Pesagem, SessaoPesagem, StatusAnimal, StatusSessao, TipoSessao
 from app.services import sessao as svc
 from app.services.consultas import lote_atual
 
@@ -214,6 +214,39 @@ def test_finalizar_move_para_sublote(db):
     svc.finalizar(db, s)
     a = db.query(Animal).filter(Animal.brinco == "101").first()
     assert lote_atual(a) == "Gordo"
+
+
+def test_faltantes_traz_peso_e_ordena_do_mais_pesado(db):
+    s = _abrir_manejo(db, separar=False)
+    d = svc.faltantes(db, s)
+    # 101 (400 kg) e 102 (320 kg) — nenhum foi pesado ainda nesta sessão.
+    assert [f["brinco"] for f in d] == ["101", "102"]
+    assert [f["ultimo_peso"] for f in d] == [400, 320]
+    assert d[0]["tipo"] == "Novilha"
+    assert "raca" in d[0]
+
+
+def test_reabrir_permite_lancar_animal_esquecido(db):
+    s = _abrir_manejo(db)
+    svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")
+    svc.finalizar(db, s)
+    assert s.status == StatusSessao.FINALIZADA
+
+    svc.reabrir(db, s)
+    assert s.status == StatusSessao.ABERTA
+
+    # Lança o animal esquecido (102) na sessão reaberta.
+    r = svc.registrar_pesagem(db, s, "102", 330, destino_lote="Gordo")
+    assert r["ok"]
+
+    svc.finalizar(db, s)
+    assert s.status == StatusSessao.FINALIZADA
+    a = db.query(Animal).filter(Animal.brinco == "102").first()
+    assert lote_atual(a) == "Gordo"
+    # O 101 (já movido antes) continua no lote certo, sem duplicar histórico.
+    a101 = db.query(Animal).filter(Animal.brinco == "101").first()
+    assert lote_atual(a101) == "Gordo"
+    assert len([al for al in a101.lotes if al.lote.nome == "Gordo"]) == 1
 
 
 def test_lotes_somente_ativos(db):

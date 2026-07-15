@@ -157,6 +157,14 @@ def finalizar(sessao_id: int, db: Session = Depends(get_db)):
     return svc.finalizar(db, s)
 
 
+@router.post("/{sessao_id}/reabrir")
+def reabrir(sessao_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    """Reabre um manejo já finalizado, pra lançar animais esquecidos ou corrigir algo."""
+    s = _buscar_sessao(db, sessao_id)
+    svc.reabrir(db, s)
+    return svc.estado_sessao(db, s)
+
+
 @router.get("/{sessao_id}/exportar")
 def exportar(sessao_id: int, db: Session = Depends(get_db)):
     """Exporta as pesagens da sessão em CSV."""

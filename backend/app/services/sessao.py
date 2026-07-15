@@ -119,7 +119,8 @@ def animais_a_pesar(db: Session, sessao: SessaoPesagem,
         .options(
             selectinload(AnimalLote.animal)
             .selectinload(Animal.lotes)
-            .selectinload(AnimalLote.lote)
+            .selectinload(AnimalLote.lote),
+            selectinload(AnimalLote.animal).selectinload(Animal.pesagens),
         )
         .all()
     )
@@ -506,11 +507,21 @@ def remover_pesagem(db: Session, sessao: SessaoPesagem, pesagem_id: int) -> bool
 # ----------------------------------------------------------- Faltantes e vínculo
 
 def faltantes(db: Session, sessao: SessaoPesagem) -> list[dict]:
-    """Animais esperados que NÃO foram pesados (candidatos a perda de brinco)."""
-    return [
-        {"animal_id": a.id, "brinco": a.brinco, "tipo": a.tipo, "lote": lote_atual(a)}
+    """Animais esperados que NÃO foram pesados (candidatos a perda de brinco).
+
+    Traz tipo/raça/último peso e vem ordenado do mais pesado pro mais leve — ajuda
+    a comparar visualmente com o peso do animal do brinco novo na hora de vincular.
+    """
+    itens = [
+        {
+            "animal_id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
+            "lote": lote_atual(a),
+            "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None,
+        }
         for a in animais_a_pesar(db, sessao)
     ]
+    itens.sort(key=lambda i: (i["ultimo_peso"] is None, -(i["ultimo_peso"] or 0)))
+    return itens
 
 
 def pesados_provisorios(db: Session, sessao: SessaoPesagem) -> list[dict]:
@@ -607,6 +618,12 @@ def finalizar(db: Session, sessao: SessaoPesagem) -> dict:
     sessao.status = StatusSessao.FINALIZADA
     db.commit()
     return resumo(db, sessao)
+
+
+def reabrir(db: Session, sessao: SessaoPesagem) -> None:
+    """Reabre um manejo finalizado, pra lançar animais esquecidos ou corrigir algo."""
+    sessao.status = StatusSessao.ABERTA
+    db.commit()
 
 
 def resumo(db: Session, sessao: SessaoPesagem) -> dict:

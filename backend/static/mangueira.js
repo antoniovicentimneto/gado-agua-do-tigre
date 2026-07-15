@@ -730,9 +730,12 @@ el("mg-vincular-btn").onclick = async () => {
     const etq = p.sem_brinco ? '<span class="tag">sem brinco</span>' : "";
     return `<div class="mg-opcao" data-tipo="temp" data-id="${p.animal_id}">${p.brinco} · ${p.peso} kg ${etq}</div>`;
   }).join("") || "<p class='info'>Nenhum animal novo nesta sessão.</p>";
-  const falt = d.faltantes.map((f) =>
-    `<div class="mg-opcao" data-tipo="falt" data-id="${f.animal_id}">${f.brinco} · ${f.tipo || ""}</div>`
-  ).join("") || "<p class='info'>Nenhum faltante.</p>";
+  const falt = d.faltantes.map((f) => {
+    const peso = f.ultimo_peso != null ? `${f.ultimo_peso} kg` : "sem peso registrado";
+    return `<div class="mg-opcao" data-tipo="falt" data-id="${f.animal_id}">
+      ${f.brinco} · ${peso}<br><span class="info">${f.tipo || "?"}${f.raca ? " · " + f.raca : ""}</span>
+    </div>`;
+  }).join("") || "<p class='info'>Nenhum faltante.</p>";
   mgModal(`
     <h2>Vincular a um animal antigo</h2>
     <p class="info">O animal antigo herda o histórico. Escolha o animal novo (ou sem brinco)

@@ -515,10 +515,13 @@ async function abrirManejo(chave) {
   const colAcoes = ehDono ? "<th></th>" : "";
   const ncols = 4 + (colDestino ? 1 : 0) + (colAcoes ? 1 : 0);
 
+  const podeEditarManejo = ehDono && prefixo === "s" && s.status === "finalizada";
+
   const ficha = document.getElementById("ficha");
   ficha.innerHTML = `
     <h2>${TIPO_MANEJO_LABEL[s.tipo] || s.tipo} — ${fmt.data(s.data)}</h2>
     <div class="sub">${[...s.origens, ...s.sublotes].join(", ") || (s.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
+    ${podeEditarManejo ? `<button id="manejo-editar" class="secundario" style="width:100%;margin-top:8px">✎ Editar manejo (lançar animal esquecido)</button>` : ""}
 
     <div class="grid-2 ficha-secao">
       <div class="destaque"><div class="rotulo">Pesados</div><div class="num">${d.total}</div></div>
@@ -541,6 +544,17 @@ async function abrirManejo(chave) {
   ficha.querySelectorAll(".brinco-link").forEach((el) => {
     el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id)); };
   });
+
+  if (podeEditarManejo) {
+    document.getElementById("manejo-editar").onclick = async () => {
+      try {
+        await api.post(`/api/sessoes/${valor}/reabrir`, {});
+        modal.classList.add("escondido");
+        document.querySelector('.abas button[data-aba="mangueira"]').click();
+        await mgAbrirSessao(parseInt(valor));
+      } catch (e) { alert("Erro ao reabrir o manejo: " + e.message); }
+    };
+  }
 
   if (ehDono) {
     const urlEditar = (pid, animalId) => prefixo === "s"
