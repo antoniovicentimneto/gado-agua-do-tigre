@@ -726,6 +726,9 @@ async function mgCompletarVenda(animalId, brinco) {
 el("mg-vincular-btn").onclick = async () => {
   const d = await api.get(`/api/sessoes/${mg.sessaoId}/faltantes`);
   mg.vincSel = { temp: null, falt: null };
+  // Ordena as duas listas por brinco (menor pro maior) — mais fácil de achar/comparar.
+  d.provisorios.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
+  d.faltantes.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
   const prov = d.provisorios.map((p) => {
     const etq = p.sem_brinco ? '<span class="tag">sem brinco</span>' : "";
     return `<div class="mg-opcao" data-tipo="temp" data-id="${p.animal_id}">${p.brinco} · ${p.peso} kg ${etq}</div>`;
