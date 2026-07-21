@@ -623,7 +623,7 @@ async function abrirLote(loteId, nome) {
             <tr>
               <td><input type="checkbox" class="lote-chk" value="${a.id}" ${marcadosAntes.has(String(a.id)) ? "checked" : ""}></td>
               <td><a href="#" class="brinco-link" data-id="${a.id}"><b>${esc(a.brinco)}</b></a> ${a.tipo ? `· ${esc(a.tipo)}` : ""}</td>
-              <td>${fmt.peso(a.ultimo_peso)}</td>
+              <td>${fmt.peso(a.ultimo_peso)}${a.data_ultimo ? `<br><span class="info">${fmt.data(a.data_ultimo)}</span>` : ""}</td>
             </tr>`).join("")}
         </tbody>
       </table>` : "<div class='info'>Sem animais ativos.</div>";
