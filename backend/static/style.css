@@ -159,6 +159,11 @@ button:active { opacity: 0.85; }
 .tag.vendido { background: #fdecea; color: var(--vermelho); }
 .tag.perdido { background: #fff3e0; color: #b26a00; }
 .tag.morto { background: #eee; color: #555; }
+.tag.neutro { background: #eee; color: #555; }
+
+.mg-vinc-ordem { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-size: 0.85rem; }
+.mg-vinc-ordem button { padding: 4px 12px; font-size: 0.8rem; width: auto; }
+.mg-vinc-ordem button.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
 
 /* Pesagem rápida */
 .linha-pesar { display: flex; gap: 8px; margin-top: 6px; }

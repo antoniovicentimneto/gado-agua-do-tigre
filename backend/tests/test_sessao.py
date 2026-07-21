@@ -216,14 +216,37 @@ def test_finalizar_move_para_sublote(db):
     assert lote_atual(a) == "Gordo"
 
 
-def test_faltantes_traz_peso_e_ordena_do_mais_pesado(db):
+def test_faltantes_projeta_peso_pelo_ugmd_do_lote(db):
     s = _abrir_manejo(db, separar=False)
     d = svc.faltantes(db, s)
-    # 101 (400 kg) e 102 (320 kg) — nenhum foi pesado ainda nesta sessão.
-    assert [f["brinco"] for f in d] == ["101", "102"]
-    assert [f["ultimo_peso"] for f in d] == [400, 320]
-    assert d[0]["tipo"] == "Novilha"
+    por_brinco = {f["brinco"]: f for f in d}
+
+    # uGMD do LOTEA = uGMD só do 101 (o único com 2 pesagens): (400-300)/120 dias.
+    # 101: último peso 400 kg há 45 dias (01/05 -> 15/06) — projeta pra ~437.5 kg.
+    assert por_brinco["101"]["ultimo_peso"] == 400
+    assert por_brinco["101"]["dias_sem_pesar"] == 45
+    assert por_brinco["101"]["peso_projetado"] == pytest.approx(400 + (100 / 120) * 45, abs=0.5)
+
+    # 102: último peso só 320 kg, mas há 165 dias (01/01 -> 15/06) — projetado
+    # (usando o uGMD do LOTE, não o dele, que nem existe) passa o do 101.
+    assert por_brinco["102"]["ultimo_peso"] == 320
+    assert por_brinco["102"]["dias_sem_pesar"] == 165
+    assert por_brinco["102"]["peso_projetado"] == pytest.approx(320 + (100 / 120) * 165, abs=0.5)
+
+    # Ordenado pelo peso PROJETADO (não o último peso bruto) — 102 vem primeiro.
+    assert [f["brinco"] for f in d] == ["102", "101"]
+    assert d[0]["tipo"] == "Boi"
     assert "raca" in d[0]
+
+
+def test_faltantes_sem_ugmd_do_lote_fica_sem_estimativa(db):
+    # LOTEB só tem o 201, com uma única pesagem — não dá pra calcular uGMD do lote.
+    s = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEB"], False)
+    d = svc.faltantes(db, s)
+    assert len(d) == 1
+    assert d[0]["brinco"] == "201"
+    assert d[0]["ultimo_peso"] == 450
+    assert d[0]["peso_projetado"] is None
 
 
 def test_reabrir_permite_lancar_animal_esquecido(db):

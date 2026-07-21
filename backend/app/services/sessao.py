@@ -506,21 +506,69 @@ def remover_pesagem(db: Session, sessao: SessaoPesagem, pesagem_id: int) -> bool
 
 # ----------------------------------------------------------- Faltantes e vínculo
 
+def _ugmd_medio_lote(db: Session, lote_id: int) -> float | None:
+    """uGMD médio dos animais ativos hoje nesse lote.
+
+    Usado pra projetar o peso de um animal que perdeu o brinco: o GMD do próprio
+    animal não serve de base porque pode vir de uma pastagem/condição antiga (de
+    antes de entrar nesse lote) — o do lote reflete a condição atual dele.
+    """
+    vinculos = (
+        db.query(AnimalLote)
+        .filter(AnimalLote.lote_id == lote_id, AnimalLote.data_fim.is_(None))
+        .options(selectinload(AnimalLote.animal).selectinload(Animal.pesagens))
+        .all()
+    )
+    ugmds = [
+        u for v in vinculos
+        if v.animal.status == StatusAnimal.ATIVO and (u := _ugmd_animal(v.animal)) is not None
+    ]
+    return round(sum(ugmds) / len(ugmds), 3) if ugmds else None
+
+
 def faltantes(db: Session, sessao: SessaoPesagem) -> list[dict]:
     """Animais esperados que NÃO foram pesados (candidatos a perda de brinco).
 
-    Traz tipo/raça/último peso e vem ordenado do mais pesado pro mais leve — ajuda
-    a comparar visualmente com o peso do animal do brinco novo na hora de vincular.
+    Traz o peso projetado pra hoje (último peso + uGMD médio do LOTE de origem ×
+    dias desde a última pesagem do animal) — ajuda a comparar com o peso do
+    animal do brinco novo na hora de vincular, mesmo quando o faltante não é
+    pesado há um tempo. Quando não dá pra calcular (lote sem uGMD ainda, ou
+    animal nunca pesado), volta None e a tela mostra "sem estimativa".
     """
-    itens = [
-        {
+    ugmd_por_lote: dict[int, float | None] = {}
+    hoje = sessao.data
+
+    itens = []
+    for a in animais_a_pesar(db, sessao):
+        abertos = [al for al in a.lotes if al.data_fim is None]
+        al_atual = abertos[-1] if abertos else None
+        lote_id = al_atual.lote_id if al_atual else None
+
+        ugmd_lote = None
+        if lote_id is not None:
+            if lote_id not in ugmd_por_lote:
+                ugmd_por_lote[lote_id] = _ugmd_medio_lote(db, lote_id)
+            ugmd_lote = ugmd_por_lote[lote_id]
+
+        ultima = a.pesagens[-1] if a.pesagens else None
+        ultimo_peso = ultima.peso if ultima else None
+        dias = (hoje - ultima.data).days if ultima else None
+        peso_projetado = None
+        if ultimo_peso is not None and ugmd_lote is not None and dias is not None and dias >= 0:
+            peso_projetado = round(ultimo_peso + ugmd_lote * dias, 1)
+
+        itens.append({
             "animal_id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "lote": lote_atual(a),
-            "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None,
-        }
-        for a in animais_a_pesar(db, sessao)
-    ]
-    itens.sort(key=lambda i: (i["ultimo_peso"] is None, -(i["ultimo_peso"] or 0)))
+            "ultimo_peso": ultimo_peso,
+            "dias_sem_pesar": dias,
+            "peso_projetado": peso_projetado,
+        })
+
+    def chave(i: dict) -> tuple:
+        p = i["peso_projetado"] if i["peso_projetado"] is not None else i["ultimo_peso"]
+        return (p is None, -(p or 0))
+    itens.sort(key=chave)
     return itens
 
 

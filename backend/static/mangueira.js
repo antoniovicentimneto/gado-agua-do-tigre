@@ -723,26 +723,63 @@ async function mgCompletarVenda(animalId, brinco) {
 }
 
 // ----------------------------------------------------------- Vincular sem brinco
+// "peso" (padrão) pareia as duas listas pelo tamanho — o jeito que normalmente se
+// usa pra achar qual brinco novo é qual animal que sumiu. "brinco" é só pra achar
+// um número específico rápido.
+let mgVincOrdem = "peso";
+
 el("mg-vincular-btn").onclick = async () => {
   const d = await api.get(`/api/sessoes/${mg.sessaoId}/faltantes`);
+  mgRenderVincular(d);
+};
+
+function mgRenderVincular(d) {
   mg.vincSel = { temp: null, falt: null };
-  // Ordena as duas listas por brinco (menor pro maior) — mais fácil de achar/comparar.
-  d.provisorios.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
-  d.faltantes.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
-  const prov = d.provisorios.map((p) => {
+  const provOrdenados = d.provisorios.slice();
+  const faltOrdenados = d.faltantes.slice();
+  if (mgVincOrdem === "brinco") {
+    provOrdenados.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
+    faltOrdenados.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
+  } else {
+    // Peso: mais leve primeiro nos dois lados, pra parear por posição (1º com 1º...).
+    provOrdenados.sort((a, b) => (a.peso ?? Infinity) - (b.peso ?? Infinity));
+    faltOrdenados.sort((a, b) => {
+      const pa = a.peso_projetado ?? a.ultimo_peso ?? Infinity;
+      const pb = b.peso_projetado ?? b.ultimo_peso ?? Infinity;
+      return pa - pb;
+    });
+  }
+
+  const prov = provOrdenados.map((p) => {
     const etq = p.sem_brinco ? '<span class="tag">sem brinco</span>' : "";
-    return `<div class="mg-opcao" data-tipo="temp" data-id="${p.animal_id}">${p.brinco} · ${p.peso} kg ${etq}</div>`;
+    return `<div class="mg-opcao" data-tipo="temp" data-id="${p.animal_id}"><b>${p.brinco}</b> · ${p.peso} kg ${etq}</div>`;
   }).join("") || "<p class='info'>Nenhum animal novo nesta sessão.</p>";
-  const falt = d.faltantes.map((f) => {
-    const peso = f.ultimo_peso != null ? `${f.ultimo_peso} kg` : "sem peso registrado";
+
+  const falt = faltOrdenados.map((f) => {
+    let pesoTxt;
+    if (f.peso_projetado != null) {
+      pesoTxt = `~${f.peso_projetado} kg <span class="tag">projetado</span>`;
+    } else if (f.ultimo_peso != null) {
+      pesoTxt = `${f.ultimo_peso} kg <span class="tag neutro">sem estimativa</span>`;
+    } else {
+      pesoTxt = "sem peso registrado";
+    }
+    const detalhe = f.ultimo_peso != null && f.peso_projetado != null
+      ? `últ. real ${f.ultimo_peso} kg há ${f.dias_sem_pesar} dias · ` : "";
     return `<div class="mg-opcao" data-tipo="falt" data-id="${f.animal_id}">
-      ${f.brinco} · ${peso}<br><span class="info">${f.tipo || "?"}${f.raca ? " · " + f.raca : ""}</span>
+      <b>${f.brinco}</b> · ${pesoTxt}<br><span class="info">${detalhe}${f.tipo || "?"}${f.raca ? " · " + f.raca : ""}</span>
     </div>`;
   }).join("") || "<p class='info'>Nenhum faltante.</p>";
+
   mgModal(`
     <h2>Vincular a um animal antigo</h2>
     <p class="info">O animal antigo herda o histórico. Escolha o animal novo (ou sem brinco)
       da sessão e o brinco antigo que ele tinha.</p>
+    <div class="mg-vinc-ordem">
+      Ordenar por:
+      <button type="button" class="secundario${mgVincOrdem === "peso" ? " ativo" : ""}" data-ordem="peso">Peso</button>
+      <button type="button" class="secundario${mgVincOrdem === "brinco" ? " ativo" : ""}" data-ordem="brinco">Brinco</button>
+    </div>
     <div class="mg-vinc-cols">
       <div><h4>Novo / sem brinco</h4>${prov}</div>
       <div><h4>Faltantes (brinco antigo)</h4>${falt}</div>
@@ -751,6 +788,9 @@ el("mg-vincular-btn").onclick = async () => {
     <input id="mg-vinc-brinco" placeholder="Deixe vazio p/ usar o brinco do animal escolhido" />
     <button id="mg-vinc-ok" style="width:100%;margin-top:10px">Vincular</button>`);
 
+  el("mg-modal-conteudo").querySelectorAll(".mg-vinc-ordem button").forEach((b) => {
+    b.onclick = () => { mgVincOrdem = b.dataset.ordem; mgRenderVincular(d); };
+  });
   el("mg-modal-conteudo").querySelectorAll(".mg-opcao").forEach((o) => {
     o.onclick = () => {
       const tipo = o.dataset.tipo;
@@ -771,7 +811,7 @@ el("mg-vincular-btn").onclick = async () => {
     mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
     await carregarCacheAnimais();   // vínculo pode ter mudado brincos
   };
-};
+}
 
 // Carrega ao abrir a página (a aba Mangueira é a inicial).
 mgInit();
