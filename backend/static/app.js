@@ -606,6 +606,8 @@ async function abrirLote(loteId, nome) {
     const ordenados = animais.slice().sort((a, b) => {
       const cmp = ordem.coluna === "peso"
         ? (a.ultimo_peso ?? -Infinity) - (b.ultimo_peso ?? -Infinity)
+        : ordem.coluna === "dentes"
+        ? (a.dentes ?? -Infinity) - (b.dentes ?? -Infinity)
         : comparaBrinco(a.brinco, b.brinco);
       return cmp * ordem.dir;
     });
@@ -617,6 +619,7 @@ async function abrirLote(loteId, nome) {
           <th></th>
           <th class="lote-th" data-col="brinco" style="cursor:pointer">Brinco${seta("brinco")}</th>
           <th class="lote-th" data-col="peso" style="cursor:pointer">Último peso${seta("peso")}</th>
+          <th class="lote-th" data-col="dentes" style="cursor:pointer">Dentes${seta("dentes")}</th>
         </tr></thead>
         <tbody>
           ${ordenados.map((a) => `
@@ -624,6 +627,7 @@ async function abrirLote(loteId, nome) {
               <td><input type="checkbox" class="lote-chk" value="${a.id}" ${marcadosAntes.has(String(a.id)) ? "checked" : ""}></td>
               <td><a href="#" class="brinco-link" data-id="${a.id}"><b>${esc(a.brinco)}</b></a> ${a.tipo ? `· ${esc(a.tipo)}` : ""}</td>
               <td>${fmt.peso(a.ultimo_peso)}${a.data_ultimo ? `<br><span class="info">${fmt.data(a.data_ultimo)}</span>` : ""}</td>
+              <td>${a.dentes ?? "—"}</td>
             </tr>`).join("")}
         </tbody>
       </table>` : "<div class='info'>Sem animais ativos.</div>";
@@ -753,7 +757,7 @@ async function abrirFicha(id, voltar = null) {
     .slice()
     .reverse()
     .map((p) => `<tr data-id="${p.id}">
-        <td>${fmt.data(p.data)}</td>
+        <td>${fmt.data(p.data)}${p.observacao ? ` <span title="${esc(p.observacao)}">📝</span>` : ""}</td>
         <td><input type="number" step="0.1" class="pesagem-peso" value="${p.peso}" style="width:5.5em"></td>
         <td style="white-space:nowrap">
           <button class="pesagem-salvar" title="salvar peso">✓</button>
@@ -761,6 +765,14 @@ async function abrirFicha(id, voltar = null) {
         </td>
       </tr>`)
     .join("");
+
+  // Histórico de dentição (marcada na hora da pesagem, "mais opções").
+  const denticoes = (a.denticoes || [])
+    .slice()
+    .reverse()
+    .map((d) => `<tr><td>${fmt.data(d.data)}</td><td>${d.dentes}</td></tr>`)
+    .join("");
+  const ultimaDenticao = a.denticoes && a.denticoes.length ? a.denticoes[a.denticoes.length - 1] : null;
 
   // Histórico de lotes (com datas). a.lotes vem do detalhar_animal.
   const historicoLotes = (a.lotes || [])
@@ -784,18 +796,17 @@ async function abrirFicha(id, voltar = null) {
       <div class="info">Corrija aqui se o número foi digitado errado na hora de pesar.</div>
     </div>
 
-    ${a.sem_brinco ? `
     <div class="ficha-secao ficha-perigo" id="f-vincular-secao">
       <h3>Vincular a outro animal</h3>
-      <p class="info">Esse animal foi pesado sem brinco (registro provisório). Se você já sabe
-        qual é o brinco antigo dele, busque abaixo — o animal antigo herda essa pesagem e o
-        registro provisório é removido.</p>
+      <p class="info">${a.sem_brinco
+        ? "Esse animal foi pesado sem brinco (registro provisório). Se você já sabe qual é o brinco antigo dele, busque abaixo — o animal antigo herda essa pesagem e o registro provisório é removido."
+        : "Se esse brinco na verdade é um animal antigo que perdeu a etiqueta (re-etiquetado), busque abaixo o brinco antigo — o animal antigo herda todo o histórico deste e este registro é removido."}</p>
       <div class="linha-pesar">
         <input id="f-vinc-busca" placeholder="Brinco do animal antigo" />
         <button id="f-vinc-buscar">Buscar</button>
       </div>
       <div id="f-vinc-resultado"></div>
-    </div>` : ""}
+    </div>
 
     <div class="grid-2 ficha-secao">
       <div>
@@ -822,6 +833,14 @@ async function abrirFicha(id, voltar = null) {
       <label style="font-weight:600;font-size:0.85rem">Observação</label>
       <textarea id="f-obs" rows="2" style="width:100%">${esc(a.observacao || "")}</textarea>
       <button id="f-obs-salvar" class="secundario" style="margin-top:6px">Salvar observação</button>
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Dentição</h3>
+      ${ultimaDenticao
+        ? `<div class="destaque"><div class="rotulo">Última (${fmt.data(ultimaDenticao.data)})</div><div class="num">${ultimaDenticao.dentes} dentes</div></div>`
+        : `<div class="info">Nenhuma dentição registrada ainda (marque na hora da pesagem, em "mais opções").</div>`}
+      ${denticoes ? `<table style="margin-top:8px"><thead><tr><th>Data</th><th>Dentes</th></tr></thead><tbody>${denticoes}</tbody></table>` : ""}
     </div>
 
     <div class="grid-2 ficha-secao">
@@ -943,8 +962,8 @@ async function abrirFicha(id, voltar = null) {
     };
   });
 
-  // Vincular (animal sem brinco) a um animal antigo já existente — herda o histórico.
-  if (a.sem_brinco) {
+  // Vincular esse registro a um animal antigo já existente — herda o histórico.
+  {
     let vincSelId = null;
     const resultadoBox = document.getElementById("f-vinc-resultado");
     document.getElementById("f-vinc-buscar").onclick = async () => {

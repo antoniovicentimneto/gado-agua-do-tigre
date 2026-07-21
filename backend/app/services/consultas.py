@@ -22,6 +22,7 @@ def lote_atual(animal: Animal) -> str | None:
 def montar_resumo(animal: Animal) -> dict:
     """Monta o dicionário usado em AnimalResumo (lista de animais)."""
     r = resumo_animal(pontos_pesagem(animal))
+    ultima_denticao = animal.denticoes[-1] if animal.denticoes else None
     return {
         "id": animal.id,
         "brinco": animal.brinco,
@@ -39,4 +40,6 @@ def montar_resumo(animal: Animal) -> dict:
         "data_ultimo": r["data_ultimo"],
         "gmd": r["gmd"],
         "ugmd": r["ugmd"],
+        "dentes": ultima_denticao.dentes if ultima_denticao else None,
+        "data_dentes": ultima_denticao.data if ultima_denticao else None,
     }

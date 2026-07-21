@@ -56,6 +56,7 @@ def listar_animais(
     q = db.query(Animal).options(
         selectinload(Animal.pesagens),
         selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+        selectinload(Animal.denticoes),
     )
     if busca:
         q = q.filter(Animal.brinco.contains(busca))
@@ -88,7 +89,8 @@ def detalhar_animal(animal_id: int, db: Session = Depends(get_db)):
     animal = _buscar_animal(db, animal_id)
     resumo = montar_resumo(animal)
     resumo["pesagens"] = [
-        {"id": p.id, "data": p.data, "peso": p.peso} for p in animal.pesagens
+        {"id": p.id, "data": p.data, "peso": p.peso, "observacao": p.observacao}
+        for p in animal.pesagens
     ]
     resumo["denticoes"] = [
         {"id": d.id, "data": d.data, "dentes": d.dentes} for d in animal.denticoes
