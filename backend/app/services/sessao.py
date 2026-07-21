@@ -526,10 +526,21 @@ def faltantes(db: Session, sessao: SessaoPesagem) -> list[dict]:
 
 def pesados_provisorios(db: Session, sessao: SessaoPesagem) -> list[dict]:
     """Animais NOVOS nesta sessão (sem brinco OU cadastrados com brinco novo),
-    candidatos a vincular a um animal antigo que perdeu o brinco."""
+    candidatos a vincular a um animal antigo que perdeu o brinco.
+
+    Carrega pesagem+animal+histórico numa tacada só (selectinload) — senão, com o
+    banco na nuvem, cada animal da sessão custava 2 viagens a mais (p.animal e
+    a.pesagens lazy), deixando o "Vincular" bem lento em sessões grandes.
+    """
+    pesagens = (
+        db.query(Pesagem)
+        .filter(Pesagem.sessao_id == sessao.id)
+        .options(selectinload(Pesagem.animal).selectinload(Animal.pesagens))
+        .all()
+    )
     out = []
     vistos = set()
-    for p in sessao.pesagens:
+    for p in pesagens:
         a = p.animal
         if a.id in vistos:
             continue
