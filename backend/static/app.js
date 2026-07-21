@@ -351,6 +351,7 @@ async function carregarLista() {
   if (busca) params.set("busca", busca);
   if (status) params.set("status", status);
   const animais = await api.get("/api/animais?" + params);
+  animais.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
   document.getElementById("contador").textContent = `${animais.length} animais`;
 
   const lista = document.getElementById("lista");
