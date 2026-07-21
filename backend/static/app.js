@@ -542,7 +542,7 @@ async function abrirManejo(chave) {
   modal.classList.remove("escondido");
 
   ficha.querySelectorAll(".brinco-link").forEach((el) => {
-    el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id)); };
+    el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id), () => abrirManejo(chave)); };
   });
 
   if (podeEditarManejo) {
@@ -550,6 +550,7 @@ async function abrirManejo(chave) {
       try {
         await api.post(`/api/sessoes/${valor}/reabrir`, {});
         modal.classList.add("escondido");
+        modalVoltar = null;
         document.querySelector('.abas button[data-aba="mangueira"]').click();
         await mgAbrirSessao(parseInt(valor));
       } catch (e) { alert("Erro ao reabrir o manejo: " + e.message); }
@@ -634,7 +635,7 @@ async function abrirLote(loteId, nome) {
       };
     });
     box.querySelectorAll(".brinco-link").forEach((el) => {
-      el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id)); };
+      el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id), () => abrirLote(loteId, nome)); };
     });
   }
 
@@ -682,6 +683,7 @@ async function abrirLote(loteId, nome) {
     try {
       await api.put("/api/lotes/" + loteId, { nome: novo });
       modal.classList.add("escondido");
+      modalVoltar = null;
       carregarLotes();
     } catch (e) { alert(e.message); }
   };
@@ -714,6 +716,7 @@ async function abrirLote(loteId, nome) {
       limparCacheLotes();
       alert(`${r.movidos} animais movidos de ${r.origem} para ${r.destino}.`);
       modal.classList.add("escondido");
+      modalVoltar = null;
       carregarLotes();
     } catch (e) {
       alert("Erro ao juntar: " + e.message);
@@ -724,11 +727,24 @@ async function abrirLote(loteId, nome) {
 
 // ----------------------------------------------------------- Ficha do animal
 const modal = document.getElementById("modal");
-document.getElementById("fechar-modal").onclick = () => modal.classList.add("escondido");
+// Se a ficha foi aberta a partir de um lote/manejo, guarda como voltar pra lá
+// em vez de simplesmente fechar tudo (fecharModalOuVoltar cuida disso).
+let modalVoltar = null;
+function fecharModalOuVoltar() {
+  if (modalVoltar) {
+    const voltar = modalVoltar;
+    modalVoltar = null;
+    voltar();
+  } else {
+    modal.classList.add("escondido");
+  }
+}
+document.getElementById("fechar-modal").onclick = fecharModalOuVoltar;
 // Clicar fora do conteúdo (no fundo escuro) também fecha.
-modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("escondido"); });
+modal.addEventListener("click", (e) => { if (e.target === modal) fecharModalOuVoltar(); });
 
-async function abrirFicha(id) {
+async function abrirFicha(id, voltar = null) {
+  modalVoltar = voltar;
   const a = await api.get("/api/animais/" + id);
   const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
   const ficha = document.getElementById("ficha");
@@ -870,7 +886,7 @@ async function abrirFicha(id) {
     try {
       await api.put("/api/animais/" + id, { brinco: novo });
       carregarLista();
-      abrirFicha(id);
+      abrirFicha(id, modalVoltar);
     } catch (e) { alert("Erro: " + e.message); }
   };
 
@@ -905,7 +921,7 @@ async function abrirFicha(id) {
       if (isNaN(peso) || peso <= 0) { alert("Peso inválido."); return; }
       try {
         await api.put(`/api/animais/${id}/pesagens/${tr.dataset.id}`, { peso });
-        abrirFicha(id);
+        abrirFicha(id, modalVoltar);
         carregarLista();
         // Senão o "último peso" mostrado na mangueira/pesagem rápida fica com o valor errado.
         if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
@@ -919,7 +935,7 @@ async function abrirFicha(id) {
       if (!confirm("Apagar esta pesagem?")) return;
       try {
         await api.delete(`/api/animais/${id}/pesagens/${btn.dataset.id}`);
-        abrirFicha(id);
+        abrirFicha(id, modalVoltar);
         carregarLista();
         if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
       } catch (e) { alert("Erro: " + e.message); }
@@ -959,6 +975,7 @@ async function abrirFicha(id) {
         try {
           await api.post(`/api/animais/${id}/vincular`, { animal_destino_id: vincSelId });
           modal.classList.add("escondido");
+          modalVoltar = null;
           limparCacheLotes();
           carregarLista();
           if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
@@ -975,6 +992,7 @@ async function abrirFicha(id) {
     try {
       await api.delete("/api/animais/" + id);
       modal.classList.add("escondido");
+      modalVoltar = null;
       limparCacheLotes();
       carregarLista();
       if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
@@ -1018,7 +1036,7 @@ async function moverLote(id) {
   if (!nome) { alert("Escolha ou digite o lote destino."); return; }
   await api.post(`/api/animais/${id}/lote?nome_lote=${encodeURIComponent(nome)}`, {});
   limparCacheLotes();
-  abrirFicha(id);
+  abrirFicha(id, modalVoltar);
   carregarLista();
 }
 
