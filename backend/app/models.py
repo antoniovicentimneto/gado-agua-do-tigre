@@ -89,6 +89,10 @@ class Animal(Base):
     status: Mapped[StatusAnimal] = mapped_column(
         Enum(StatusAnimal), default=StatusAnimal.ATIVO, index=True
     )
+    # Data do evento que tirou o animal do rebanho ativo (venda/morte/perda). Pra
+    # animais importados da planilha (sem essa data registrada), usa a data da
+    # última pesagem como aproximação — ver script de backfill.
+    data_evento: Mapped[date | None] = mapped_column(Date)
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

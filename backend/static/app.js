@@ -355,7 +355,7 @@ async function carregarLista() {
     const div = document.createElement("div");
     div.className = "card-animal";
     const tag =
-      (a.status === "ativo" ? "" : `<span class="tag ${a.status}">${a.status}</span>`) +
+      (a.status === "ativo" ? "" : `<span class="tag ${a.status}">${a.status}${a.data_evento ? " · " + fmt.data(a.data_evento) : ""}</span>`) +
       (a.duplicado ? `<span class="tag duplicado" title="Existe outro animal ATIVO com esse mesmo brinco">⚠ duplicado</span>` : "");
     const detalhes = [a.tipo, a.raca, a.lote_atual].filter(Boolean).join(" · ");
     const obs = a.observacao
@@ -780,7 +780,7 @@ async function abrirFicha(id, voltar = null) {
     }).join("") || "<tr><td colspan=3>Sem histórico</td></tr>";
 
   ficha.innerHTML = `
-    <h2>Brinco ${esc(a.brinco)} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}</span>` : ""}</h2>
+    <h2>Brinco ${esc(a.brinco)} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}${a.data_evento ? " · " + fmt.data(a.data_evento) : ""}</span>` : ""}</h2>
     <div class="sub">${esc(a.tipo || "")} · ${esc(a.raca || "sem raça")} · ${esc(a.lote_atual || "sem lote")}</div>
 
     <div class="ficha-secao">
@@ -823,6 +823,11 @@ async function abrirFicha(id, voltar = null) {
         <option value="perdido">Perdido</option>
         <option value="morto">Morto</option>
       </select>
+      <div id="f-status-data-linha" class="${a.status === "ativo" ? "escondido" : ""}" style="margin-top:8px">
+        <label style="font-weight:600;font-size:0.85rem">Data do evento (venda/morte/perda)</label>
+        <input type="date" id="f-status-data" value="${a.data_evento || ""}" />
+      </div>
+      <button id="f-status-salvar" class="secundario ${a.status === "ativo" ? "escondido" : ""}" style="margin-top:8px;width:100%">Salvar situação</button>
     </div>
 
     <div class="ficha-secao">
@@ -921,12 +926,32 @@ async function abrirFicha(id, voltar = null) {
     carregarLista();
   };
 
-  // Situação do animal (ativo/vendido/perdido/morto).
+  // Situação do animal (ativo/vendido/perdido/morto). Ao ficar ATIVO salva na
+  // hora (como antes); ao marcar INATIVO, pede a data do evento antes de salvar
+  // — assim dá pra tirar relatório de mortes/vendas/perdas por período depois.
   const selStatus = document.getElementById("f-status");
+  const linhaData = document.getElementById("f-status-data-linha");
+  const inputData = document.getElementById("f-status-data");
+  const btnStatusSalvar = document.getElementById("f-status-salvar");
   selStatus.value = a.status;
   selStatus.onchange = async () => {
-    await api.put("/api/animais/" + id, { status: selStatus.value });
+    const inativo = selStatus.value !== "ativo";
+    linhaData.classList.toggle("escondido", !inativo);
+    btnStatusSalvar.classList.toggle("escondido", !inativo);
+    if (inativo) {
+      if (!inputData.value) inputData.value = new Date().toISOString().slice(0, 10);
+      return;  // espera confirmar no botão, junto com a data
+    }
+    await api.put("/api/animais/" + id, { status: "ativo", data_evento: null });
     carregarLista();
+  };
+  btnStatusSalvar.onclick = async () => {
+    if (!inputData.value) { alert("Informe a data do evento (venda/morte/perda)."); return; }
+    try {
+      await api.put("/api/animais/" + id, { status: selStatus.value, data_evento: inputData.value });
+      carregarLista();
+      abrirFicha(id, modalVoltar);
+    } catch (e) { alert("Erro: " + e.message); }
   };
 
   // Editar o peso de uma pesagem específica (corrige lançamento errado).

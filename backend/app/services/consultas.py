@@ -34,6 +34,7 @@ def montar_resumo(animal: Animal) -> dict:
         "capado": animal.capado,
         "sem_brinco": animal.sem_brinco,
         "status": animal.status,
+        "data_evento": animal.data_evento,
         "observacao": animal.observacao,
         "lote_atual": lote_atual(animal),
         "ultimo_peso": r["ultimo_peso"],

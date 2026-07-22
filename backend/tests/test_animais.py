@@ -30,6 +30,25 @@ def test_excluir_pesagem_de_outro_animal_da_404(db):
     assert exc.value.status_code == 404
 
 
+def test_data_evento_ao_marcar_inativo(db):
+    from datetime import date
+    from app import schemas
+
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    api.atualizar_animal(
+        a.id, schemas.AnimalAtualizar(status="vendido", data_evento=date(2025, 10, 12)), db
+    )
+    db.refresh(a)
+    assert a.status.value == "vendido"
+    assert a.data_evento == date(2025, 10, 12)
+
+    # Reativar limpa a data do evento.
+    api.atualizar_animal(a.id, schemas.AnimalAtualizar(status="ativo", data_evento=None), db)
+    db.refresh(a)
+    assert a.status.value == "ativo"
+    assert a.data_evento is None
+
+
 def test_duplicado_so_conta_entre_ativos(db):
     from app.models import StatusAnimal
 

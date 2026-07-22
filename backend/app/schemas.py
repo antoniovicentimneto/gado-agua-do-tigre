@@ -33,6 +33,7 @@ class AnimalAtualizar(BaseModel):
     nascimento: date | None = None
     capado: bool | None = None
     status: StatusAnimal | None = None
+    data_evento: date | None = None
     observacao: str | None = None
 
 
