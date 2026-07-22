@@ -265,6 +265,7 @@ def animais_cache(db: Session = Depends(get_db)):
         .options(
             selectinload(Animal.pesagens),
             selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+            selectinload(Animal.denticoes),  # montar_resumo lê isso — sem eager load vira N+1
         )
         .all()
     )
@@ -412,6 +413,7 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
             .options(
                 selectinload(Animal.lotes).selectinload(AnimalLote.lote),
                 selectinload(Animal.pesagens),
+                selectinload(Animal.denticoes),  # montar_resumo lê isso — sem eager load vira N+1
             )
             .all()
         )
@@ -662,7 +664,11 @@ def dashboard(db: Session = Depends(get_db)):
     animais_ativos = (
         db.query(Animal)
         .filter(Animal.status == StatusAnimal.ATIVO)
-        .options(selectinload(Animal.pesagens), selectinload(Animal.lotes))
+        .options(
+            selectinload(Animal.pesagens),
+            selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+            selectinload(Animal.denticoes),  # montar_resumo lê isso — sem eager load vira N+1
+        )
         .all()
     )
     for animal in animais_ativos:
