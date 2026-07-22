@@ -65,11 +65,24 @@ def listar_animais(
     if status:
         q = q.filter(Animal.status == status)
 
+    # Brincos duplicados ENTRE OS ATIVOS (visão geral da fazenda, não só do filtro
+    # atual) — usado pra destacar/filtrar na tela, já que brinco repetido pode
+    # confundir a pesagem na hora (o vendido/morto não conta, só ativo x ativo).
+    contagem_ativos: dict[str, int] = dict(
+        db.query(Animal.brinco, func.count(Animal.id))
+        .filter(Animal.status == StatusAnimal.ATIVO)
+        .group_by(Animal.brinco)
+        .all()
+    )
+
     resultado = []
     for animal in q.order_by(Animal.brinco).all():
         resumo = montar_resumo(animal)
         if lote and resumo["lote_atual"] != lote:
             continue
+        resumo["duplicado"] = (
+            animal.status == StatusAnimal.ATIVO and contagem_ativos.get(animal.brinco, 0) > 1
+        )
         resultado.append(resumo)
     return resultado
 
@@ -208,7 +221,11 @@ def pesagem_rapida(dados: schemas.PesagemRapida, db: Session = Depends(get_db)):
     Se houver mais de um animal com o mesmo brinco (brincos repetidos existem na
     base antiga), retorna a lista para o usuário escolher.
     """
-    animais = db.query(Animal).filter(Animal.brinco == dados.brinco).all()
+    animais = (
+        db.query(Animal)
+        .filter(Animal.brinco == dados.brinco, Animal.status == StatusAnimal.ATIVO)
+        .all()
+    )
     if not animais:
         raise HTTPException(status_code=404, detail=f"Brinco {dados.brinco} não encontrado")
     if dados.animal_id is not None:

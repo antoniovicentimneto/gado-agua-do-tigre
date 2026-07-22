@@ -101,6 +101,22 @@ def test_brinco_duplicado_pede_escolha(db):
     assert p is not None and p.peso == 400
 
 
+def test_brinco_duplicado_com_vendido_nao_conta_como_ambiguo(db):
+    # Segundo animal "101", mas VENDIDO — não pode ser candidato (nem pesado).
+    from app.models import AnimalLote
+    dup = Animal(brinco="101", tipo="Boi", status=StatusAnimal.VENDIDO)
+    db.add(dup)
+    db.flush()
+    db.add(AnimalLote(animal_id=dup.id, lote_id=1, data_inicio=HOJE, data_fim=HOJE))
+    db.commit()
+
+    s = _abrir_manejo(db)
+    r = svc.registrar_pesagem(db, s, "101", 400, destino_lote="Gordo")
+    assert r["ok"]  # não pede escolha — o vendido nem entra na lista de candidatos
+    ativo = db.query(Animal).filter(Animal.brinco == "101", Animal.status == StatusAnimal.ATIVO).first()
+    assert r["animal_id"] == ativo.id
+
+
 def test_pesagem_edita_tipo_raca_e_dentes(db):
     from app.models import Denticao
     s = _abrir_manejo(db)

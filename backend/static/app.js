@@ -349,8 +349,9 @@ async function carregarLista() {
   const status = document.getElementById("filtro-status").value;
   const params = new URLSearchParams();
   if (busca) params.set("busca", busca);
-  if (status) params.set("status", status);
-  const animais = await api.get("/api/animais?" + params);
+  if (status && status !== "duplicado") params.set("status", status);
+  let animais = await api.get("/api/animais?" + params);
+  if (status === "duplicado") animais = animais.filter((a) => a.duplicado);
   animais.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
   document.getElementById("contador").textContent = `${animais.length} animais`;
 
@@ -360,7 +361,8 @@ async function carregarLista() {
     const div = document.createElement("div");
     div.className = "card-animal";
     const tag =
-      a.status === "ativo" ? "" : `<span class="tag ${a.status}">${a.status}</span>`;
+      (a.status === "ativo" ? "" : `<span class="tag ${a.status}">${a.status}</span>`) +
+      (a.duplicado ? `<span class="tag duplicado" title="Existe outro animal ATIVO com esse mesmo brinco">⚠ duplicado</span>` : "");
     const detalhes = [a.tipo, a.raca, a.lote_atual].filter(Boolean).join(" · ");
     const obs = a.observacao
       ? `<div class="sub obs" title="${a.observacao.replace(/"/g, "&quot;")}">📝 ${a.observacao}</div>`

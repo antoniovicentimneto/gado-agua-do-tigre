@@ -293,7 +293,13 @@ def registrar_pesagem(
     destino = obter_ou_criar_lote(db, destino_lote) if destino_lote else None
 
     # Encontra o animal pelo brinco (pode haver brincos repetidos na base).
-    candidatos = db.query(Animal).filter(Animal.brinco == brinco).all()
+    # Só entre os ATIVOS — um animal vendido/morto/perdido não pode ser pesado, e
+    # aparecer como candidato só confunde a escolha quando o brinco é duplicado.
+    candidatos = (
+        db.query(Animal)
+        .filter(Animal.brinco == brinco, Animal.status == StatusAnimal.ATIVO)
+        .all()
+    )
 
     # COMPRA: são sempre animais NOVOS. Cria direto (com tipo/raça informados),
     # sem tratar como existente — só avisa se o brinco já é usado por outro.
@@ -442,7 +448,11 @@ def pesar_sem_brinco(
 
 def info_animal(db: Session, sessao: SessaoPesagem, brinco: str) -> dict:
     """Consulta rápida ao digitar o brinco: tipo, último peso e GMD."""
-    candidatos = db.query(Animal).filter(Animal.brinco == brinco.strip()).all()
+    candidatos = (
+        db.query(Animal)
+        .filter(Animal.brinco == brinco.strip(), Animal.status == StatusAnimal.ATIVO)
+        .all()
+    )
     if not candidatos:
         return {"encontrado": False, "brinco": brinco}
     nomes_origem = {l.nome for l in sessao.origens}

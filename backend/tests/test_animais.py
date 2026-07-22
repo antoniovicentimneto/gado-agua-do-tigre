@@ -30,6 +30,25 @@ def test_excluir_pesagem_de_outro_animal_da_404(db):
     assert exc.value.status_code == 404
 
 
+def test_duplicado_so_conta_entre_ativos(db):
+    from app.models import StatusAnimal
+
+    ativo1 = db.query(Animal).filter(Animal.brinco == "101").first()
+    # Um segundo "101" ATIVO -> os dois ficam marcados como duplicado.
+    dup_ativo = Animal(brinco="101", tipo="Boi", status=StatusAnimal.ATIVO)
+    # Um terceiro "102" VENDIDO -> não conta pro duplicado do 102 ativo.
+    dup_vendido = Animal(brinco="102", tipo="Boi", status=StatusAnimal.VENDIDO)
+    db.add_all([dup_ativo, dup_vendido])
+    db.commit()
+
+    resultado = {r["id"]: r["duplicado"] for r in api.listar_animais(db=db, busca=None)}
+    assert resultado[ativo1.id] is True
+    assert resultado[dup_ativo.id] is True
+    assert resultado[dup_vendido.id] is False  # vendido nunca conta como duplicado
+    a102 = db.query(Animal).filter(Animal.brinco == "102", Animal.status == StatusAnimal.ATIVO).first()
+    assert resultado[a102.id] is False  # só ele é ativo com brinco 102
+
+
 def test_excluir_animal_apaga_tudo(db):
     a = db.query(Animal).filter(Animal.brinco == "101").first()
     animal_id = a.id

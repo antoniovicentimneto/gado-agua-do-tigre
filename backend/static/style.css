@@ -160,6 +160,7 @@ button:active { opacity: 0.85; }
 .tag.perdido { background: #fff3e0; color: #b26a00; }
 .tag.morto { background: #eee; color: #555; }
 .tag.neutro { background: #eee; color: #555; }
+.tag.duplicado { background: #fff3e0; color: #b26a00; font-weight: 700; margin-left: 4px; }
 
 .mg-vinc-ordem { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-size: 0.85rem; }
 .mg-vinc-ordem button { padding: 4px 12px; font-size: 0.8rem; width: auto; }
