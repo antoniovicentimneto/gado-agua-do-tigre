@@ -39,8 +39,10 @@ document.querySelector('.abas button[data-aba="mangueira"]')
   .addEventListener("click", mgInit);
 
 async function mgCarregarLotes() {
-  // Só lotes que têm animais ativos na fazenda (com a contagem).
-  const lotes = await api.get("/api/lotes?somente_ativos=true");
+  // Só lotes que têm animais ativos na fazenda (com a contagem). Usa o cache
+  // compartilhado (lotesAtivosDetalhe, em app.js) pra não pedir duas vezes a
+  // mesma consulta pesada quando a aba "Por lote" também é aberta.
+  const lotes = await lotesAtivosDetalhe();
   const sel = el("mg-origens");
   sel.innerHTML = "";
   lotes.forEach((l) => {

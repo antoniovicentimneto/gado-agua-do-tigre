@@ -242,16 +242,27 @@ async function opcoes(categoria) {
   return cache[categoria];
 }
 
-// Só os lotes que têm animal ativo agora (esconde lotes antigos/esvaziados) — é o
-// que todo seletor de lote do app usa, em qualquer tela.
-async function nomesLotesAtivos() {
-  if (!cache.lotesAtivos) {
-    cache.lotesAtivos = (await api.get("/api/lotes?somente_ativos=true")).map((l) => l.nome).sort((a, b) => a.localeCompare(b));
+// Só os lotes que têm animal ativo agora (esconde lotes antigos/esvaziados) — a
+// consulta é pesada (recalcula GMD/uGMD/UA de todo animal ativo), então fica em
+// cache e é reaproveitada por todo mundo que precisa (seletores, mangueira, aba
+// "Por lote"), em vez de cada um pedir de novo pra API.
+async function lotesAtivosDetalhe() {
+  // Guarda a PROMISE (não só o resultado): mgInit() roda tanto no carregamento
+  // do script quanto no login, quase ao mesmo tempo — sem isso, as duas
+  // chamadas passavam pelo "cache vazio" antes da 1ª terminar e pediam à API
+  // em dobro (era o que deixava a aba "Por lote" lenta).
+  if (!cache.lotesAtivosPromise) {
+    cache.lotesAtivosPromise = api.get("/api/lotes?somente_ativos=true");
   }
-  return cache.lotesAtivos;
+  return cache.lotesAtivosPromise;
 }
 
-function limparCacheLotes() { cache.lotesAtivos = null; }
+async function nomesLotesAtivos() {
+  const lotes = await lotesAtivosDetalhe();
+  return lotes.map((l) => l.nome).sort((a, b) => a.localeCompare(b));
+}
+
+function limparCacheLotes() { cache.lotesAtivosPromise = null; }
 
 // Cache dos animais ATIVOS carregado uma vez (fica na memória da página).
 // Assim a consulta do brinco é local e instantânea, sem ir à internet a cada tecla.
@@ -420,7 +431,7 @@ document.querySelectorAll(".modo-toggle button").forEach((b) => {
 });
 
 async function carregarLotes() {
-  const lotes = await api.get("/api/lotes?somente_ativos=true");
+  const lotes = await lotesAtivosDetalhe();
   const box = document.getElementById("lista-lotes");
   box.innerHTML = "";
   lotes.forEach((l) => {
