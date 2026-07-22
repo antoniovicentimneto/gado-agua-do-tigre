@@ -99,7 +99,7 @@ async function mgAddSubloteInput() {
   row.className = "mg-sublote-row";
   row.dataset.prefixo = prefixo;
   row.style.marginBottom = "6px";
-  row.innerHTML = await seletorLoteHTML(prefixo, "", true);
+  row.innerHTML = await seletorLoteHTML(prefixo, "");
   el("mg-sublotes-lista").appendChild(row);
   ligarSeletorLote(prefixo);
 }
@@ -266,7 +266,7 @@ async function mgNovoSubloteRapido() {
   mgModal(`
     <h2>Adicionar sublote</h2>
     <p class="info">Escolha um lote já existente ou crie um novo. Os animais pesados vão pra ele.</p>
-    <div id="mg-sub-caixa">${await seletorLoteHTML("mg-sub", "", true)}</div>
+    <div id="mg-sub-caixa">${await seletorLoteHTML("mg-sub", "")}</div>
     <button id="mg-sub-ok" style="width:100%;margin-top:12px">Adicionar</button>`);
   ligarSeletorLote("mg-sub");
   el("mg-sub-ok").onclick = async () => {

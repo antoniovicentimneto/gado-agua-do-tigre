@@ -242,14 +242,8 @@ async function opcoes(categoria) {
   return cache[categoria];
 }
 
-async function nomesLotes() {
-  if (!cache.lotes) {
-    cache.lotes = (await api.get("/api/lotes")).map((l) => l.nome).sort((a, b) => a.localeCompare(b));
-  }
-  return cache.lotes;
-}
-
-// Só os lotes que têm animal ativo agora (esconde lotes antigos/esvaziados nos seletores de pesagem).
+// Só os lotes que têm animal ativo agora (esconde lotes antigos/esvaziados) — é o
+// que todo seletor de lote do app usa, em qualquer tela.
 async function nomesLotesAtivos() {
   if (!cache.lotesAtivos) {
     cache.lotesAtivos = (await api.get("/api/lotes?somente_ativos=true")).map((l) => l.nome).sort((a, b) => a.localeCompare(b));
@@ -257,7 +251,7 @@ async function nomesLotesAtivos() {
   return cache.lotesAtivos;
 }
 
-function limparCacheLotes() { cache.lotes = null; cache.lotesAtivos = null; }
+function limparCacheLotes() { cache.lotesAtivos = null; }
 
 // Cache dos animais ATIVOS carregado uma vez (fica na memória da página).
 // Assim a consulta do brinco é local e instantânea, sem ir à internet a cada tecla.
@@ -301,8 +295,8 @@ function opcoesHTML(nomes, atual, rotuloVazio = "—") {
 
 // Seletor de lote: dropdown dos lotes já cadastrados + opção de criar um novo.
 // Retorna o HTML; depois chame ligarSeletorLote(prefixo) e leia com valorLote(prefixo).
-async function seletorLoteHTML(prefixo, atual = "", somenteAtivos = false) {
-  const lotes = somenteAtivos ? await nomesLotesAtivos() : await nomesLotes();
+async function seletorLoteHTML(prefixo, atual = "") {
+  const lotes = await nomesLotesAtivos();
   return `
     <select id="${prefixo}-sel">
       <option value="">— escolher lote —</option>
