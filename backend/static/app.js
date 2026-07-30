@@ -76,13 +76,7 @@ function entrarNoApp(dados) {
   localStorage.setItem(TOKEN_KEY, dados.token);
   usuarioAtual = { nome: dados.nome, usuario: dados.usuario, papel: dados.papel };
   localStorage.setItem(USUARIO_KEY, JSON.stringify(usuarioAtual));
-  document.getElementById("tela-login").classList.add("escondido");
-  document.getElementById("app-conteudo").classList.remove("escondido");
-  document.getElementById("usuario-logado-nome").textContent = `${dados.nome} (${dados.papel})`;
-  aplicarPermissoes();
-  carregarLista();
-  carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
-  if (typeof mgInit === "function") mgInit();
+  mostrarApp(usuarioAtual, false);
 }
 
 document.getElementById("login-entrar").onclick = async () => {
@@ -181,6 +175,8 @@ document.getElementById("nu-criar").onclick = async () => {
 async function carregarConfig() {
   await renderConfigLista("tipo", "cfg-tipos");
   await renderConfigLista("raca", "cfg-racas");
+  await carregarLogUsuarios();
+  await carregarLogs(true);
 }
 
 async function renderConfigLista(categoria, boxId) {
@@ -219,6 +215,124 @@ async function adicionarOpcao(categoria, inputId, boxId) {
 document.getElementById("cfg-tipo-add").onclick = () => adicionarOpcao("tipo", "cfg-tipo-nome", "cfg-tipos");
 document.getElementById("cfg-raca-add").onclick = () => adicionarOpcao("raca", "cfg-raca-nome", "cfg-racas");
 
+// ----------------------------------------------------------- Log de alterações (auditoria)
+// Traduz "MÉTODO rota" pra um texto amigável. Cai no bruto (chave) se não achar
+// — assim uma rota nova aparece no log mesmo sem entrar nessa lista.
+const LOG_ACOES = [
+  [/^PUT \/api\/animais\/\d+$/, "Editou animal"],
+  [/^DELETE \/api\/animais\/\d+$/, "Excluiu animal"],
+  [/^POST \/api\/animais$/, "Cadastrou animal"],
+  [/^POST \/api\/animais\/\d+\/vincular$/, "Vinculou animal a outro"],
+  [/^POST \/api\/animais\/\d+\/pesagens$/, "Lançou pesagem avulsa"],
+  [/^PUT \/api\/animais\/\d+\/pesagens\/\d+$/, "Editou pesagem"],
+  [/^DELETE \/api\/animais\/\d+\/pesagens\/\d+$/, "Excluiu pesagem"],
+  [/^POST \/api\/pesagem-rapida$/, "Pesagem rápida"],
+  [/^POST \/api\/animais\/\d+\/denticoes$/, "Registrou dentição"],
+  [/^POST \/api\/animais\/\d+\/scores$/, "Registrou score"],
+  [/^POST \/api\/opcoes\/\w+$/, "Cadastrou opção (tipo/raça)"],
+  [/^DELETE \/api\/opcoes\/\w+\/\d+$/, "Removeu opção (tipo/raça)"],
+  [/^PUT \/api\/lotes\/\d+$/, "Renomeou lote"],
+  [/^POST \/api\/lotes\/mover$/, "Moveu animais de lote"],
+  [/^POST \/api\/lotes\/juntar$/, "Juntou lotes"],
+  [/^POST \/api\/animais\/\d+\/lote$/, "Mudou lote do animal"],
+  [/^POST \/api\/animais\/\d+\/venda\/completar$/, "Completou venda (gancho)"],
+  [/^POST \/api\/animais\/\d+\/venda$/, "Registrou venda"],
+  [/^POST \/api\/auth\/setup$/, "Criou conta de dono (1º acesso)"],
+  [/^POST \/api\/auth\/usuarios$/, "Criou usuário"],
+  [/^DELETE \/api\/auth\/usuarios\/\d+$/, "Removeu usuário"],
+  [/^POST \/api\/sessoes$/, "Abriu sessão de pesagem"],
+  [/^DELETE \/api\/sessoes\/\d+$/, "Cancelou sessão"],
+  [/^POST \/api\/sessoes\/\d+\/sublotes$/, "Criou sublote"],
+  [/^POST \/api\/sessoes\/\d+\/pesar$/, "Pesou animal (mangueira)"],
+  [/^POST \/api\/sessoes\/\d+\/pesar-sem-brinco$/, "Pesou sem brinco (mangueira)"],
+  [/^POST \/api\/sessoes\/\d+\/vincular$/, "Vinculou animal (mangueira)"],
+  [/^POST \/api\/sessoes\/\d+\/finalizar$/, "Finalizou sessão"],
+  [/^POST \/api\/sessoes\/\d+\/reabrir$/, "Reabriu sessão"],
+  [/^PUT \/api\/sessoes\/\d+\/pesagens\/\d+$/, "Editou pesagem (mangueira)"],
+  [/^DELETE \/api\/sessoes\/\d+\/pesagens\/\d+$/, "Removeu pesagem (mangueira)"],
+];
+
+function logAcaoAmigavel(metodo, rota) {
+  const chave = `${metodo} ${rota}`;
+  const achado = LOG_ACOES.find(([re]) => re.test(chave));
+  return achado ? achado[1] : chave;
+}
+
+function logFormatarCorpo(corpo) {
+  if (!corpo) return "";
+  try {
+    const obj = JSON.parse(corpo);
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      return Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(" · ");
+    }
+    return corpo;
+  } catch {
+    return corpo;
+  }
+}
+
+let logPagina = 1;
+let logUsuarioFiltro = "";
+
+async function carregarLogUsuarios() {
+  const sel = document.getElementById("log-usuario");
+  if (sel.dataset.pronto) return;
+  try {
+    const usuarios = await api.get("/api/auth/usuarios");
+    usuarios.forEach((u) => {
+      const o = document.createElement("option");
+      o.value = u.id;
+      o.textContent = u.nome;
+      sel.appendChild(o);
+    });
+    sel.dataset.pronto = "1";
+  } catch {
+    // sem lista de usuários, o filtro fica só com "Todos" — não impede ver o log
+  }
+}
+
+async function carregarLogs(reiniciar) {
+  if (reiniciar) {
+    logPagina = 1;
+    document.getElementById("log-tabela").innerHTML = "";
+  }
+  const params = new URLSearchParams({ pagina: logPagina });
+  if (logUsuarioFiltro) params.set("usuario_id", logUsuarioFiltro);
+  let r;
+  try {
+    r = await api.get("/api/logs?" + params.toString());
+  } catch (e) {
+    document.getElementById("log-vazio").textContent = "Erro ao carregar: " + e.message;
+    document.getElementById("log-vazio").classList.remove("escondido");
+    return;
+  }
+  const tabela = document.getElementById("log-tabela");
+  r.itens.forEach((log) => {
+    const tr = document.createElement("tr");
+    const quando = new Date(log.criado_em).toLocaleString("pt-BR");
+    const acao = logAcaoAmigavel(log.metodo, log.rota);
+    const negado = log.status_code >= 400 ? ' <span class="tag vendido">negado</span>' : "";
+    tr.innerHTML = `
+      <td>${quando}</td>
+      <td>${esc(log.usuario_nome)}</td>
+      <td>${esc(acao)}${negado}</td>
+      <td>${esc(logFormatarCorpo(log.corpo))}</td>`;
+    tabela.appendChild(tr);
+  });
+  document.getElementById("log-vazio").classList.toggle("escondido", r.total > 0);
+  const carregados = logPagina * r.por_pagina;
+  document.getElementById("log-mais").classList.toggle("escondido", carregados >= r.total);
+}
+
+document.getElementById("log-recarregar").onclick = () => {
+  logUsuarioFiltro = document.getElementById("log-usuario").value;
+  carregarLogs(true);
+};
+document.getElementById("log-mais").onclick = () => {
+  logPagina += 1;
+  carregarLogs(false);
+};
+
 const fmt = {
   gmd: (v) => (v == null ? "—" : v.toFixed(3) + " kg/dia"),
   peso: (v) => (v == null ? "—" : v.toFixed(0) + " kg"),
@@ -232,12 +346,30 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// ----------------------------------------------------- Persistência offline
+// Guarda a última resposta boa de cada consulta de referência no localStorage,
+// pra sobreviver a um reload sem rede (o cache em memória some nesse caso).
+function salvarOffline(chave, dado) {
+  try { localStorage.setItem(chave, JSON.stringify(dado)); } catch { /* localStorage cheio/indisponível — ignora */ }
+}
+function lerOffline(chave) {
+  try { return JSON.parse(localStorage.getItem(chave)); } catch { return null; }
+}
+
 // ----------------------------------------------------- Opções (tipos/raças) e lotes
 const cache = { tipo: null, raca: null, lotes: null };
 
 async function opcoes(categoria) {
   if (!cache[categoria]) {
-    cache[categoria] = (await api.get("/api/opcoes/" + categoria)).map((o) => o.nome);
+    const chave = "gat_cache_opcoes_" + categoria;
+    try {
+      cache[categoria] = (await api.get("/api/opcoes/" + categoria)).map((o) => o.nome);
+      salvarOffline(chave, cache[categoria]);
+    } catch (e) {
+      const salvo = lerOffline(chave);
+      if (!salvo) throw e;
+      cache[categoria] = salvo;
+    }
   }
   return cache[categoria];
 }
@@ -246,13 +378,22 @@ async function opcoes(categoria) {
 // consulta é pesada (recalcula GMD/uGMD/UA de todo animal ativo), então fica em
 // cache e é reaproveitada por todo mundo que precisa (seletores, mangueira, aba
 // "Por lote"), em vez de cada um pedir de novo pra API.
+const CHAVE_LOTES_OFFLINE = "gat_cache_lotes";
+
 async function lotesAtivosDetalhe() {
   // Guarda a PROMISE (não só o resultado): mgInit() roda tanto no carregamento
   // do script quanto no login, quase ao mesmo tempo — sem isso, as duas
   // chamadas passavam pelo "cache vazio" antes da 1ª terminar e pediam à API
   // em dobro (era o que deixava a aba "Por lote" lenta).
   if (!cache.lotesAtivosPromise) {
-    cache.lotesAtivosPromise = api.get("/api/lotes?somente_ativos=true");
+    cache.lotesAtivosPromise = api.get("/api/lotes?somente_ativos=true")
+      .then((lotes) => { salvarOffline(CHAVE_LOTES_OFFLINE, lotes); return lotes; })
+      .catch((e) => {
+        limparCacheLotes();   // não guarda uma promise rejeitada — tenta de novo na próxima
+        const salvo = lerOffline(CHAVE_LOTES_OFFLINE);
+        if (!salvo) throw e;
+        return salvo;
+      });
   }
   return cache.lotesAtivosPromise;
 }
@@ -267,9 +408,9 @@ function limparCacheLotes() { cache.lotesAtivosPromise = null; }
 // Cache dos animais ATIVOS carregado uma vez (fica na memória da página).
 // Assim a consulta do brinco é local e instantânea, sem ir à internet a cada tecla.
 const cacheAnimais = { porBrinco: new Map(), carregadoEm: 0 };
+const CHAVE_ANIMAIS_OFFLINE = "gat_cache_animais";
 
-async function carregarCacheAnimais() {
-  const lista = await api.get("/api/animais-cache");
+function _hidratarCacheAnimais(lista) {
   const m = new Map();
   for (const a of lista) {
     const k = String(a.brinco);
@@ -278,6 +419,25 @@ async function carregarCacheAnimais() {
   }
   cacheAnimais.porBrinco = m;
   cacheAnimais.carregadoEm = Date.now();
+}
+
+// Se ainda não tem nada em memória, tenta usar o que foi salvo da última vez
+// que o app teve rede — assim um reload sem sinal não fica com a busca vazia.
+function hidratarCacheAnimaisOfflineSeVazio() {
+  if (cacheAnimais.porBrinco.size > 0) return;
+  const salvo = lerOffline(CHAVE_ANIMAIS_OFFLINE);
+  if (salvo) _hidratarCacheAnimais(salvo);
+}
+
+async function carregarCacheAnimais() {
+  try {
+    const lista = await api.get("/api/animais-cache");
+    _hidratarCacheAnimais(lista);
+    salvarOffline(CHAVE_ANIMAIS_OFFLINE, lista);
+  } catch (e) {
+    hidratarCacheAnimaisOfflineSeVazio();
+    throw e;
+  }
 }
 
 function animaisPorBrinco(brinco) {
@@ -292,6 +452,36 @@ function cacheUpsertAnimal(a) {
   const i = arr.findIndex((x) => x.id === a.id);
   if (i >= 0) arr[i] = { ...arr[i], ...a };
   else arr.push(a);
+}
+
+function persistirCacheAnimaisAtual() {
+  salvarOffline(CHAVE_ANIMAIS_OFFLINE, [...cacheAnimais.porBrinco.values()].flat());
+}
+
+// Salva um campo do animal (tipo/raça/observação): online manda pro servidor
+// na hora; sem rede (ou se a rede cair no meio do envio), guarda na fila
+// offline e atualiza o cache local na hora (otimista), pra ficha e o Rebanho
+// já mostrarem o valor novo mesmo antes de sincronizar.
+async function salvarCampoAnimal(id, brinco, campo, valor) {
+  const corpo = { [campo]: valor };
+  const guardarNaFila = () => {
+    filaAdicionar({
+      metodo: "PUT", url: "/api/animais/" + id, corpo,
+      rotulo: `Editar ${campo} do brinco ${brinco}`,
+    });
+    cacheUpsertAnimal({ id, brinco, [campo]: valor });
+    persistirCacheAnimaisAtual();
+  };
+  if (!navigator.onLine) { guardarNaFila(); return { offline: true }; }
+  try {
+    await api.put("/api/animais/" + id, corpo);
+    cacheUpsertAnimal({ id, brinco, [campo]: valor });
+    persistirCacheAnimaisAtual();
+    return { offline: false };
+  } catch (e) {
+    if (e instanceof TypeError) { guardarNaFila(); return { offline: true }; }
+    throw e;
+  }
 }
 
 // Monta as <option> de um select a partir de uma lista de nomes.
@@ -349,16 +539,38 @@ document.querySelectorAll(".abas button").forEach((b) => {
 });
 
 // ----------------------------------------------------------- Lista de animais
+// Fora do modo compra, um brinco recém pesado pode virar animal duplicado —
+// então a lista sempre busca de novo (nunca usa só o cache local pra exibir,
+// exceto quando não há rede: aí mostra os dados salvos no aparelho, mesmo que
+// possam estar um pouco desatualizados).
 async function carregarLista() {
   const busca = document.getElementById("busca").value.trim();
   const status = document.getElementById("filtro-status").value;
   const params = new URLSearchParams();
   if (busca) params.set("busca", busca);
   if (status && status !== "duplicado") params.set("status", status);
-  let animais = await api.get("/api/animais?" + params);
+  let animais;
+  let offline = false;
+  try {
+    animais = await api.get("/api/animais?" + params);
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e;
+    offline = true;
+    hidratarCacheAnimaisOfflineSeVazio();
+    // O cache local só tem animais ATIVOS — offline não dá pra ver vendidos/mortos/perdidos.
+    animais = status && status !== "ativo" && status !== "duplicado"
+      ? []
+      : [...cacheAnimais.porBrinco.values()].flat().map((a) => ({
+          id: a.id, brinco: a.brinco, tipo: a.tipo, raca: a.raca, lote_atual: a.lote,
+          ultimo_peso: a.ultimo_peso, data_ultimo: null, gmd: a.gmd, ugmd: null,
+          observacao: a.observacao, status: "ativo", data_evento: null, duplicado: false,
+        }));
+    if (busca) animais = animais.filter((a) => String(a.brinco).includes(busca));
+  }
   if (status === "duplicado") animais = animais.filter((a) => a.duplicado);
   animais.sort((a, b) => comparaBrinco(a.brinco, b.brinco));
-  document.getElementById("contador").textContent = `${animais.length} animais`;
+  document.getElementById("contador").textContent =
+    `${animais.length} animais${offline ? " (offline — dados salvos no aparelho)" : ""}`;
 
   const lista = document.getElementById("lista");
   lista.innerHTML = "";
@@ -755,9 +967,69 @@ document.getElementById("fechar-modal").onclick = fecharModalOuVoltar;
 // Clicar fora do conteúdo (no fundo escuro) também fecha.
 modal.addEventListener("click", (e) => { if (e.target === modal) fecharModalOuVoltar(); });
 
+// Ficha reduzida usada quando não há rede: só o que já está salvo no aparelho
+// (cache de animais), com tipo/raça/observação editáveis — a edição entra na
+// fila offline. Pesagens, histórico, dentição e venda precisam de internet.
+async function abrirFichaOffline(id, voltar) {
+  modalVoltar = voltar;
+  const registro = [...cacheAnimais.porBrinco.values()].flat().find((x) => x.id === id);
+  const ficha = document.getElementById("ficha");
+  if (!registro) {
+    ficha.innerHTML = `<h2>Sem conexão</h2>
+      <p class="info">Esse animal não está nos dados salvos neste aparelho. Conecte à internet
+      e tente de novo.</p>`;
+    modal.classList.remove("escondido");
+    return;
+  }
+  const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
+  ficha.innerHTML = `
+    <h2>Brinco ${esc(registro.brinco)} <span class="tag neutro">offline</span></h2>
+    <div class="sub">${esc(registro.tipo || "")} · ${esc(registro.raca || "sem raça")} · ${esc(registro.lote || "sem lote")}</div>
+    <p class="info">Sem internet — mostrando os dados salvos no aparelho. Pesagens, histórico de
+      lotes, dentição e venda ficam disponíveis quando reconectar. As alterações abaixo entram
+      na fila e são enviadas sozinhas ao voltar o sinal.</p>
+
+    <div class="grid-2 ficha-secao">
+      <div class="destaque"><div class="rotulo">Último peso</div><div class="num">${fmt.peso(registro.ultimo_peso)}</div></div>
+      <div class="destaque"><div class="rotulo">GMD</div><div class="num">${registro.gmd == null ? "—" : registro.gmd.toFixed(3)}</div></div>
+    </div>
+
+    <div class="grid-2 ficha-secao">
+      <div>
+        <label style="font-weight:600;font-size:0.85rem">Classificação</label>
+        <select id="f-tipo">${opcoesHTML(tipos, registro.tipo)}</select>
+      </div>
+      <div>
+        <label style="font-weight:600;font-size:0.85rem">Raça</label>
+        <select id="f-raca">${opcoesHTML(racas, registro.raca)}</select>
+      </div>
+    </div>
+
+    <div class="ficha-secao">
+      <label style="font-weight:600;font-size:0.85rem">Observação</label>
+      <textarea id="f-obs" rows="2" style="width:100%">${esc(registro.observacao || "")}</textarea>
+      <button id="f-obs-salvar" class="secundario" style="margin-top:6px">Salvar observação</button>
+    </div>`;
+  modal.classList.remove("escondido");
+  modal.dataset.animalId = id;
+
+  document.getElementById("f-tipo").onchange = (e) => salvarCampoAnimal(id, registro.brinco, "tipo", e.target.value || null);
+  document.getElementById("f-raca").onchange = (e) => salvarCampoAnimal(id, registro.brinco, "raca", e.target.value || null);
+  document.getElementById("f-obs-salvar").onclick = () => {
+    salvarCampoAnimal(id, registro.brinco, "observacao", document.getElementById("f-obs").value || null);
+    document.getElementById("f-obs-salvar").textContent = "Salvo ✓ (na fila)";
+  };
+}
+
 async function abrirFicha(id, voltar = null) {
   modalVoltar = voltar;
-  const a = await api.get("/api/animais/" + id);
+  let a;
+  try {
+    a = await api.get("/api/animais/" + id);
+  } catch (e) {
+    if (e instanceof TypeError) return abrirFichaOffline(id, voltar);
+    throw e;
+  }
   const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
   const ficha = document.getElementById("ficha");
   const pesagens = a.pesagens
@@ -922,18 +1194,18 @@ async function abrirFicha(id, voltar = null) {
     } catch (e) { alert("Erro: " + e.message); }
   };
 
-  // Classificação e raça (salvam na hora ao trocar).
+  // Classificação e raça (salvam na hora ao trocar; sem rede, entram na fila).
   document.getElementById("f-tipo").onchange = async (e) => {
-    await api.put("/api/animais/" + id, { tipo: e.target.value || null });
+    await salvarCampoAnimal(id, a.brinco, "tipo", e.target.value || null);
     carregarLista();
   };
   document.getElementById("f-raca").onchange = async (e) => {
-    await api.put("/api/animais/" + id, { raca: e.target.value || null });
+    await salvarCampoAnimal(id, a.brinco, "raca", e.target.value || null);
     carregarLista();
   };
   document.getElementById("f-obs-salvar").onclick = async () => {
-    await api.put("/api/animais/" + id, { observacao: document.getElementById("f-obs").value || null });
-    document.getElementById("f-obs-salvar").textContent = "Salvo ✓";
+    const r = await salvarCampoAnimal(id, a.brinco, "observacao", document.getElementById("f-obs").value || null);
+    document.getElementById("f-obs-salvar").textContent = r.offline ? "Salvo ✓ (na fila)" : "Salvo ✓";
     carregarLista();
   };
 
@@ -1051,10 +1323,11 @@ async function abrirFicha(id, voltar = null) {
     } catch (e) { alert("Erro: " + e.message); }
   };
 
-  // Peão não edita cadastro/pesagens antigas nem exclui nada — esconde esses controles.
+  // Peão não corrige brinco/situação, não edita/exclui pesagens antigas, não
+  // exclui/vincula animal nem simula venda — esconde esses controles. Tipo,
+  // raça e observação ficam liberados (ele precisa corrigir isso no dia a dia).
   if (!usuarioAtual || usuarioAtual.papel !== "dono") {
-    ["f-brinco", "f-brinco-salvar", "f-tipo", "f-raca", "f-obs", "f-obs-salvar",
-     "f-status", "f-excluir"].forEach((elId) => {
+    ["f-brinco", "f-brinco-salvar", "f-status", "f-excluir"].forEach((elId) => {
       const el2 = document.getElementById(elId);
       if (el2) el2.disabled = true;
     });
@@ -1064,6 +1337,8 @@ async function abrirFicha(id, voltar = null) {
     if (secaoExcluir) secaoExcluir.classList.add("escondido");
     const secaoVincular = document.getElementById("f-vincular-secao");
     if (secaoVincular) secaoVincular.classList.add("escondido");
+    const secaoVender = document.getElementById("btn-simular").closest(".ficha-secao");
+    if (secaoVender) secaoVender.classList.add("escondido");
   }
 }
 
@@ -1210,6 +1485,20 @@ async function carregarPainel() {
     <div class="card"><div class="num">${d.pesagens}</div><div class="rotulo">Pesagens</div></div>`;
 }
 
+// Mostra a tela principal do app (chamado tanto no login quanto ao restaurar
+// uma sessão já salva, online ou offline).
+function mostrarApp(dadosUsuario, offline) {
+  document.getElementById("tela-login").classList.add("escondido");
+  document.getElementById("app-conteudo").classList.remove("escondido");
+  document.getElementById("usuario-logado-nome").textContent =
+    `${dadosUsuario.nome} (${dadosUsuario.papel})${offline ? " · offline" : ""}`;
+  aplicarPermissoes();
+  hidratarCacheAnimaisOfflineSeVazio();   // dados salvos no aparelho, prontos na hora
+  carregarLista();
+  carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
+  if (typeof mgInit === "function") mgInit();
+}
+
 // Início: se já tem token salvo, tenta validar; senão mostra a tela de login.
 (async function iniciar() {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -1217,14 +1506,18 @@ async function carregarPainel() {
   try {
     const eu = await api.get("/api/auth/eu");
     usuarioAtual = eu;
-    document.getElementById("tela-login").classList.add("escondido");
-    document.getElementById("app-conteudo").classList.remove("escondido");
-    document.getElementById("usuario-logado-nome").textContent = `${eu.nome} (${eu.papel})`;
-    aplicarPermissoes();
-    carregarLista();
-    carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
-    if (typeof mgInit === "function") mgInit();
+    localStorage.setItem(USUARIO_KEY, JSON.stringify(usuarioAtual));
+    mostrarApp(usuarioAtual, false);
   } catch (e) {
+    // Sem rede (não uma sessão inválida) e já logou nesse aparelho antes: entra
+    // em modo offline com os dados salvos, em vez de forçar um login que também
+    // precisaria de internet.
+    const salvo = e instanceof TypeError ? localStorage.getItem(USUARIO_KEY) : null;
+    if (salvo) {
+      usuarioAtual = JSON.parse(salvo);
+      mostrarApp(usuarioAtual, true);
+      return;
+    }
     iniciarTelaLogin();
   }
 })();

@@ -2,14 +2,17 @@
 import pytest
 from fastapi import HTTPException
 
-from app.models import Animal, Pesagem
+from app.models import Animal, PapelUsuario, Pesagem, Usuario
 from app.routers import api
+
+DONO = Usuario(papel=PapelUsuario.DONO)
+PEAO = Usuario(papel=PapelUsuario.PEAO)
 
 
 def test_editar_brinco(db):
     a = db.query(Animal).filter(Animal.brinco == "101").first()
     from app import schemas
-    api.atualizar_animal(a.id, schemas.AnimalAtualizar(brinco="999"), db)
+    api.atualizar_animal(a.id, schemas.AnimalAtualizar(brinco="999"), db, usuario=DONO)
     db.refresh(a)
     assert a.brinco == "999"
 
@@ -36,14 +39,16 @@ def test_data_evento_ao_marcar_inativo(db):
 
     a = db.query(Animal).filter(Animal.brinco == "101").first()
     api.atualizar_animal(
-        a.id, schemas.AnimalAtualizar(status="vendido", data_evento=date(2025, 10, 12)), db
+        a.id, schemas.AnimalAtualizar(status="vendido", data_evento=date(2025, 10, 12)), db,
+        usuario=DONO,
     )
     db.refresh(a)
     assert a.status.value == "vendido"
     assert a.data_evento == date(2025, 10, 12)
 
     # Reativar limpa a data do evento.
-    api.atualizar_animal(a.id, schemas.AnimalAtualizar(status="ativo", data_evento=None), db)
+    api.atualizar_animal(a.id, schemas.AnimalAtualizar(status="ativo", data_evento=None), db,
+                         usuario=DONO)
     db.refresh(a)
     assert a.status.value == "ativo"
     assert a.data_evento is None
@@ -74,3 +79,42 @@ def test_excluir_animal_apaga_tudo(db):
     api.excluir_animal(animal_id, db)
     assert db.get(Animal, animal_id) is None
     assert db.query(Pesagem).filter(Pesagem.animal_id == animal_id).count() == 0
+
+
+def test_peao_edita_tipo_raca_observacao(db):
+    from app import schemas
+
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    api.atualizar_animal(
+        a.id, schemas.AnimalAtualizar(tipo="Vaca", raca="Nelore", observacao="virou vaca"),
+        db, usuario=PEAO,
+    )
+    db.refresh(a)
+    assert a.tipo == "Vaca"
+    assert a.raca == "Nelore"
+    assert a.observacao == "virou vaca"
+
+
+def test_peao_nao_edita_brinco_nem_status(db):
+    from datetime import date
+
+    from app import schemas
+
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    with pytest.raises(HTTPException) as exc:
+        api.atualizar_animal(a.id, schemas.AnimalAtualizar(brinco="999"), db, usuario=PEAO)
+    assert exc.value.status_code == 403
+
+    with pytest.raises(HTTPException) as exc:
+        api.atualizar_animal(
+            a.id, schemas.AnimalAtualizar(status="vendido", data_evento=date(2025, 10, 12)),
+            db, usuario=PEAO,
+        )
+    assert exc.value.status_code == 403
+
+    # Nem misturado com um campo liberado — se tiver um campo bloqueado, barra tudo.
+    with pytest.raises(HTTPException) as exc:
+        api.atualizar_animal(
+            a.id, schemas.AnimalAtualizar(tipo="Vaca", brinco="999"), db, usuario=PEAO,
+        )
+    assert exc.value.status_code == 403

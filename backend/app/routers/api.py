@@ -13,10 +13,13 @@ from ..models import (
     Animal,
     AnimalLote,
     Denticao,
+    LogAlteracao,
     Lote,
+    PapelUsuario,
     Pesagem,
     Score,
     StatusAnimal,
+    Usuario,
     Venda,
 )
 from .. import schemas
@@ -122,13 +125,19 @@ def detalhar_animal(animal_id: int, db: Session = Depends(get_db)):
     return resumo
 
 
+CAMPOS_LIBERADOS_PEAO = {"tipo", "raca", "observacao"}
+
+
 @router.put("/animais/{animal_id}")
 def atualizar_animal(
     animal_id: int, dados: schemas.AnimalAtualizar, db: Session = Depends(get_db),
-    _dono=Depends(requer_dono),
+    usuario: Usuario = Depends(usuario_atual),
 ):
     animal = _buscar_animal(db, animal_id)
-    for campo, valor in dados.model_dump(exclude_unset=True).items():
+    campos = dados.model_dump(exclude_unset=True)
+    if usuario.papel != PapelUsuario.DONO and not set(campos).issubset(CAMPOS_LIBERADOS_PEAO):
+        raise HTTPException(status_code=403, detail="Ação permitida só para o dono")
+    for campo, valor in campos.items():
         setattr(animal, campo, valor)
     db.commit()
     db.refresh(animal)
@@ -275,6 +284,7 @@ def animais_cache(db: Session = Depends(get_db)):
         saida.append({
             "id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "lote": r["lote_atual"], "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
+            "observacao": r["observacao"],
         })
     return saida
 
@@ -642,6 +652,53 @@ def exportar_excel(db: Session = Depends(get_db), _dono=Depends(requer_dono)):
         media_type=XLSX_MIME,
         headers={"Content-Disposition": f'attachment; filename="{nome_arquivo()}"'},
     )
+
+
+TAMANHO_PAGINA_LOG = 50
+
+
+@router.get("/logs")
+def listar_logs(
+    usuario_id: int | None = None,
+    de: date | None = None,
+    ate: date | None = None,
+    pagina: int = Query(1, ge=1),
+    db: Session = Depends(get_db),
+    _dono=Depends(requer_dono),
+):
+    """Log de auditoria: toda escrita feita no sistema (quem, o quê, quando)."""
+    q = db.query(LogAlteracao)
+    if usuario_id:
+        q = q.filter(LogAlteracao.usuario_id == usuario_id)
+    if de:
+        q = q.filter(func.date(LogAlteracao.criado_em) >= de)
+    if ate:
+        q = q.filter(func.date(LogAlteracao.criado_em) <= ate)
+    total = q.count()
+    itens = (
+        q.order_by(LogAlteracao.id.desc())
+        .offset((pagina - 1) * TAMANHO_PAGINA_LOG)
+        .limit(TAMANHO_PAGINA_LOG)
+        .all()
+    )
+    return {
+        "total": total,
+        "pagina": pagina,
+        "por_pagina": TAMANHO_PAGINA_LOG,
+        "itens": [
+            {
+                "id": log.id,
+                "usuario_id": log.usuario_id,
+                "usuario_nome": log.usuario_nome,
+                "metodo": log.metodo,
+                "rota": log.rota,
+                "corpo": log.corpo,
+                "status_code": log.status_code,
+                "criado_em": log.criado_em,
+            }
+            for log in itens
+        ],
+    }
 
 
 @router.get("/dashboard")

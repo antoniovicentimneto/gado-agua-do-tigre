@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gado-teste",
+      "runtimeExecutable": "C:\\Users\\User\\Documents\\CLAUDE CODE\\PROJETOS\\gado_app\\backend\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["C:\\Users\\User\\Documents\\CLAUDE CODE\\PROJETOS\\gado_app\\backend\\run_teste.py"],
+      "port": 8078
+    }
+  ]
+}

@@ -280,6 +280,21 @@ class Venda(Base):
     animal: Mapped[Animal] = relationship(back_populates="venda")
 
 
+class LogAlteracao(Base):
+    """Auditoria: toda escrita feita na API (quem, o quê, quando). Gravado por um
+    middleware genérico (ver app/main.py) — não é populado manualmente."""
+    __tablename__ = "logs_alteracao"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    usuario_nome: Mapped[str] = mapped_column(String(100))  # denormalizado: sobrevive se o usuário for removido
+    metodo: Mapped[str] = mapped_column(String(10))
+    rota: Mapped[str] = mapped_column(String(200), index=True)
+    corpo: Mapped[str | None] = mapped_column(Text)  # JSON do payload, sem campos sensíveis
+    status_code: Mapped[int] = mapped_column(Integer)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
 class OpcaoCadastro(Base):
     """Opções pré-cadastradas pra preencher campos do animal escolhendo de uma
     lista em vez de digitar livre. Categoria: 'tipo' (Novilha, Boi...) ou 'raca'."""

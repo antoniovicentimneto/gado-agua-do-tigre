@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=39" />
+  <link rel="stylesheet" href="/static/style.css?v=40" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -261,6 +261,21 @@
       </div>
     </div>
     <div id="cfg-msg" class="info"></div>
+
+    <div class="ficha-secao">
+      <h3>Log de alterações</h3>
+      <p class="info">Toda escrita feita no sistema — quem fez, o quê e quando.</p>
+      <div class="linha-pesar">
+        <select id="log-usuario"><option value="">Todos os usuários</option></select>
+        <button id="log-recarregar" class="secundario">Filtrar</button>
+      </div>
+      <table>
+        <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead>
+        <tbody id="log-tabela"></tbody>
+      </table>
+      <div id="log-vazio" class="info escondido">Nenhuma alteração registrada ainda.</div>
+      <button id="log-mais" class="secundario escondido" style="width:100%;margin-top:8px">Carregar mais</button>
+    </div>
   </section>
 
   <!-- ABA USUÁRIOS (só dono) -->
@@ -295,9 +310,9 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=39"></script>
-  <script src="/static/fila-offline.js?v=39"></script>
-  <script src="/static/mangueira.js?v=39"></script>
+  <script src="/static/app.js?v=40"></script>
+  <script src="/static/fila-offline.js?v=40"></script>
+  <script src="/static/mangueira.js?v=40"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.
