@@ -417,13 +417,15 @@ def registrar_pesagem(
         # Dados de apoio que a tela mostra ao digitar o brinco.
         "ultimo_peso": (animal.pesagens[-2].peso if len(animal.pesagens) >= 2 else None),
         "gmd": _gmd_animal(animal),
+        # Só vem quando a dentição foi lançada agora (senão o cache mantém a anterior).
+        **({"dentes": dentes, "data_dentes": sessao.data} if dentes is not None else {}),
     }
 
 
 def pesar_sem_brinco(
     db: Session, sessao: SessaoPesagem, peso: float,
     destino_lote: str | None = None, observacao: str | None = None,
-    tipo: str | None = None,
+    tipo: str | None = None, dentes: int | None = None,
 ) -> dict:
     """Pesa um animal sem brinco (cria um registro provisório p/ vincular depois)."""
     destino = obter_ou_criar_lote(db, destino_lote) if destino_lote else None
@@ -437,6 +439,8 @@ def pesar_sem_brinco(
         destino_lote_id=destino.id if destino else None,
     )
     db.add(pesagem)
+    if dentes is not None:
+        db.add(Denticao(animal_id=animal.id, data=sessao.data, dentes=dentes))
     _aplicar_financeiro(db, sessao, animal, peso)
     db.commit()
     db.refresh(pesagem)
@@ -637,6 +641,15 @@ def vincular(db: Session, data: date, animal_temp_id: int,
             # p continua em temp e será apagado junto (cascade) — sem duplicar.
         else:
             faltante.pesagens.append(p)  # transfere a posse para o animal antigo
+
+    # Move a dentição do provisório (mesma lógica: append transfere a posse, senão
+    # o cascade apaga junto com o provisório). Mesma data: vale a do provisório.
+    for d in list(temp.denticoes):
+        existente = next((x for x in faltante.denticoes if x.data == d.data), None)
+        if existente:
+            existente.dentes = d.dentes
+        else:
+            faltante.denticoes.append(d)
 
     # Move compra/venda, se houver (sessões de compra/venda).
     if temp.compra and not faltante.compra:

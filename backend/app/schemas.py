@@ -147,6 +147,7 @@ class PesarSemBrinco(BaseModel):
     destino_lote: str | None = None
     observacao: str | None = None
     tipo: str | None = None
+    dentes: int | None = None
 
 
 class VincularBrinco(BaseModel):

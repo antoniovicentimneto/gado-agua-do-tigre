@@ -129,6 +129,26 @@ def test_pesagem_edita_tipo_raca_e_dentes(db):
     assert d is not None and d.dentes == 4
 
 
+def test_pesagem_devolve_dentes_lancados(db):
+    # A tela usa isso pra atualizar o cache local e mostrar os dentes na próxima pesagem.
+    s = _abrir_manejo(db)
+    r = svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo", dentes=6)
+    assert r["dentes"] == 6 and r["data_dentes"] == HOJE
+    r2 = svc.registrar_pesagem(db, s, "102", 330, destino_lote="Gordo")
+    assert "dentes" not in r2  # sem dentição lançada, não sobrescreve a anterior
+
+
+def test_sem_brinco_grava_dentes_e_vinculo_leva_junto(db):
+    from app.models import Denticao
+    s = _abrir_manejo(db)
+    sb = svc.pesar_sem_brinco(db, s, 280, destino_lote="Magro", dentes=2)
+    temp = db.query(Animal).filter(Animal.brinco == sb["brinco"]).first()
+    faltante = db.query(Animal).filter(Animal.brinco == "101").first()
+    svc.vincular(db, s.data, temp.id, faltante.id)
+    d = db.query(Denticao).filter(Denticao.animal_id == faltante.id).all()
+    assert [x.dentes for x in d] == [2]  # antes o cascade apagava junto com o provisório
+
+
 def test_cadastro_rapido_inexistente(db):
     s = _abrir_manejo(db)
     assert svc.registrar_pesagem(db, s, "999", 300).get("alerta") == "inexistente"

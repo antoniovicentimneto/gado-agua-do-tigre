@@ -310,7 +310,9 @@ el("mg-brinco").oninput = () => {
   const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
   const nomesOrig = new Set((mg.estado.sessao.origens) || []);
   const fora = !nomesOrig.has(a.lote);
-  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+  // Dentição da última avaliação (lançada em "mais opções" numa pesagem anterior).
+  const dentes = a.dentes != null ? ` · ${a.dentes} dentes (${fmt.data(a.data_dentes)})` : "";
+  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}${dentes}`;
   box.textContent = dados + (fora ? " · ⚠ fora do lote" : "");
   box.className = fora ? "mg-info-animal fora" : "mg-info-animal";
 };
@@ -347,6 +349,7 @@ async function mgSucesso(r) {
     cacheUpsertAnimal({
       id: r.animal_id, brinco: r.brinco, tipo: r.tipo, raca: r.raca,
       lote: r.destino || r.lote_atual, ultimo_peso: r.peso, gmd: r.gmd,
+      ...(r.dentes != null ? { dentes: r.dentes, data_dentes: r.data_dentes } : {}),
     });
   }
   el("mg-brinco").value = "";
@@ -607,6 +610,13 @@ function mgMostrarAlerta(r) {
 }
 
 // ----------------------------------------------------------- Pesar sem brinco
+// "Mais opções" que valem pro animal sem brinco (o endpoint chama o tipo de "tipo").
+function mgExtrasSemBrinco() {
+  const { novo_tipo, dentes, observacao } = mgOpcoesExtras();
+  return { ...(novo_tipo ? { tipo: novo_tipo } : {}), ...(dentes != null ? { dentes } : {}),
+           ...(observacao ? { observacao } : {}) };
+}
+
 // Botão compartilhado (mg-sem-brinco e al-semb) — pega o botão clicado pelo evento.
 async function mgPesarSemBrinco(ev) {
   const peso = parseFloat(el("mg-peso").value);
@@ -620,7 +630,7 @@ async function mgPesarSemBrinco(ev) {
       filaAdicionar({
         sessaoId: mg.sessaoId,
         tipo: "pesar-sem-brinco",
-        dados: { peso, destino_lote: mg.loteAtivo },
+        dados: { peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco() },
       });
       mgSucessoOffline("(sem brinco)", peso);
       return;
@@ -628,7 +638,7 @@ async function mgPesarSemBrinco(ev) {
 
     try {
       const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, {
-        peso, destino_lote: mg.loteAtivo,
+        peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco(),
       });
       if (r.ok) await mgSucesso(r);
     } catch (e) {
@@ -636,7 +646,7 @@ async function mgPesarSemBrinco(ev) {
         filaAdicionar({
           sessaoId: mg.sessaoId,
           tipo: "pesar-sem-brinco",
-          dados: { peso, destino_lote: mg.loteAtivo },
+          dados: { peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco() },
         });
         mgSucessoOffline("(sem brinco)", peso);
         return;

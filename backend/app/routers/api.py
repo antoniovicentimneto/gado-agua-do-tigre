@@ -285,6 +285,7 @@ def animais_cache(db: Session = Depends(get_db)):
             "id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "lote": r["lote_atual"], "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
             "observacao": r["observacao"],
+            "dentes": r["dentes"], "data_dentes": r["data_dentes"],
         })
     return saida
 
