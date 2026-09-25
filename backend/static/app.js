@@ -42,6 +42,22 @@ const api = {
   },
 };
 
+// Baixa um arquivo de uma rota protegida: um <a href> comum não manda o token
+// (daria 401), então busca com fetch + cabeçalho e salva o resultado.
+async function baixarArquivo(url, nomePadrao, opcoes = {}) {
+  const r = await fetch(url, { headers: cabecalhos(), ...opcoes });
+  if (!r.ok) await _resposta(r); // trata 401/erros com mensagem amigável
+  const disp = r.headers.get("Content-Disposition") || "";
+  const nome = (disp.match(/filename="([^"]+)"/) || [])[1] || nomePadrao;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(await r.blob());
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+}
+
 function estaLogado() {
   return !!localStorage.getItem(TOKEN_KEY);
 }
@@ -71,6 +87,20 @@ function aplicarPermissoes() {
   document.querySelectorAll("#mg-tipo option[value=compra], #mg-tipo option[value=venda_fazenda], #mg-tipo option[value=venda_morto]")
     .forEach((o) => (o.disabled = !ehDono));
 }
+
+document.getElementById("btn-exportar").onclick = async (ev) => {
+  ev.preventDefault();
+  const btn = ev.currentTarget;
+  const texto = btn.textContent;
+  btn.textContent = "⏳ Gerando planilha...";
+  try {
+    await baixarArquivo("/api/exportar/excel", "gado_agua_do_tigre.xlsx");
+  } catch (e) {
+    alert("Não foi possível exportar: " + e.message);
+  } finally {
+    btn.textContent = texto;
+  }
+};
 
 function entrarNoApp(dados) {
   localStorage.setItem(TOKEN_KEY, dados.token);
@@ -631,13 +661,16 @@ document.querySelectorAll(".modo-toggle button").forEach((b) => {
     const porAnimal = modoRebanho === "animal";
     const porLote = modoRebanho === "lote";
     const porManejo = modoRebanho === "manejos";
+    const porPlanilha = modoRebanho === "planilha";
     document.getElementById("filtros-animal").style.display = porAnimal ? "flex" : "none";
+    document.getElementById("lista-planilha").style.display = porPlanilha ? "block" : "none";
     document.getElementById("lista").style.display = porAnimal ? "block" : "none";
     document.getElementById("lista-lotes").style.display = porLote ? "block" : "none";
     document.getElementById("lista-manejos").style.display = porManejo ? "block" : "none";
     document.getElementById("contador").style.display = porAnimal ? "block" : "none";
     if (porAnimal) carregarLista();
     else if (porLote) carregarLotes();
+    else if (porPlanilha) carregarPlanilha();
     else carregarManejos();
   };
 });

@@ -409,3 +409,27 @@ header { display: flex; justify-content: space-between; align-items: center; gap
   border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; font-weight: 600;
   margin-bottom: 10px; text-align: center;
 }
+
+/* ------------------------------------------------ Rebanho › Planilha */
+.pl-filtros {
+  display: grid; gap: 8px 10px; margin-bottom: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.pl-f label { display: block; font-size: 0.78rem; color: var(--cinza); margin: 0 0 2px; }
+.pl-f input, .pl-f select { width: 100%; box-sizing: border-box; }
+.pl-par { display: flex; gap: 4px; }
+.pl-par input { min-width: 0; }
+.pl-tipos { grid-column: 1 / -1; }
+.pl-chk { display: inline-flex !important; align-items: center; gap: 4px; margin-right: 12px;
+  font-size: 0.9rem !important; color: inherit !important; }
+.pl-chk input { width: auto; }
+.pl-barra { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between;
+  align-items: center; margin-bottom: 8px; }
+.pl-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+.pl-acoes button { width: auto; padding: 6px 12px; }
+/* Tabela larga rola de lado dentro da caixa (não a página toda). */
+.pl-tabela { overflow-x: auto; max-height: 70vh; overflow-y: auto; }
+.pl-tabela table { min-width: 900px; }
+.pl-tabela th { cursor: pointer; white-space: nowrap; position: sticky; top: 0;
+  background: #fff; }
+.pl-tabela td { white-space: nowrap; }

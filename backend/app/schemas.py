@@ -142,6 +142,10 @@ class PesarDados(BaseModel):
     dentes: int | None = None     # registrar a dentição com a data da pesagem
 
 
+class RelatorioExcel(BaseModel):
+    ids: list[int]  # animais filtrados na tela, já na ordem desejada
+
+
 class PesarSemBrinco(BaseModel):
     peso: float
     destino_lote: str | None = None

@@ -28,6 +28,7 @@ from ..services import opcoes as svc_opcoes
 from ..services.auth import requer_dono, usuario_atual
 from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
 from ..services.exportacao import gerar_planilha, nome_arquivo
+from ..services.relatorio import gerar_relatorio, nome_relatorio
 from ..services.gmd import gmd_periodo
 from ..services.sessao import completar_venda_morto, vincular
 from ..services.venda import calcular_venda, rendimento_padrao
@@ -652,6 +653,17 @@ def exportar_excel(db: Session = Depends(get_db), _dono=Depends(requer_dono)):
         content=conteudo,
         media_type=XLSX_MIME,
         headers={"Content-Disposition": f'attachment; filename="{nome_arquivo()}"'},
+    )
+
+
+@router.post("/relatorio/excel")
+def relatorio_excel(dados: schemas.RelatorioExcel, db: Session = Depends(get_db),
+                    _dono=Depends(requer_dono)):
+    """Excel da Rebanho › Planilha: só os animais filtrados, na ordem da tela."""
+    return Response(
+        content=gerar_relatorio(db, dados.ids),
+        media_type=XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="{nome_relatorio()}"'},
     )
 
 
