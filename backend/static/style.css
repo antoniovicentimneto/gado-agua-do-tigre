@@ -36,9 +36,13 @@ header h1 { margin: 0; font-size: 1.2rem; }
   position: sticky;
   top: 50px;
   z-index: 4;
+  /* 6 abas (dono) não cabem no celular: rola de lado em vez de alargar a página. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.abas::-webkit-scrollbar { display: none; }
 .abas button {
-  flex: 1;
+  flex: 1 0 auto;
   padding: 12px;
   border: none;
   background: none;
@@ -411,25 +415,43 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 }
 
 /* ------------------------------------------------ Rebanho › Planilha */
-.pl-filtros {
-  display: grid; gap: 8px 10px; margin-bottom: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-}
-.pl-f label { display: block; font-size: 0.78rem; color: var(--cinza); margin: 0 0 2px; }
-.pl-f input, .pl-f select { width: 100%; box-sizing: border-box; }
-.pl-par { display: flex; gap: 4px; }
-.pl-par input { min-width: 0; }
-.pl-tipos { grid-column: 1 / -1; }
-.pl-chk { display: inline-flex !important; align-items: center; gap: 4px; margin-right: 12px;
-  font-size: 0.9rem !important; color: inherit !important; }
-.pl-chk input { width: auto; }
+.pl-dica { margin-bottom: 6px; }
+.pl-ativos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.pl-chip { background: var(--verde-claro); color: var(--verde); border: 1px solid var(--verde);
+  border-radius: 14px; padding: 3px 10px; font-size: 0.82rem; cursor: pointer; }
 .pl-barra { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between;
   align-items: center; margin-bottom: 8px; }
 .pl-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
 .pl-acoes button { width: auto; padding: 6px 12px; }
 /* Tabela larga rola de lado dentro da caixa (não a página toda). */
 .pl-tabela { overflow-x: auto; max-height: 70vh; overflow-y: auto; }
-.pl-tabela table { min-width: 900px; }
-.pl-tabela th { cursor: pointer; white-space: nowrap; position: sticky; top: 0;
-  background: #fff; }
+.pl-tabela table { min-width: 980px; }
+.pl-tabela th { white-space: nowrap; position: sticky; top: 0; background: #fff; z-index: 1; }
 .pl-tabela td { white-space: nowrap; }
+.pl-th { cursor: pointer; user-select: none; }
+.pl-funil { width: auto; margin: 0 0 0 4px; padding: 0 5px; font-size: 0.8rem; line-height: 1.5;
+  background: #fff; color: var(--cinza); border: 1px solid var(--borda); border-radius: 4px; }
+.pl-funil.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+/* Caixa de filtro da coluna (estilo Excel). */
+.pl-pop { position: fixed; z-index: 1000; width: 270px; background: #fff; color: var(--texto);
+  border: 1px solid var(--borda); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
+  padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.pl-pop-tit { font-weight: 700; }
+.pl-pop-ord, .pl-pop-faixa, .pl-pop-acoes { display: flex; gap: 6px; }
+.pl-pop-ord button, .pl-pop-acoes button { flex: 1; width: auto; padding: 6px 4px; font-size: 0.85rem; }
+.pl-pop-faixa input { flex: 1; min-width: 0; }
+.pl-pop-busca { width: 100%; box-sizing: border-box; }
+.pl-pop-lista { max-height: 240px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 6px;
+  padding: 2px 6px; }
+.pl-pop-item { display: flex !important; align-items: center; gap: 6px; padding: 4px 0;
+  font-size: 0.9rem !important; color: inherit !important; margin: 0 !important; cursor: pointer; }
+.pl-pop-item input { width: auto; margin: 0; }
+.pl-pop-item span:first-of-type { flex: 1; }
+.pl-pop-todos { font-weight: 600; }
+/* No celular: painel preso embaixo, largura toda. */
+@media (max-width: 600px) {
+  .pl-pop { left: 8px !important; right: 8px; bottom: 8px; top: auto !important; width: auto;
+    max-height: 80vh; }
+  .pl-pop-lista { max-height: 38vh; }
+}

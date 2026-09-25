@@ -1,32 +1,71 @@
-// Rebanho › Planilha: todos os animais numa tabela com filtros combináveis,
-// ordenação por qualquer coluna e "Baixar Excel" do que está na tela.
+// Rebanho › Planilha: todos os animais numa tabela com filtro por coluna no
+// estilo do Excel (pesquisar, marcar vários valores, "(Vazias)", ordenar) e
+// "Baixar Excel" do que está na tela.
 // Os dados vêm numa chamada só (/api/animais) e o filtro roda no aparelho —
 // assim cada clique é instantâneo, sem ida ao banco (que fica longe).
 
 const PL_PESO_UA = 450; // 1 UA = 450 kg vivos
+const PL_VAZIO = "";    // chave dos valores em branco ("(Vazias)")
 
 const pl = {
   animais: [],
   carregado: false,
   ordem: { coluna: "peso", dir: -1 }, // começa do mais pesado pro mais leve
+  // Filtro de lista por coluna: id da coluna -> Set das chaves que PASSAM.
+  // Coluna sem entrada = sem filtro. Começa mostrando só os ativos.
+  filtros: { status: new Set(["ativo"]) },
+  // Faixa numérica por coluna (peso, GMD...): id -> { min, max }.
+  faixas: {},
 };
 
-// Colunas da tabela: rótulo, valor pra ordenar e como exibir.
+const plNum = (v, casas) => (v == null ? "—" : v.toFixed(casas));
+
+// Colunas da tabela.
+//  valor: usado pra ordenar · chave: agrupa no filtro · rotuloValor: texto no filtro
+//  numero: tem filtro de faixa (de/até)
 const PL_COLUNAS = [
   { id: "brinco", rotulo: "Brinco", valor: (a) => a.brinco, texto: true,
     html: (a) => `<a href="#" class="pl-brinco" data-id="${a.id}"><b>${esc(a.brinco)}</b></a>` },
   { id: "tipo", rotulo: "Tipo", valor: (a) => a.tipo, texto: true, html: (a) => esc(a.tipo || "—") },
   { id: "raca", rotulo: "Raça", valor: (a) => a.raca, texto: true, html: (a) => esc(a.raca || "—") },
   { id: "lote", rotulo: "Lote", valor: (a) => a.lote_atual, texto: true, html: (a) => esc(a.lote_atual || "—") },
-  { id: "peso", rotulo: "Último peso", valor: (a) => a.ultimo_peso, html: (a) => fmt.peso(a.ultimo_peso) },
-  { id: "data", rotulo: "Data últ. peso", valor: (a) => a.data_ultimo, texto: true, html: (a) => fmt.data(a.data_ultimo) },
-  { id: "gmd", rotulo: "GMD", valor: (a) => a.gmd, html: (a) => (a.gmd == null ? "—" : a.gmd.toFixed(3)) },
-  { id: "ugmd", rotulo: "uGMD", valor: (a) => a.ugmd, html: (a) => (a.ugmd == null ? "—" : a.ugmd.toFixed(3)) },
-  { id: "dentes", rotulo: "Dentes", valor: (a) => a.dentes,
+  { id: "peso", rotulo: "Último peso", valor: (a) => a.ultimo_peso, numero: true,
+    rotuloValor: (v) => `${v} kg`, html: (a) => fmt.peso(a.ultimo_peso) },
+  { id: "data", rotulo: "Data últ. peso", valor: (a) => a.data_ultimo, texto: true, data: true,
+    rotuloValor: (v) => fmt.data(v), html: (a) => fmt.data(a.data_ultimo) },
+  { id: "gmd", rotulo: "GMD", valor: (a) => a.gmd, numero: true, casas: 3, html: (a) => plNum(a.gmd, 3) },
+  { id: "ugmd", rotulo: "uGMD", valor: (a) => a.ugmd, numero: true, casas: 3, html: (a) => plNum(a.ugmd, 3) },
+  { id: "dentes", rotulo: "Dentes", valor: (a) => a.dentes, numero: true, semFaixa: true,
+    rotuloValor: (v) => `${v} dentes`,
     html: (a) => (a.dentes == null ? "—" : `${a.dentes} <span class="info">${fmt.data(a.data_dentes)}</span>`) },
   { id: "status", rotulo: "Situação", valor: (a) => a.status, texto: true, html: (a) => esc(a.status) },
   { id: "obs", rotulo: "Observação", valor: (a) => a.observacao, texto: true, html: (a) => esc(a.observacao || "") },
 ];
+const plColuna = (id) => PL_COLUNAS.find((c) => c.id === id);
+
+// Chave do valor pro filtro de lista (texto; "" = vazio).
+function plChave(col, a) {
+  const v = col.valor(a);
+  if (v == null || v === "") return PL_VAZIO;
+  return col.casas ? v.toFixed(col.casas) : String(v);
+}
+
+function plRotuloChave(col, k) {
+  if (k === PL_VAZIO) return "(Vazias)";
+  return col.rotuloValor ? col.rotuloValor(k) : k;
+}
+
+// Ordena chaves do jeito que faz sentido pra coluna (vazias sempre no fim).
+function plOrdenaChaves(col, chaves) {
+  return chaves.sort((x, y) => {
+    if (x === PL_VAZIO) return 1;
+    if (y === PL_VAZIO) return -1;
+    if (col.id === "brinco") return comparaBrinco(x, y);
+    if (col.data) return y.localeCompare(x);           // data mais recente primeiro
+    if (col.numero) return Number(x) - Number(y);
+    return x.localeCompare(y, "pt-BR");
+  });
+}
 
 async function carregarPlanilha(forcar = false) {
   const box = document.getElementById("lista-planilha");
@@ -41,53 +80,15 @@ async function carregarPlanilha(forcar = false) {
       return;
     }
   }
-  plMontarFiltros();
+  plMontarTela();
   plRender();
 }
 
-// Valores distintos de um campo (pra montar as opções dos filtros).
-function plDistintos(fn) {
-  return [...new Set(pl.animais.map(fn).filter((v) => v != null && v !== ""))];
-}
-
-function plMontarFiltros() {
-  const box = document.getElementById("lista-planilha");
-  const tipos = plDistintos((a) => a.tipo).sort();
-  const lotes = plDistintos((a) => a.lote_atual).sort();
-  const dentes = plDistintos((a) => a.dentes).sort((x, y) => x - y);
-  // Datas de pesagem mais recentes (com quantos animais tiveram ali o último peso).
-  const contaDatas = {};
-  pl.animais.filter((a) => a.status === "ativo" && a.data_ultimo)
-    .forEach((a) => (contaDatas[a.data_ultimo] = (contaDatas[a.data_ultimo] || 0) + 1));
-  const datas = Object.keys(contaDatas).sort().reverse().slice(0, 30);
+function plMontarTela() {
   const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
-
-  box.innerHTML = `
-    <div class="pl-filtros">
-      <div class="pl-f"><label>Brinco</label><input id="pl-busca" placeholder="Buscar..." /></div>
-      <div class="pl-f"><label>Situação</label>
-        <select id="pl-status">
-          <option value="ativo">Ativos</option><option value="">Todos</option>
-          <option value="vendido">Vendidos</option><option value="perdido">Perdidos</option>
-          <option value="morto">Mortos</option>
-        </select></div>
-      <div class="pl-f"><label>Lote</label>
-        <select id="pl-lote"><option value="">Todos</option>
-          ${lotes.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("")}</select></div>
-      <div class="pl-f"><label>Dentes</label>
-        <select id="pl-dentes"><option value="">Todos</option><option value="sem">Sem registro</option>
-          ${dentes.map((d) => `<option value="${d}">${d} dentes</option>`).join("")}</select></div>
-      <div class="pl-f"><label>Peso (kg)</label>
-        <div class="pl-par"><input id="pl-pmin" inputmode="numeric" placeholder="de" />
-        <input id="pl-pmax" inputmode="numeric" placeholder="até" /></div></div>
-      <div class="pl-f"><label>Pesados no dia</label>
-        <select id="pl-manejo"><option value="">Qualquer data</option>
-          ${datas.map((d) => `<option value="${d}">${fmt.data(d)} (${contaDatas[d]})</option>`).join("")}</select></div>
-      <div class="pl-f"><label>Último peso entre</label>
-        <div class="pl-par"><input id="pl-dde" type="date" /><input id="pl-date" type="date" /></div></div>
-      <div class="pl-f pl-tipos"><label>Tipo</label>
-        <div>${tipos.map((t) => `<label class="pl-chk"><input type="checkbox" class="pl-tipo" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div></div>
-    </div>
+  document.getElementById("lista-planilha").innerHTML = `
+    <div class="info pl-dica">Toque no <b>⏷</b> do título da coluna pra filtrar (pode marcar vários) ou ordenar.</div>
+    <div id="pl-ativos" class="pl-ativos"></div>
     <div class="pl-barra">
       <div id="pl-resumo" class="pl-resumo"></div>
       <div class="pl-acoes">
@@ -97,50 +98,34 @@ function plMontarFiltros() {
       </div>
     </div>
     <div class="pl-tabela" id="pl-tabela"></div>`;
-
-  box.querySelectorAll(".pl-filtros input, .pl-filtros select")
-    .forEach((c) => (c.oninput = c.onchange = plRender));
-  // "Pesados no dia" é um atalho do intervalo de datas.
-  document.getElementById("pl-manejo").onchange = (ev) => {
-    const d = ev.target.value;
-    document.getElementById("pl-dde").value = d;
-    document.getElementById("pl-date").value = d;
+  document.getElementById("pl-limpar").onclick = () => {
+    pl.filtros = {};
+    pl.faixas = {};
     plRender();
   };
-  document.getElementById("pl-limpar").onclick = () => { plMontarFiltros(); plRender(); };
   document.getElementById("pl-atualizar").onclick = () => carregarPlanilha(true);
   if (ehDono) document.getElementById("pl-excel").onclick = plBaixarExcel;
 }
 
-// Aplica os filtros escolhidos e a ordenação atual.
+// O animal passa nos filtros? (ignorando uma coluna — usado pra montar a lista
+// daquela coluna só com o que sobra dos OUTROS filtros, como o Excel faz)
+function plPassa(a, ignorar) {
+  for (const [id, permitidos] of Object.entries(pl.filtros)) {
+    if (id === ignorar) continue;
+    if (!permitidos.has(plChave(plColuna(id), a))) return false;
+  }
+  for (const [id, f] of Object.entries(pl.faixas)) {
+    if (id === ignorar) continue;
+    const v = plColuna(id).valor(a);
+    if (f.min != null && !(v != null && v >= f.min)) return false;
+    if (f.max != null && !(v != null && v <= f.max)) return false;
+  }
+  return true;
+}
+
 function plFiltrados() {
-  const v = (id) => document.getElementById(id).value.trim();
-  const busca = v("pl-busca");
-  const status = v("pl-status");
-  const lote = v("pl-lote");
-  const dentes = v("pl-dentes");
-  const pmin = parseFloat(v("pl-pmin"));
-  const pmax = parseFloat(v("pl-pmax"));
-  const dde = v("pl-dde");
-  const date = v("pl-date");
-  const tipos = [...document.querySelectorAll(".pl-tipo:checked")].map((c) => c.value);
-
-  const lista = pl.animais.filter((a) => {
-    if (busca && !String(a.brinco).includes(busca)) return false;
-    if (status && a.status !== status) return false;
-    if (lote && a.lote_atual !== lote) return false;
-    if (tipos.length && !tipos.includes(a.tipo)) return false;
-    if (dentes === "sem" && a.dentes != null) return false;
-    if (dentes && dentes !== "sem" && a.dentes !== Number(dentes)) return false;
-    if (!isNaN(pmin) && !(a.ultimo_peso >= pmin)) return false;
-    if (!isNaN(pmax) && !(a.ultimo_peso <= pmax)) return false;
-    // Datas em ISO (AAAA-MM-DD) comparam certo como texto.
-    if (dde && !(a.data_ultimo && a.data_ultimo >= dde)) return false;
-    if (date && !(a.data_ultimo && a.data_ultimo <= date)) return false;
-    return true;
-  });
-
-  const col = PL_COLUNAS.find((c) => c.id === pl.ordem.coluna);
+  const lista = pl.animais.filter((a) => plPassa(a));
+  const col = plColuna(pl.ordem.coluna);
   lista.sort((a, b) => {
     const x = col.valor(a), y = col.valor(b);
     // Vazios sempre no fim, qualquer que seja a direção.
@@ -154,6 +139,8 @@ function plFiltrados() {
   return lista;
 }
 
+const plFiltroAtivo = (id) => id in pl.filtros || id in pl.faixas;
+
 function plRender() {
   const lista = plFiltrados();
   const pesos = lista.map((a) => a.ultimo_peso).filter((p) => p != null);
@@ -163,27 +150,195 @@ function plRender() {
     ` · médio <b>${pesos.length ? Math.round(total / pesos.length) : "—"} kg</b>` +
     ` · <b>${(total / PL_PESO_UA).toFixed(1)}</b> UA`;
 
+  // Etiquetas dos filtros ligados (com ✕ pra tirar cada um).
+  const ativos = PL_COLUNAS.filter((c) => plFiltroAtivo(c.id)).map((c) => {
+    const partes = [];
+    if (pl.filtros[c.id]) {
+      const ks = plOrdenaChaves(c, [...pl.filtros[c.id]]);
+      partes.push(ks.length > 3 ? `${ks.length} valores`
+        : ks.length ? ks.map((k) => plRotuloChave(c, k)).join(", ") : "nenhum");
+    }
+    const f = pl.faixas[c.id];
+    if (f) partes.push([f.min != null ? `≥ ${f.min}` : "", f.max != null ? `≤ ${f.max}` : ""].filter(Boolean).join(" e "));
+    return `<span class="pl-chip" data-col="${c.id}">${esc(c.rotulo)}: ${esc(partes.join(" · "))} <b>✕</b></span>`;
+  });
+  const boxAtivos = document.getElementById("pl-ativos");
+  boxAtivos.innerHTML = ativos.join("");
+  boxAtivos.querySelectorAll(".pl-chip").forEach((ch) => {
+    ch.onclick = () => {
+      delete pl.filtros[ch.dataset.col];
+      delete pl.faixas[ch.dataset.col];
+      plRender();
+    };
+  });
+
   const seta = (id) => (pl.ordem.coluna === id ? (pl.ordem.dir === 1 ? " ▲" : " ▼") : "");
   const box = document.getElementById("pl-tabela");
-  box.innerHTML = lista.length ? `
+  box.innerHTML = `
     <table>
-      <thead><tr>${PL_COLUNAS.map((c) => `<th class="pl-th" data-col="${c.id}">${c.rotulo}${seta(c.id)}</th>`).join("")}</tr></thead>
+      <thead><tr>${PL_COLUNAS.map((c) => `
+        <th><span class="pl-th" data-col="${c.id}">${c.rotulo}${seta(c.id)}</span><button
+          class="pl-funil${plFiltroAtivo(c.id) ? " ativo" : ""}" data-col="${c.id}" title="Filtrar">⏷</button></th>`).join("")}
+      </tr></thead>
       <tbody>${lista.map((a) => `<tr>${PL_COLUNAS.map((c) => `<td>${c.html(a)}</td>`).join("")}</tr>`).join("")}</tbody>
-    </table>` : "<div class='info'>Nenhum animal com esses filtros.</div>";
+    </table>
+    ${lista.length ? "" : "<div class='info' style='padding:10px'>Nenhum animal com esses filtros.</div>"}`;
 
   box.querySelectorAll(".pl-th").forEach((th) => {
     th.onclick = () => {
       const id = th.dataset.col;
       // 1º clique: números do maior pro menor, textos de A a Z; 2º clique inverte.
-      const padrao = PL_COLUNAS.find((c) => c.id === id).texto ? 1 : -1;
+      const padrao = plColuna(id).texto ? 1 : -1;
       pl.ordem.dir = pl.ordem.coluna === id ? -pl.ordem.dir : padrao;
       pl.ordem.coluna = id;
       plRender();
     };
   });
+  box.querySelectorAll(".pl-funil").forEach((b) => {
+    b.onclick = (ev) => { ev.stopPropagation(); plAbrirFiltro(b.dataset.col, b); };
+  });
   box.querySelectorAll(".pl-brinco").forEach((a) => {
     a.onclick = (ev) => { ev.preventDefault(); abrirFicha(Number(a.dataset.id)); };
   });
+}
+
+// ------------------------------------------------ Caixa de filtro (estilo Excel)
+function plFecharFiltro() {
+  const p = document.getElementById("pl-pop");
+  if (p) p.remove();
+  document.removeEventListener("mousedown", plCliqueFora, true);
+}
+
+function plCliqueFora(ev) {
+  const p = document.getElementById("pl-pop");
+  if (p && !p.contains(ev.target)) plFecharFiltro();
+}
+
+function plAbrirFiltro(id, botao) {
+  plFecharFiltro();
+  const col = plColuna(id);
+
+  // Valores possíveis = o que sobra aplicando os OUTROS filtros (com contagem).
+  const contagem = new Map();
+  pl.animais.filter((a) => plPassa(a, id)).forEach((a) => {
+    const k = plChave(col, a);
+    contagem.set(k, (contagem.get(k) || 0) + 1);
+  });
+  const chaves = plOrdenaChaves(col, [...contagem.keys()]);
+  const atual = pl.filtros[id];                 // undefined = tudo marcado
+  const marcado = new Set(atual ? chaves.filter((k) => atual.has(k)) : chaves);
+  const faixa = pl.faixas[id] || {};
+
+  const pop = document.createElement("div");
+  pop.id = "pl-pop";
+  pop.className = "pl-pop";
+  pop.innerHTML = `
+    <div class="pl-pop-tit">${esc(col.rotulo)}</div>
+    <div class="pl-pop-ord">
+      <button class="secundario" data-dir="1">${col.texto ? "A → Z" : "Menor → maior"}</button>
+      <button class="secundario" data-dir="-1">${col.texto ? "Z → A" : "Maior → menor"}</button>
+    </div>
+    ${col.numero && !col.semFaixa ? `
+      <div class="pl-pop-faixa">
+        <input id="pl-pop-min" inputmode="decimal" placeholder="de" value="${faixa.min ?? ""}" />
+        <input id="pl-pop-max" inputmode="decimal" placeholder="até" value="${faixa.max ?? ""}" />
+      </div>` : ""}
+    <input id="pl-pop-busca" class="pl-pop-busca" placeholder="Pesquisar..." />
+    <label class="pl-pop-item pl-pop-todos"><input type="checkbox" id="pl-pop-todos"> (Selecionar tudo)</label>
+    <div class="pl-pop-lista" id="pl-pop-lista"></div>
+    <div class="pl-pop-acoes">
+      <button class="secundario" id="pl-pop-limpar">Limpar</button>
+      <button class="secundario" id="pl-pop-cancelar">Cancelar</button>
+      <button id="pl-pop-ok">OK</button>
+    </div>`;
+  document.body.appendChild(pop);
+
+  // Posiciona embaixo do botão (no celular vira painel de baixo, via CSS).
+  if (window.innerWidth > 600) {
+    const r = botao.getBoundingClientRect();
+    pop.style.top = `${Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)}px`;
+    pop.style.left = `${Math.max(8, Math.min(r.left - 10, window.innerWidth - pop.offsetWidth - 8))}px`;
+  }
+
+  const busca = pop.querySelector("#pl-pop-busca");
+  const visiveis = () => {
+    const t = busca.value.trim().toLowerCase();
+    return t ? chaves.filter((k) => plRotuloChave(col, k).toLowerCase().includes(t)) : chaves;
+  };
+  const listaBox = pop.querySelector("#pl-pop-lista");
+  const todos = pop.querySelector("#pl-pop-todos");
+
+  function desenhaLista() {
+    const vis = visiveis();
+    listaBox.innerHTML = vis.map((k, i) => `
+      <label class="pl-pop-item"><input type="checkbox" data-i="${i}" ${marcado.has(k) ? "checked" : ""}>
+        <span>${esc(plRotuloChave(col, k))}</span><span class="info">${contagem.get(k)}</span></label>`).join("")
+      || "<div class='info'>Nada encontrado.</div>";
+    listaBox.querySelectorAll("input").forEach((chk) => {
+      chk.onchange = () => {
+        const k = vis[Number(chk.dataset.i)];
+        if (chk.checked) marcado.add(k); else marcado.delete(k);
+        atualizaTodos();
+      };
+    });
+    atualizaTodos();
+  }
+  function atualizaTodos() {
+    const vis = visiveis();
+    const n = vis.filter((k) => marcado.has(k)).length;
+    todos.checked = vis.length > 0 && n === vis.length;
+    todos.indeterminate = n > 0 && n < vis.length;
+  }
+  todos.onchange = () => {
+    visiveis().forEach((k) => (todos.checked ? marcado.add(k) : marcado.delete(k)));
+    desenhaLista();
+  };
+  busca.oninput = () => {
+    // Como no Excel: ao pesquisar, já marca só o que aparece.
+    if (busca.value.trim()) {
+      marcado.clear();
+      visiveis().forEach((k) => marcado.add(k));
+    }
+    desenhaLista();
+  };
+  desenhaLista();
+
+  pop.querySelectorAll(".pl-pop-ord button").forEach((b) => {
+    b.onclick = () => {
+      pl.ordem = { coluna: id, dir: Number(b.dataset.dir) };
+      plFecharFiltro();
+      plRender();
+    };
+  });
+  pop.querySelector("#pl-pop-cancelar").onclick = plFecharFiltro;
+  pop.querySelector("#pl-pop-limpar").onclick = () => {
+    delete pl.filtros[id];
+    delete pl.faixas[id];
+    plFecharFiltro();
+    plRender();
+  };
+  pop.querySelector("#pl-pop-ok").onclick = () => {
+    // Tudo marcado = sem filtro de lista nessa coluna.
+    if (chaves.every((k) => marcado.has(k))) delete pl.filtros[id];
+    else pl.filtros[id] = new Set(marcado);
+    if (col.numero && !col.semFaixa) {
+      const num = (sel) => {
+        const v = parseFloat(pop.querySelector(sel).value.replace(",", "."));
+        return isNaN(v) ? null : v;
+      };
+      const min = num("#pl-pop-min"), max = num("#pl-pop-max");
+      if (min == null && max == null) delete pl.faixas[id];
+      else pl.faixas[id] = { min, max };
+    }
+    plFecharFiltro();
+    plRender();
+  };
+  pop.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") pop.querySelector("#pl-pop-ok").click();
+    if (ev.key === "Escape") plFecharFiltro();
+  });
+  setTimeout(() => document.addEventListener("mousedown", plCliqueFora, true), 0);
+  if (window.innerWidth > 600) busca.focus();
 }
 
 async function plBaixarExcel() {
