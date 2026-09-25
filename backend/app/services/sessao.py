@@ -198,6 +198,9 @@ def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
                 "brinco": a.brinco,
                 "tipo": a.tipo,
                 "lote": lote_atual(a),
+                # Último peso (pesagens já vêm carregadas via selectinload — sem query extra).
+                "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None,
+                "data_ultimo_peso": a.pesagens[-1].data if a.pesagens else None,
             }
             for a in a_pesar
         ],

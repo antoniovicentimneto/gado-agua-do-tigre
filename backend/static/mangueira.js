@@ -230,7 +230,9 @@ function mgRenderEstado(estado) {
   estado.a_pesar.forEach((a) => {
     const d = document.createElement("div");
     d.className = "mg-item";
-    d.innerHTML = `<span><b>${a.brinco}</b> <span class="info">${a.tipo || ""}</span></span>`;
+    const peso = a.ultimo_peso != null
+      ? `<span class="info" title="último peso em ${fmt.data(a.data_ultimo_peso)}">${a.ultimo_peso} kg</span>` : "";
+    d.innerHTML = `<span><b>${a.brinco}</b> <span class="info">${a.tipo || ""}</span></span>${peso}`;
     ap.appendChild(d);
   });
 

@@ -20,6 +20,8 @@ def test_a_pesar_lista_animais_do_lote(db):
     est = svc.estado_sessao(db, s)
     brincos = {a["brinco"] for a in est["a_pesar"]}
     assert brincos == {"101", "102"}  # só os do LOTEA
+    # Cada animal traz o último peso pra mostrar na lista.
+    assert all("ultimo_peso" in a for a in est["a_pesar"])
 
 
 def test_pesar_grava_ordem_e_destino(db):
