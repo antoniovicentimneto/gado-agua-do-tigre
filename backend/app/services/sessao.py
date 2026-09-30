@@ -730,6 +730,10 @@ def finalizar(db: Session, sessao: SessaoPesagem) -> dict:
         atual = next((al for al in animal.lotes if al.data_fim is None), None)
         if atual and atual.lote_id == p.destino_lote_id:
             continue
+        # Manejo ANTIGO reaberto/finalizado de novo não pode desfazer uma troca de lote
+        # feita depois (ex.: manejo mais recente já mandou o animal pra outro lote).
+        if atual and atual.data_inicio and atual.data_inicio > sessao.data:
+            continue
         if atual:
             atual.data_fim = sessao.data
         db.add(AnimalLote(animal_id=animal.id, lote_id=p.destino_lote_id,

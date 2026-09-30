@@ -254,6 +254,27 @@ def test_finalizar_move_para_sublote(db):
     assert lote_atual(a) == "Gordo"
 
 
+def test_refinalizar_manejo_antigo_nao_desfaz_troca_mais_recente(db):
+    from datetime import timedelta
+
+    # Manejo 1 (antigo): 101 vai pro "Gordo".
+    antigo = _abrir_manejo(db)
+    svc.registrar_pesagem(db, antigo, "101", 410, destino_lote="Gordo")
+    svc.finalizar(db, antigo)
+    # Manejo 2 (2 meses depois): 101 sai do "Gordo" pro "Prontas".
+    novo = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE + timedelta(days=60), ["Gordo"],
+                            True, ["Prontas"])
+    svc.registrar_pesagem(db, novo, "101", 470, destino_lote="Prontas")
+    svc.finalizar(db, novo)
+    # Reabre e finaliza de novo o manejo ANTIGO: o 101 tem que continuar no "Prontas".
+    svc.reabrir(db, antigo)
+    svc.finalizar(db, antigo)
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    db.refresh(a)
+    assert lote_atual(a) == "Prontas"
+    assert len([al for al in a.lotes if al.data_fim is None]) == 1
+
+
 def test_remover_pesagem_devolve_ao_lote_anterior(db):
     # Pesou, mandou pro "Gordo", finalizou, reabriu e apagou o peso errado:
     # o animal tem que voltar pro LOTEA (e pra lista "a pesar").
