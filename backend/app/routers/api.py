@@ -463,7 +463,8 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
             if not nome:
                 continue
             r = montar_resumo(animal)
-            a = agg.setdefault(nome, {"ativos": 0, "gmds": [], "ugmds": [], "peso": 0.0})
+            a = agg.setdefault(nome, {"ativos": 0, "gmds": [], "ugmds": [], "peso": 0.0,
+                                     "com_peso": 0})
             a["ativos"] += 1
             if r["gmd"] is not None:
                 a["gmds"].append(r["gmd"])
@@ -471,6 +472,7 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
                 a["ugmds"].append(r["ugmd"])
             if r["ultimo_peso"] is not None:
                 a["peso"] += r["ultimo_peso"]
+                a["com_peso"] += 1
 
         def _media(xs):
             return round(sum(xs) / len(xs), 3) if xs else None
@@ -483,6 +485,8 @@ def listar_lotes(somente_ativos: bool = False, db: Session = Depends(get_db)):
                 "gmd_medio": _media(a["gmds"]),
                 "ugmd_medio": _media(a["ugmds"]),
                 "ua": round(a["peso"] / 450, 1) if a["peso"] else 0,
+                # Peso médio = média do último peso de cada animal (só dos que já foram pesados).
+                "peso_medio": round(a["peso"] / a["com_peso"], 1) if a["com_peso"] else None,
             }
             for nome, a in sorted(agg.items())
         ]

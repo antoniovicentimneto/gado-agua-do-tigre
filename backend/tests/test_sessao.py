@@ -358,3 +358,13 @@ def test_lotes_somente_ativos(db):
     db.commit()
     nomes = {l["nome"]: l["ativos"] for l in listar_lotes(somente_ativos=True, db=db)}
     assert nomes == {"LOTEB": 1}
+
+
+def test_lotes_mostram_peso_medio(db):
+    from app.routers.api import listar_lotes
+
+    por_nome = {l["nome"]: l for l in listar_lotes(somente_ativos=True, db=db)}
+    # LOTEA: 101 (último 400) e 102 (último 320) -> média 360 kg; UA = 720/450.
+    assert por_nome["LOTEA"]["peso_medio"] == 360
+    assert por_nome["LOTEA"]["ua"] == 1.6
+    assert por_nome["LOTEB"]["peso_medio"] == 450

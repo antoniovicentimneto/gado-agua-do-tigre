@@ -688,7 +688,7 @@ async function carregarLotes() {
     div.innerHTML = `
       <div class="card-lote-info">
         <span class="nome">${esc(l.nome)}</span>
-        <div class="card-lote-ind">GMD ${gmd} · uGMD ${ugmd} · ${l.ua ?? 0} UA</div>
+        <div class="card-lote-ind">${l.peso_medio != null ? `Peso médio ${fmt.peso(l.peso_medio)} · ` : ""}GMD ${gmd} · uGMD ${ugmd} · ${l.ua ?? 0} UA</div>
       </div>
       <span class="qtd">${l.ativos} animais</span>`;
     div.onclick = () => abrirLote(l.id, l.nome);

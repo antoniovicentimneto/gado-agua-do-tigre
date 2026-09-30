@@ -16,3 +16,4 @@ backend/.env
 
 # Pytest
 .pytest_cache/
+backend/backup_*.json
