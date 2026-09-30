@@ -354,8 +354,33 @@ def remover_opcao(categoria: str, opcao_id: int,
 def adicionar_denticao(
     animal_id: int, dados: schemas.DenticaoCriar, db: Session = Depends(get_db)
 ):
+    """Registra a dentição numa data (lançada pela ficha ou na pesagem).
+    Se já existe avaliação nessa mesma data, só corrige o nº de dentes."""
     _buscar_animal(db, animal_id)
-    db.add(Denticao(animal_id=animal_id, data=dados.data, dentes=dados.dentes))
+    if dados.dentes < 0 or dados.dentes > 8:
+        raise HTTPException(status_code=400, detail="Número de dentes deve ser de 0 a 8.")
+    existente = (
+        db.query(Denticao)
+        .filter(Denticao.animal_id == animal_id, Denticao.data == dados.data)
+        .first()
+    )
+    if existente:
+        existente.dentes = dados.dentes
+    else:
+        db.add(Denticao(animal_id=animal_id, data=dados.data, dentes=dados.dentes))
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/animais/{animal_id}/denticoes/{denticao_id}")
+def excluir_denticao(
+    animal_id: int, denticao_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)
+):
+    """Apaga uma avaliação de dentição lançada errada."""
+    d = db.get(Denticao, denticao_id)
+    if d is None or d.animal_id != animal_id:
+        raise HTTPException(status_code=404, detail="Dentição não encontrada")
+    db.delete(d)
     db.commit()
     return {"ok": True}
 

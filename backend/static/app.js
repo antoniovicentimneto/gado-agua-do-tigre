@@ -258,6 +258,7 @@ const LOG_ACOES = [
   [/^DELETE \/api\/animais\/\d+\/pesagens\/\d+$/, "Excluiu pesagem"],
   [/^POST \/api\/pesagem-rapida$/, "Pesagem rápida"],
   [/^POST \/api\/animais\/\d+\/denticoes$/, "Registrou dentição"],
+  [/^DELETE \/api\/animais\/\d+\/denticoes\/\d+$/, "Excluiu dentição"],
   [/^POST \/api\/animais\/\d+\/scores$/, "Registrou score"],
   [/^POST \/api\/opcoes\/\w+$/, "Cadastrou opção (tipo/raça)"],
   [/^DELETE \/api\/opcoes\/\w+\/\d+$/, "Removeu opção (tipo/raça)"],
@@ -1063,6 +1064,8 @@ async function abrirFicha(id, voltar = null) {
     if (e instanceof TypeError) return abrirFichaOffline(id, voltar);
     throw e;
   }
+  // Leva as mudanças feitas na ficha (dentição, tipo, obs...) pra linha da Planilha.
+  if (typeof plAtualizarAnimal === "function") plAtualizarAnimal(a);
   const [tipos, racas] = [await opcoes("tipo"), await opcoes("raca")];
   const ficha = document.getElementById("ficha");
   const pesagens = a.pesagens
@@ -1078,11 +1081,13 @@ async function abrirFicha(id, voltar = null) {
       </tr>`)
     .join("");
 
-  // Histórico de dentição (marcada na hora da pesagem, "mais opções").
+  // Histórico de dentição (marcada na pesagem, em "mais opções", ou lançada aqui na ficha).
+  const ehDonoFicha = usuarioAtual && usuarioAtual.papel === "dono";
   const denticoes = (a.denticoes || [])
     .slice()
     .reverse()
-    .map((d) => `<tr><td>${fmt.data(d.data)}</td><td>${d.dentes}</td></tr>`)
+    .map((d) => `<tr><td>${fmt.data(d.data)}</td><td>${d.dentes}</td>
+        <td>${ehDonoFicha ? `<button class="denticao-apagar" data-id="${d.id}" title="apagar esta dentição">×</button>` : ""}</td></tr>`)
     .join("");
   const ultimaDenticao = a.denticoes && a.denticoes.length ? a.denticoes[a.denticoes.length - 1] : null;
 
@@ -1156,8 +1161,18 @@ async function abrirFicha(id, voltar = null) {
       <h3>Dentição</h3>
       ${ultimaDenticao
         ? `<div class="destaque"><div class="rotulo">Última (${fmt.data(ultimaDenticao.data)})</div><div class="num">${ultimaDenticao.dentes} dentes</div></div>`
-        : `<div class="info">Nenhuma dentição registrada ainda (marque na hora da pesagem, em "mais opções").</div>`}
-      ${denticoes ? `<table style="margin-top:8px"><thead><tr><th>Data</th><th>Dentes</th></tr></thead><tbody>${denticoes}</tbody></table>` : ""}
+        : `<div class="info">Nenhuma dentição registrada ainda.</div>`}
+      ${denticoes ? `<table style="margin-top:8px"><thead><tr><th>Data</th><th>Dentes</th><th></th></tr></thead><tbody>${denticoes}</tbody></table>` : ""}
+      <label style="font-weight:600;font-size:0.85rem;display:block;margin-top:10px">Lançar dentição</label>
+      <div class="grid-2">
+        <input type="date" id="f-dent-data" value="${new Date().toLocaleDateString("sv-SE")}" title="data em que a boca foi olhada" />
+        <select id="f-dent-num">
+          <option value="">nº de dentes…</option>
+          ${[0, 2, 4, 6, 8].map((n) => `<option value="${n}">${n} dentes</option>`).join("")}
+        </select>
+      </div>
+      <button id="f-dent-salvar" class="secundario" style="margin-top:6px;width:100%">Salvar dentição</button>
+      <div class="info">Informe a data em que a boca foi olhada. Se já houver dentição nessa data, ela é corrigida.</div>
     </div>
 
     <div class="grid-2 ficha-secao">
@@ -1292,6 +1307,34 @@ async function abrirFicha(id, voltar = null) {
       if (!confirm("Apagar esta pesagem?")) return;
       try {
         await api.delete(`/api/animais/${id}/pesagens/${btn.dataset.id}`);
+        abrirFicha(id, modalVoltar);
+        carregarLista();
+        if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
+      } catch (e) { alert("Erro: " + e.message); }
+    };
+  });
+
+  // Lançar dentição com data (animal que ficou sem dentes anotados na pesagem).
+  document.getElementById("f-dent-salvar").onclick = async () => {
+    const data = document.getElementById("f-dent-data").value;
+    const num = document.getElementById("f-dent-num").value;
+    if (!data) { alert("Informe a data da dentição."); return; }
+    if (num === "") { alert("Escolha o número de dentes."); return; }
+    try {
+      await api.post(`/api/animais/${id}/denticoes`, { data, dentes: parseInt(num, 10) });
+      abrirFicha(id, modalVoltar);
+      carregarLista();
+      // Mantém o cache da mangueira com a dentição nova (mostrada ao digitar o brinco).
+      if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
+    } catch (e) { alert("Erro: " + e.message); }
+  };
+
+  // Apagar uma dentição lançada errada (só dono).
+  ficha.querySelectorAll(".denticao-apagar").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!confirm("Apagar esta dentição?")) return;
+      try {
+        await api.delete(`/api/animais/${id}/denticoes/${btn.dataset.id}`);
         abrirFicha(id, modalVoltar);
         carregarLista();
         if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});

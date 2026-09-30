@@ -84,6 +84,20 @@ async function carregarPlanilha(forcar = false) {
   plRender();
 }
 
+// Atualiza a linha de um animal com os dados frescos da ficha (ex.: dentição lançada
+// agora) — assim a Planilha reflete a mudança sem recarregar o rebanho todo.
+function plAtualizarAnimal(dados) {
+  if (!pl.carregado || !dados) return;
+  const i = pl.animais.findIndex((x) => x.id === dados.id);
+  if (i < 0) return;
+  const campos = ["brinco", "tipo", "raca", "lote_atual", "ultimo_peso", "data_ultimo",
+    "gmd", "ugmd", "dentes", "data_dentes", "status", "observacao"];
+  const antes = pl.animais[i];
+  if (campos.every((c) => antes[c] === dados[c])) return;
+  campos.forEach((c) => { if (c in dados) antes[c] = dados[c]; });
+  if (document.getElementById("pl-tabela")) plRender();
+}
+
 function plMontarTela() {
   const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
   document.getElementById("lista-planilha").innerHTML = `

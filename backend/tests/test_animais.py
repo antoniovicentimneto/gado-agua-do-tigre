@@ -118,3 +118,27 @@ def test_peao_nao_edita_brinco_nem_status(db):
             a.id, schemas.AnimalAtualizar(tipo="Vaca", brinco="999"), db, usuario=PEAO,
         )
     assert exc.value.status_code == 403
+
+
+def test_lancar_denticao_pela_ficha_com_data(db):
+    from datetime import date
+
+    from app import schemas
+
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    api.adicionar_denticao(a.id, schemas.DenticaoCriar(data=date(2026, 5, 1), dentes=2), db)
+    # Mesma data de novo: corrige, não duplica.
+    api.adicionar_denticao(a.id, schemas.DenticaoCriar(data=date(2026, 5, 1), dentes=4), db)
+    db.refresh(a)
+    assert [(d.data, d.dentes) for d in a.denticoes] == [(date(2026, 5, 1), 4)]
+    assert api.detalhar_animal(a.id, db)["dentes"] == 4
+
+    # Número inválido é recusado com mensagem.
+    with pytest.raises(HTTPException) as exc:
+        api.adicionar_denticao(a.id, schemas.DenticaoCriar(data=date(2026, 6, 1), dentes=12), db)
+    assert exc.value.status_code == 400
+
+    # Apagar a dentição errada.
+    api.excluir_denticao(a.id, a.denticoes[0].id, db)
+    db.refresh(a)
+    assert a.denticoes == []
