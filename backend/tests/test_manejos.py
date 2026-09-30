@@ -50,3 +50,26 @@ def test_detalhe_legado_ordena_por_brinco(db):
     assert [p["brinco"] for p in d["pesados"]] == ["101", "102", "201"]
     # Não tem sessão, então não tem campo "destino".
     assert "destino" not in d["pesados"][0]
+
+
+def test_ugmd_do_manejo_e_o_ganho_desde_a_pesagem_anterior(db):
+    import pytest
+
+    # 101: 400 kg em 01/05 -> 410 em 15/06 (45 dias) = 0.222 kg/dia.
+    # 102: 320 kg em 01/01 -> 330 em 15/06 (165 dias) = 0.061 kg/dia.
+    s = svc_sessao.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], False)
+    svc_sessao.registrar_pesagem(db, s, "101", 410)
+    svc_sessao.registrar_pesagem(db, s, "102", 330)
+    esperado = (10 / 45 + 10 / 165) / 2
+
+    d = svc.detalhe_sessao(db, s.id)
+    por_brinco = {p["brinco"]: p["ugmd"] for p in d["pesados"]}
+    assert por_brinco["101"] == pytest.approx(10 / 45, abs=0.001)
+    assert d["ugmd_medio"] == pytest.approx(esperado, abs=0.001)
+
+    lista = {m["chave"]: m for m in svc.listar(db)}
+    assert lista[f"s:{s.id}"]["ugmd_medio"] == pytest.approx(esperado, abs=0.001)
+    # Legado de 01/05: só o 101, de 300 (01/01) a 400 (01/05) = 100/120 dias.
+    assert lista["d:2026-05-01"]["ugmd_medio"] == pytest.approx(100 / 120, abs=0.001)
+    # Legado de 01/01: primeira pesagem de todos, sem período anterior.
+    assert lista["d:2026-01-01"]["ugmd_medio"] is None

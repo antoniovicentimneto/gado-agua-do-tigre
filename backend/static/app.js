@@ -731,6 +731,7 @@ async function carregarManejos() {
       <div class="card-manejo-numeros">
         <span><b>${m.total}</b> pesados</span>
         <span>peso médio <b>${fmt.peso(m.peso_medio)}</b></span>
+        ${m.ugmd_medio != null ? `<span title="ganho médio por dia desde a pesagem anterior">uGMD <b>${m.ugmd_medio.toFixed(3)}</b></span>` : ""}
       </div>`;
     div.onclick = () => abrirManejo(m.chave);
     box.appendChild(div);
@@ -758,6 +759,7 @@ async function abrirManejo(chave) {
         <td>${ehDono
           ? `<input type="number" step="0.1" class="manejo-peso" value="${p.peso}" style="width:5.5em">`
           : fmt.peso(p.peso)}</td>
+        <td>${p.ugmd == null ? "—" : p.ugmd.toFixed(3)}</td>
         ${"destino" in p ? `<td>${esc(p.destino || "—")}</td>` : ""}
         ${ehDono ? `<td style="white-space:nowrap">
           <button class="manejo-salvar" title="salvar peso">✓</button>
@@ -767,7 +769,7 @@ async function abrirManejo(chave) {
     .join("");
   const colDestino = d.pesados.length && "destino" in d.pesados[0] ? "<th>Destino</th>" : "";
   const colAcoes = ehDono ? "<th></th>" : "";
-  const ncols = 4 + (colDestino ? 1 : 0) + (colAcoes ? 1 : 0);
+  const ncols = 5 + (colDestino ? 1 : 0) + (colAcoes ? 1 : 0);
 
   const podeEditarManejo = ehDono && prefixo === "s" && s.status === "finalizada";
 
@@ -783,13 +785,16 @@ async function abrirManejo(chave) {
     </div>
     <div class="grid-2 ficha-secao">
       <div class="destaque"><div class="rotulo">GMD médio</div><div class="num">${d.gmd_medio == null ? "—" : d.gmd_medio.toFixed(3)}</div></div>
+      <div class="destaque"><div class="rotulo">Último GMD (uGMD)</div><div class="num">${d.ugmd_medio == null ? "—" : d.ugmd_medio.toFixed(3)}</div></div>
+    </div>
+    <div class="grid-2 ficha-secao">
       ${s.status ? `<div class="destaque"><div class="rotulo">Situação</div><div class="num" style="font-size:1rem">${s.status === "aberta" ? "Em andamento" : "Finalizada"}</div></div>` : "<div></div>"}
     </div>
 
     <div class="ficha-secao">
       <h3>Animais pesados</h3>
       <table>
-        <thead><tr><th>#</th><th>Brinco</th><th>Tipo/Raça</th><th>Peso</th>${colDestino}${colAcoes}</tr></thead>
+        <thead><tr><th>#</th><th>Brinco</th><th>Tipo/Raça</th><th>Peso</th><th title="ganho por dia desde a pesagem anterior">uGMD</th>${colDestino}${colAcoes}</tr></thead>
         <tbody>${linhas || `<tr><td colspan=${ncols}>Nenhum animal</td></tr>`}</tbody>
       </table>
     </div>`;
