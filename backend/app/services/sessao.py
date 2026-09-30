@@ -121,6 +121,7 @@ def animais_a_pesar(db: Session, sessao: SessaoPesagem,
             .selectinload(Animal.lotes)
             .selectinload(AnimalLote.lote),
             selectinload(AnimalLote.animal).selectinload(Animal.pesagens),
+            selectinload(AnimalLote.animal).selectinload(Animal.denticoes),
         )
         .all()
     )
@@ -133,7 +134,15 @@ def animais_a_pesar(db: Session, sessao: SessaoPesagem,
         if lote_atual(a) in nomes_origem:
             vistos.add(a.id)
             resultado.append(a)
+    resultado.sort(key=lambda a: chave_brinco(a.brinco))
     return resultado
+
+
+def chave_brinco(brinco: str | None) -> tuple:
+    """Ordem "natural" do brinco: números em ordem numérica (2 antes de 10),
+    depois os brincos com letras em ordem alfabética."""
+    b = (brinco or "").strip()
+    return (0, int(b), "") if b.isdigit() else (1, 0, b.upper())
 
 
 def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
@@ -201,6 +210,8 @@ def estado_sessao(db: Session, sessao: SessaoPesagem) -> dict:
                 # Último peso (pesagens já vêm carregadas via selectinload — sem query extra).
                 "ultimo_peso": a.pesagens[-1].peso if a.pesagens else None,
                 "data_ultimo_peso": a.pesagens[-1].data if a.pesagens else None,
+                # Última dentição avaliada (p/ ordenar a lista por dentes).
+                "dentes": a.denticoes[-1].dentes if a.denticoes else None,
             }
             for a in a_pesar
         ],
@@ -507,12 +518,35 @@ def cancelar_sessao(db: Session, sessao: SessaoPesagem) -> None:
     db.commit()
 
 
+def desfazer_troca_lote(pesagem: Pesagem) -> None:
+    """Se a pesagem tinha mandado o animal pra outro lote (sessão já finalizada),
+    devolve o animal ao lote em que ele estava antes.
+
+    Só desfaz quando o vínculo aberto é exatamente o criado por essa pesagem (lote de
+    destino, começando na data dela) e existe o vínculo anterior fechado nessa mesma
+    data — assim não mexe em trocas de lote feitas depois por outro motivo.
+    """
+    if pesagem.destino_lote_id is None:
+        return
+    animal = pesagem.animal
+    atual = next((al for al in animal.lotes if al.data_fim is None), None)
+    if (atual is None or atual.lote_id != pesagem.destino_lote_id
+            or atual.data_inicio != pesagem.data):
+        return
+    anteriores = [al for al in animal.lotes if al is not atual and al.data_fim == pesagem.data]
+    if not anteriores:
+        return
+    animal.lotes.remove(atual)  # delete-orphan apaga o vínculo novo
+    anteriores[-1].data_fim = None  # reabre o lote anterior
+
+
 def remover_pesagem(db: Session, sessao: SessaoPesagem, pesagem_id: int) -> bool:
     """Remove uma pesagem da sessão (correção de erro)."""
     pesagem = db.get(Pesagem, pesagem_id)
     if pesagem is None or pesagem.sessao_id != sessao.id:
         return False
     animal = pesagem.animal
+    desfazer_troca_lote(pesagem)
     db.delete(pesagem)
     # Se era um animal provisório (sem brinco) e ficou sem pesagens, remove também.
     if animal.sem_brinco and len(animal.pesagens) <= 1:

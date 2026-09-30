@@ -4,6 +4,7 @@ const mg = {
   sessaoId: null,
   loteAtivo: null,   // sublote "grudado" onde caem os animais pesados
   estado: null,
+  ordemAPesar: { campo: "brinco", asc: true },   // ordenação da coluna "A pesar"
 };
 
 const el = (id) => document.getElementById(id);
@@ -225,16 +226,7 @@ function mgRenderEstado(estado) {
 
   // A pesar.
   el("mg-falta").textContent = estado.contadores.a_pesar;
-  const ap = el("mg-a-pesar");
-  ap.innerHTML = "";
-  estado.a_pesar.forEach((a) => {
-    const d = document.createElement("div");
-    d.className = "mg-item";
-    const peso = a.ultimo_peso != null
-      ? `<span class="info" title="último peso em ${fmt.data(a.data_ultimo_peso)}">${a.ultimo_peso} kg</span>` : "";
-    d.innerHTML = `<span><b>${a.brinco}</b> <span class="info">${a.tipo || ""}</span></span>${peso}`;
-    ap.appendChild(d);
-  });
+  mgRenderAPesar();
 
   // Pesados.
   el("mg-total").textContent = estado.contadores.pesados;
@@ -265,6 +257,63 @@ function mgRenderEstado(estado) {
 
   mgAtualizarCompraPadrao();   // mostra/esconde o "padrão da compra"
 }
+
+// Compara brincos em ordem "natural": 2 antes de 10; brincos com letra vão pro fim.
+function mgCompararBrinco(a, b) {
+  const na = /^\d+$/.test(a || ""), nb = /^\d+$/.test(b || "");
+  if (na && nb) return parseInt(a, 10) - parseInt(b, 10);
+  if (na !== nb) return na ? -1 : 1;
+  return String(a || "").localeCompare(String(b || ""), "pt-BR", { numeric: true });
+}
+
+// Desenha a coluna "A pesar" na ordem escolhida (brinco / peso / dentes).
+function mgRenderAPesar() {
+  const { campo, asc } = mg.ordemAPesar;
+  const lista = (mg.estado ? mg.estado.a_pesar : []).slice();
+  const valor = (a) => (campo === "peso" ? a.ultimo_peso : a.dentes);
+  lista.sort((x, y) => {
+    if (campo !== "brinco") {
+      const vx = valor(x), vy = valor(y);
+      // Sem peso/dentes vai sempre pro fim da lista, em qualquer sentido.
+      if (vx == null && vy != null) return 1;
+      if (vy == null && vx != null) return -1;
+      if (vx != null && vy != null && vx !== vy) return asc ? vx - vy : vy - vx;
+      return mgCompararBrinco(x.brinco, y.brinco);   // empate: ordem de brinco
+    }
+    const c = mgCompararBrinco(x.brinco, y.brinco);
+    return asc ? c : -c;
+  });
+
+  const ap = el("mg-a-pesar");
+  ap.innerHTML = "";
+  lista.forEach((a) => {
+    const d = document.createElement("div");
+    d.className = "mg-item";
+    const dentes = a.dentes != null ? ` · ${a.dentes}d` : "";
+    const peso = a.ultimo_peso != null
+      ? `<span class="info" title="último peso em ${fmt.data(a.data_ultimo_peso)}">${a.ultimo_peso} kg</span>` : "";
+    d.innerHTML = `<span><b>${a.brinco}</b> <span class="info">${a.tipo || ""}${dentes}</span></span>${peso}`;
+    ap.appendChild(d);
+  });
+
+  // Marca o botão ativo com a seta do sentido.
+  document.querySelectorAll("#mg-ordem-a-pesar button").forEach((b) => {
+    const ativo = b.dataset.campo === campo;
+    b.classList.toggle("ativo", ativo);
+    const nome = { brinco: "Brinco", peso: "Peso", dentes: "Dentes" }[b.dataset.campo];
+    b.textContent = ativo ? `${nome} ${asc ? "▲" : "▼"}` : nome;
+  });
+}
+
+// Clique no botão: escolhe o campo; clicar de novo no mesmo inverte o sentido.
+document.querySelectorAll("#mg-ordem-a-pesar button").forEach((b) => {
+  b.onclick = () => {
+    const o = mg.ordemAPesar;
+    if (o.campo === b.dataset.campo) o.asc = !o.asc;
+    else { o.campo = b.dataset.campo; o.asc = true; }
+    mgRenderAPesar();
+  };
+});
 
 async function mgNovoSubloteRapido() {
   mgModal(`

@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=44" />
+  <link rel="stylesheet" href="/static/style.css?v=45" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -168,6 +168,12 @@
         <!-- A pesar -->
         <div class="mg-col">
           <h3>A pesar (<span id="mg-falta">0</span>)</h3>
+          <div id="mg-ordem-a-pesar" class="mg-ordem">
+            <span class="info">ordenar:</span>
+            <button data-campo="brinco">Brinco</button>
+            <button data-campo="peso">Peso</button>
+            <button data-campo="dentes">Dentes</button>
+          </div>
           <div id="mg-a-pesar" class="mg-lista"></div>
         </div>
       </div>
@@ -312,10 +318,10 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=44"></script>
-  <script src="/static/fila-offline.js?v=44"></script>
-  <script src="/static/mangueira.js?v=44"></script>
-  <script src="/static/planilha.js?v=44"></script>
+  <script src="/static/app.js?v=45"></script>
+  <script src="/static/fila-offline.js?v=45"></script>
+  <script src="/static/mangueira.js?v=45"></script>
+  <script src="/static/planilha.js?v=45"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

@@ -281,6 +281,12 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
 
 .mg-lista { max-height: 46vh; overflow-y: auto; }
+.mg-ordem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+.mg-ordem button {
+  padding: 2px 8px; font-size: 0.75rem; border-radius: 6px;
+  background: var(--verde-claro); color: var(--verde);
+}
+.mg-ordem button.ativo { background: var(--verde); color: #fff; }
 .mg-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 7px 6px; border-bottom: 1px solid var(--borda); font-size: 0.9rem;

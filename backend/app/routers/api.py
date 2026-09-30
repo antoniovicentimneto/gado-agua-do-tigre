@@ -30,7 +30,7 @@ from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
 from ..services.exportacao import gerar_planilha, nome_arquivo
 from ..services.relatorio import gerar_relatorio, nome_relatorio
 from ..services.gmd import gmd_periodo
-from ..services.sessao import completar_venda_morto, vincular
+from ..services.sessao import completar_venda_morto, desfazer_troca_lote, vincular
 from ..services.venda import calcular_venda, rendimento_padrao
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -219,6 +219,8 @@ def excluir_pesagem_animal(
     pesagem = db.get(Pesagem, pesagem_id)
     if pesagem is None or pesagem.animal_id != animal_id:
         raise HTTPException(status_code=404, detail="Pesagem não encontrada")
+    # Se essa pesagem tinha trocado o animal de lote, volta pro lote anterior.
+    desfazer_troca_lote(pesagem)
     db.delete(pesagem)
     db.commit()
     return {"ok": True}

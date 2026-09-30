@@ -254,6 +254,41 @@ def test_finalizar_move_para_sublote(db):
     assert lote_atual(a) == "Gordo"
 
 
+def test_remover_pesagem_devolve_ao_lote_anterior(db):
+    # Pesou, mandou pro "Gordo", finalizou, reabriu e apagou o peso errado:
+    # o animal tem que voltar pro LOTEA (e pra lista "a pesar").
+    s = _abrir_manejo(db)
+    r = svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")
+    svc.finalizar(db, s)
+    svc.reabrir(db, s)
+    assert svc.remover_pesagem(db, s, r["pesagem_id"])
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    db.refresh(a)
+    assert lote_atual(a) == "LOTEA"
+    assert len([al for al in a.lotes if al.data_fim is None]) == 1
+    assert "101" in {x["brinco"] for x in svc.estado_sessao(db, s)["a_pesar"]}
+
+
+def test_excluir_pesagem_pela_ficha_devolve_ao_lote_anterior(db):
+    from app.routers.api import excluir_pesagem_animal
+
+    s = _abrir_manejo(db)
+    r = svc.registrar_pesagem(db, s, "101", 410, destino_lote="Gordo")
+    svc.finalizar(db, s)
+    excluir_pesagem_animal(r["animal_id"], r["pesagem_id"], db=db, _dono=None)
+    a = db.query(Animal).filter(Animal.brinco == "101").first()
+    db.refresh(a)
+    assert lote_atual(a) == "LOTEA"
+
+
+def test_a_pesar_em_ordem_de_brinco(db):
+    assert svc.chave_brinco("2") < svc.chave_brinco("10") < svc.chave_brinco("A1")
+    s = _abrir_manejo(db, separar=False)
+    brincos = [a["brinco"] for a in svc.estado_sessao(db, s)["a_pesar"]]
+    assert brincos == ["101", "102"]
+    assert all("dentes" in a for a in svc.estado_sessao(db, s)["a_pesar"])
+
+
 def test_faltantes_projeta_peso_pelo_ugmd_do_lote(db):
     s = _abrir_manejo(db, separar=False)
     d = svc.faltantes(db, s)
