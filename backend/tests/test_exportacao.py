@@ -46,3 +46,35 @@ def test_incremental_nao_apaga_e_so_adiciona(db, tmp_path):
     # O peso "do app" (999 em 2026-06-20) continua lá.
     db.refresh(a101)
     assert any(p.peso == 999 for p in a101.pesagens)
+
+
+def test_incremental_brinco_repetido_nao_mistura_pesos(db, tmp_path):
+    # Dois animais com o mesmo brinco (antigo vendido + novo): cada linha da planilha
+    # tem que cair no SEU animal — antes os pesos do novo eram copiados pro antigo.
+    from datetime import date
+
+    from app.models import StatusAnimal
+    from app.services.importacao import importar_incremental
+
+    antigo = Animal(brinco="777", tipo="Boi", status=StatusAnimal.VENDIDO)
+    novo = Animal(brinco="777", tipo="Novilha", status=StatusAnimal.ATIVO)
+    db.add_all([antigo, novo])
+    db.commit()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "DADOS"
+    ws.cell(1, 7, "Brinco")
+    ws.cell(1, 24, "10/06/2026")
+    ws.cell(2, 7, "777")      # 1ª linha do 777 = animal antigo (sem peso nessa data)
+    ws.cell(3, 7, "777")      # 2ª linha do 777 = animal novo
+    ws.cell(3, 24, 300)
+    caminho = tmp_path / "dup.xlsx"
+    wb.save(caminho)
+
+    r = importar_incremental(str(caminho), db)
+    assert r["animais_novos"] == 0
+    db.refresh(antigo)
+    db.refresh(novo)
+    assert antigo.pesagens == []
+    assert [(p.data, p.peso) for p in novo.pesagens] == [(date(2026, 6, 10), 300)]

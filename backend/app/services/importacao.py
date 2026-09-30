@@ -258,6 +258,11 @@ def importar_incremental(caminho: str, db: Session) -> dict:
 
     resumo = {"animais_novos": 0, "pesagens_novas": 0, "animais_existentes": 0,
               "pulados_sem_brinco": 0}
+    # Quantas linhas de cada brinco já foram vistas. Com brinco REPETIDO na planilha
+    # (animal vendido + animal novo com o mesmo número), a 1ª linha é o 1º animal
+    # cadastrado com esse brinco, a 2ª linha o 2º, e assim por diante. Antes usava
+    # sempre o 1º animal e os pesos do animal novo iam parar no antigo (vendido).
+    vistos: dict[str, int] = {}
 
     for r in range(2, ws.max_row + 1):
         brinco = _texto(ws.cell(r, COL_BRINCO).value)
@@ -265,7 +270,10 @@ def importar_incremental(caminho: str, db: Session) -> dict:
             resumo["pulados_sem_brinco"] += 1
             continue
 
-        animal = db.query(Animal).filter(Animal.brinco == brinco).first()
+        n = vistos.get(brinco, 0)
+        vistos[brinco] = n + 1
+        mesmos = db.query(Animal).filter(Animal.brinco == brinco).order_by(Animal.id).all()
+        animal = mesmos[n] if n < len(mesmos) else None
         novo = animal is None
         if novo:
             situacao = _texto(ws.cell(r, COL_SITUACAO).value)
