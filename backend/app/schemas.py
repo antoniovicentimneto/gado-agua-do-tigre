@@ -31,10 +31,33 @@ class AnimalAtualizar(BaseModel):
     cor: str | None = None
     vendedor: str | None = None
     nascimento: date | None = None
+    data_desmame: date | None = None
     capado: bool | None = None
     status: StatusAnimal | None = None
     data_evento: date | None = None
     observacao: str | None = None
+
+
+class NascimentoCriar(BaseModel):
+    mae_id: int
+    data: date
+    sexo: str                     # "F" ou "M"
+    brinco: str | None = None     # vazio = bezerro ainda sem brinco
+    peso: float | None = None     # peso ao nascer (opcional)
+
+
+class PrenhezMarcar(BaseModel):
+    prenhez: str | None = None    # prenhe / mojando / vazia / None (limpa)
+    data: date | None = None
+
+
+class MaeDefinir(BaseModel):
+    mae_id: int | None = None
+
+
+class DesmamaMarcar(BaseModel):
+    data: date | None = None
+    novo_tipo: str | None = None
 
 
 class AnimalResumo(AnimalBase):

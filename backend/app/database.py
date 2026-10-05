@@ -19,6 +19,10 @@ Base = declarative_base()
 # COLUMN, nunca apaga nem altera dado). Formato: (tabela, coluna, tipo SQL).
 COLUNAS_NOVAS = [
     ("vendas", "acabamento", "VARCHAR(20)"),
+    ("animais", "mae_id", "INTEGER REFERENCES animais(id)"),
+    ("animais", "data_desmame", "DATE"),
+    ("animais", "prenhez", "VARCHAR(10)"),
+    ("animais", "prenhez_data", "DATE"),
 ]
 
 

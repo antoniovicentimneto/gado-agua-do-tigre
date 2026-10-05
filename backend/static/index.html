@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=49" />
+  <link rel="stylesheet" href="/static/style.css?v=50" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -195,6 +195,7 @@
       <button data-modo="lote">Por lote</button>
       <button data-modo="manejos">Manejos</button>
       <button data-modo="planilha">Planilha</button>
+      <button data-modo="cria">Cria</button>
     </div>
 
     <div class="filtros" id="filtros-animal">
@@ -214,6 +215,7 @@
     <div id="lista-lotes"></div>
     <div id="lista-manejos" style="display:none"></div>
     <div id="lista-planilha" style="display:none"></div>
+    <div id="lista-cria" style="display:none"></div>
   </section>
 
   <!-- ABA PESAR -->
@@ -318,11 +320,12 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=49"></script>
-  <script src="/static/fila-offline.js?v=49"></script>
-  <script src="/static/mangueira.js?v=49"></script>
-  <script src="/static/planilha.js?v=49"></script>
-  <script src="/static/venda-gancho.js?v=49"></script>
+  <script src="/static/app.js?v=50"></script>
+  <script src="/static/fila-offline.js?v=50"></script>
+  <script src="/static/mangueira.js?v=50"></script>
+  <script src="/static/planilha.js?v=50"></script>
+  <script src="/static/venda-gancho.js?v=50"></script>
+  <script src="/static/cria.js?v=50"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

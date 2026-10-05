@@ -257,6 +257,10 @@ const LOG_ACOES = [
   [/^PUT \/api\/animais\/\d+\/pesagens\/\d+$/, "Editou pesagem"],
   [/^DELETE \/api\/animais\/\d+\/pesagens\/\d+$/, "Excluiu pesagem"],
   [/^POST \/api\/pesagem-rapida$/, "Pesagem rápida"],
+  [/^POST \/api\/cria\/nascimento$/, "Registrou nascimento de bezerro"],
+  [/^PUT \/api\/cria\/prenhez\/\d+$/, "Marcou prenhez (prenhe/mojando/vazia)"],
+  [/^PUT \/api\/cria\/mae\/\d+$/, "Definiu a mãe do animal"],
+  [/^POST \/api\/cria\/desmama\/\d+$/, "Desmamou bezerro"],
   [/^POST \/api\/animais\/\d+\/denticoes$/, "Registrou dentição"],
   [/^DELETE \/api\/animais\/\d+\/denticoes\/\d+$/, "Excluiu dentição"],
   [/^POST \/api\/animais\/\d+\/scores$/, "Registrou score"],
@@ -664,8 +668,10 @@ document.querySelectorAll(".modo-toggle button").forEach((b) => {
     const porLote = modoRebanho === "lote";
     const porManejo = modoRebanho === "manejos";
     const porPlanilha = modoRebanho === "planilha";
+    const porCria = modoRebanho === "cria";
     document.getElementById("filtros-animal").style.display = porAnimal ? "flex" : "none";
     document.getElementById("lista-planilha").style.display = porPlanilha ? "block" : "none";
+    document.getElementById("lista-cria").style.display = porCria ? "block" : "none";
     document.getElementById("lista").style.display = porAnimal ? "block" : "none";
     document.getElementById("lista-lotes").style.display = porLote ? "block" : "none";
     document.getElementById("lista-manejos").style.display = porManejo ? "block" : "none";
@@ -673,6 +679,7 @@ document.querySelectorAll(".modo-toggle button").forEach((b) => {
     if (porAnimal) carregarLista();
     else if (porLote) carregarLotes();
     else if (porPlanilha) carregarPlanilha();
+    else if (porCria) carregarCria();
     else carregarManejos();
   };
 });
@@ -1182,6 +1189,8 @@ async function abrirFicha(id, voltar = null) {
       </div>
     </div>` : ""}
 
+    ${criaSecaoFichaHTML(a)}
+
     <div class="ficha-secao">
       <h3>Dentição</h3>
       ${ultimaDenticao
@@ -1252,6 +1261,7 @@ async function abrirFicha(id, voltar = null) {
   modal.dataset.tipo = a.tipo || "";
 
   ligarSeletorLote("ficha-lote");
+  criaLigarFicha(a, id);
   document.getElementById("gp-calcular").onclick = () => calcularGmdPeriodo(id);
   document.getElementById("btn-lote").onclick = () => moverLote(id);
   document.getElementById("btn-simular").onclick = () => simularVenda(id, a.tipo);

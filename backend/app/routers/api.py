@@ -27,6 +27,7 @@ from ..services import manejos as svc_manejos
 from ..services import opcoes as svc_opcoes
 from ..services.auth import requer_dono, usuario_atual
 from ..services.consultas import lote_atual, montar_resumo, pontos_pesagem
+from ..services.cria import eh_bezerro, resumo_matriz
 from ..services.exportacao import gerar_planilha, nome_arquivo
 from ..services.relatorio import gerar_relatorio, nome_relatorio
 from ..services.gmd import gmd_periodo
@@ -115,6 +116,12 @@ def detalhar_animal(animal_id: int, db: Session = Depends(get_db),
             "preco_arroba": v.preco_arroba, "acabamento": v.acabamento,
             "valor_recebido": v.valor_recebido,
         }
+    # Cria: mãe do animal, crias dele e marcação de prenhez.
+    resumo["nascimento"] = animal.nascimento
+    resumo["data_desmame"] = animal.data_desmame
+    resumo["mae"] = ({"id": animal.mae.id, "brinco": animal.mae.brinco,
+                      "status": animal.mae.status.value} if animal.mae else None)
+    resumo["cria"] = resumo_matriz(animal)
     resumo["pesagens"] = [
         {"id": p.id, "data": p.data, "peso": p.peso, "observacao": p.observacao}
         for p in animal.pesagens
@@ -148,6 +155,10 @@ def atualizar_animal(
     campos = dados.model_dump(exclude_unset=True)
     if usuario.papel != PapelUsuario.DONO and not set(campos).issubset(CAMPOS_LIBERADOS_PEAO):
         raise HTTPException(status_code=403, detail="Ação permitida só para o dono")
+    # Saiu de bezerro trocando o tipo na mão: hoje fica como data do desmame.
+    if ("tipo" in campos and eh_bezerro(animal.tipo) and not eh_bezerro(campos["tipo"])
+            and animal.data_desmame is None and "data_desmame" not in campos):
+        animal.data_desmame = date.today()
     for campo, valor in campos.items():
         setattr(animal, campo, valor)
     db.commit()

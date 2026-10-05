@@ -1,0 +1,67 @@
+"""Endpoints da aba Cria (vacas e bezerros)."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import Animal
+from .. import schemas
+from ..services import cria as svc
+from ..services.auth import requer_dono, usuario_atual
+
+router = APIRouter(prefix="/api/cria", tags=["cria"], dependencies=[Depends(usuario_atual)])
+
+
+def _animal(db: Session, animal_id: int) -> Animal:
+    a = db.get(Animal, animal_id)
+    if a is None:
+        raise HTTPException(status_code=404, detail="Animal não encontrado")
+    return a
+
+
+@router.get("")
+def painel(db: Session = Depends(get_db)):
+    """Matrizes com a situação (com bezerro / solteira / prenhe) e bezerros sem mãe."""
+    return svc.painel(db)
+
+
+@router.post("/nascimento", status_code=201)
+def nascimento(dados: schemas.NascimentoCriar, db: Session = Depends(get_db)):
+    """Registra o nascimento: cria o bezerro ligado à mãe (peão também lança)."""
+    mae = _animal(db, dados.mae_id)
+    try:
+        b = svc.registrar_nascimento(db, mae, dados.data, dados.sexo, dados.brinco, dados.peso)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True, "id": b.id, "brinco": b.brinco, "tipo": b.tipo}
+
+
+@router.put("/prenhez/{animal_id}")
+def prenhez(animal_id: int, dados: schemas.PrenhezMarcar, db: Session = Depends(get_db)):
+    """Marca a vaca como prenhe / mojando / vazia (ou limpa a marcação)."""
+    try:
+        svc.marcar_prenhez(db, _animal(db, animal_id), dados.prenhez, dados.data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True}
+
+
+@router.put("/mae/{animal_id}")
+def mae(animal_id: int, dados: schemas.MaeDefinir, db: Session = Depends(get_db),
+        _dono=Depends(requer_dono)):
+    """Liga (ou desliga, com mae_id nulo) um animal à mãe dele."""
+    cria = _animal(db, animal_id)
+    try:
+        svc.definir_mae(db, cria, _animal(db, dados.mae_id) if dados.mae_id else None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"ok": True}
+
+
+@router.post("/desmama/{animal_id}")
+def desmama(animal_id: int, dados: schemas.DesmamaMarcar, db: Session = Depends(get_db),
+            _dono=Depends(requer_dono)):
+    """Desmama o bezerro (grava a data e troca o tipo pra Novilha/Boi)."""
+    svc.desmamar(db, _animal(db, animal_id), dados.data, dados.novo_tipo)
+    return {"ok": True}

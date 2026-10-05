@@ -95,6 +95,19 @@ class Animal(Base):
     data_evento: Mapped[date | None] = mapped_column(Date)
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # ---- Cria (ver services/cria.py)
+    mae_id: Mapped[int | None] = mapped_column(ForeignKey("animais.id"), index=True)
+    data_desmame: Mapped[date | None] = mapped_column(Date)
+    prenhez: Mapped[str | None] = mapped_column(String(10))  # prenhe / mojando / vazia
+    prenhez_data: Mapped[date | None] = mapped_column(Date)  # quando foi marcada
+
+    mae: Mapped[Animal | None] = relationship(
+        remote_side="Animal.id", back_populates="crias", foreign_keys="Animal.mae_id"
+    )
+    # Sem cascade: apagar a mãe só desliga as crias (mae_id vira nulo).
+    crias: Mapped[list[Animal]] = relationship(
+        back_populates="mae", foreign_keys="Animal.mae_id"
+    )
 
     pesagens: Mapped[list[Pesagem]] = relationship(
         back_populates="animal", cascade="all, delete-orphan", order_by="Pesagem.data"

@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, migrar_colunas
-from .routers import api, auth, sessoes
+from .routers import api, auth, cria, sessoes
 from .services import auditoria
 
 # Cria as tabelas no primeiro start (idempotente).
@@ -17,6 +17,7 @@ app = FastAPI(title="Gado Água do Tigre", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(sessoes.router)
+app.include_router(cria.router)
 
 # Rotas que não passam pelo log de auditoria (não são escrita de dado de negócio).
 ROTAS_SEM_AUDITORIA = {"/api/auth/login"}

@@ -696,6 +696,15 @@ def vincular(db: Session, data: date, animal_temp_id: int,
     if temp.venda and not faltante.venda:
         faltante.venda = temp.venda
 
+    # Cria: herda mãe, nascimento e as crias do provisório (bezerro nascido sem brinco
+    # que depois foi brincado, ou vaca re-etiquetada).
+    if temp.mae_id and not faltante.mae_id and temp.mae_id != faltante.id:
+        faltante.mae_id = temp.mae_id
+    if temp.nascimento and not faltante.nascimento:
+        faltante.nascimento = temp.nascimento
+    for c in list(temp.crias):
+        faltante.crias.append(c)  # transfere (senão apagar o provisório desliga as crias)
+
     # Define qual brinco o animal antigo passa a usar.
     brinco_alvo = None
     if novo_brinco and novo_brinco.strip():

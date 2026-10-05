@@ -89,7 +89,9 @@ button:active { opacity: 0.85; }
 .info { color: var(--cinza); font-size: 0.85rem; margin: 6px 0; }
 
 /* Alternância Por animal / Por lote */
-.modo-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+.modo-toggle { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+/* 5 modos: no celular quebram em duas linhas em vez de cortar o último. */
+.modo-toggle button { flex: 1 1 28%; white-space: nowrap; padding-left: 6px; padding-right: 6px; }
 .modo-toggle button {
   flex: 1; background: #fff; color: var(--cinza); border: 1px solid var(--borda);
 }
@@ -281,6 +283,28 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
 
 .mg-lista { max-height: 46vh; overflow-y: auto; }
+/* Rebanho › Cria (vacas e bezerros) */
+.cr-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cr-filtros button {
+  padding: 6px 10px; font-size: 0.8rem; border-radius: 16px;
+  background: var(--verde-claro); color: var(--verde);
+}
+.cr-filtros button.ativo { background: var(--verde); color: #fff; }
+.card-cria {
+  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  padding: 10px 12px; margin-top: 8px;
+}
+.card-cria-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-cria-topo b { font-size: 1.05rem; }
+.cr-cria { margin-top: 6px; font-size: 0.9rem; }
+.card-cria-acoes { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.card-cria-acoes select { flex: 1 1 9em; padding: 6px; }
+.card-cria-acoes button { flex: 1 1 9em; padding: 6px 10px; font-size: 0.85rem; }
+.tag.cr-bezerro { background: #e3f2fd; color: #1565c0; }
+.tag.cr-solteira { background: #eee; color: #555; }
+.tag.cr-prenhe, .tag.cr-mojando { background: #fff3cd; color: #8a6100; }
+.tag.cr-vazia { background: #fde2e2; color: #b3261e; }
+
 /* Fechamento da venda no gancho: tabela larga rola de lado no celular. */
 .vg-tabela { overflow-x: auto; }
 .vg-tabela table { min-width: 640px; }
