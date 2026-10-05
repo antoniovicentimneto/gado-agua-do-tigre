@@ -162,6 +162,19 @@ Histórico de todos os manejos: sessões do app (com status/destino) + pesagens 
 planilha (sem sessão) agrupadas por data (tipo "legado"). Cartão abre detalhe com peso/GMD
 de cada animal. Serviço: `app/services/manejos.py`.
 
+## Cria (Rebanho › Cria) e venda no gancho
+
+- **Cria** (`services/cria.py`, `routers/cria.py`, `static/cria.js`): `Animal.mae_id` liga o
+  bezerro à mãe (pai não é registrado). Bezerro "ao pé" = cria ATIVA, tipo `Bez*`, sem
+  `data_desmame`. Vaca **solteira** = sem bezerro ao pé. `Animal.prenhez` = prenhe (toque) /
+  mojando (visual) / vazia; nascimento limpa. **Pode ir pro frigorífico** = solteira e não
+  prenhe/mojando. Trocar o tipo de bezerro na mão grava `data_desmame` = hoje.
+- **Venda peso morto**: fechamento por animal (carcaça, rendimento, preço da @, acabamento)
+  em `static/venda-gancho.js`, aberto pelo manejo de venda. Só dono.
+- **Colunas novas** em tabela existente: acrescentar em `COLUNAS_NOVAS` (`database.py`) —
+  `create_all` não adiciona coluna; a migração leve roda no start (só ADD COLUMN).
+- Pendente: exportação/restauração Excel ainda NÃO leva mãe, desmame, prenhez nem venda.
+
 ## Estado atual (jul/2026)
 
 Tudo no ar e funcionando: login+perfis, offline/PWA, deploy Render+Supabase, config
