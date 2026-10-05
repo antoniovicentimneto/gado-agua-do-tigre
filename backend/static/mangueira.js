@@ -33,6 +33,7 @@ function mgLimparMaisOpcoes() {
   el("mg-op-raca").value = "";
   el("mg-op-dentes").value = "";
   el("mg-op-obs").value = "";
+  el("mg-op-prenhez").value = "";
 }
 
 // Reage ao clique na aba Mangueira (em adição ao handler de troca de aba do app.js).
@@ -376,6 +377,7 @@ function mgOpcoesExtras() {
   const r = el("mg-op-raca").value; if (r) e.nova_raca = r;
   const d = el("mg-op-dentes").value.trim(); if (d) e.dentes = parseInt(d, 10);
   const o = el("mg-op-obs").value.trim(); if (o) e.observacao = o;
+  const p = el("mg-op-prenhez").value; if (p) e.prenhez = p;
   return e;
 }
 

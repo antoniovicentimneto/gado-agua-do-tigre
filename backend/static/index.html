@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=50" />
+  <link rel="stylesheet" href="/static/style.css?v=51" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -144,7 +144,7 @@
             <div id="mg-info-animal" class="mg-info-animal"></div>
             <input id="mg-peso" placeholder="Peso (kg)" inputmode="decimal" />
             <button type="submit" id="mg-enviar">Enviar</button>
-            <button type="button" id="mg-mais-toggle" class="mg-mais-toggle">⚙ mais opções (tipo, raça, dentes, obs)</button>
+            <button type="button" id="mg-mais-toggle" class="mg-mais-toggle">⚙ mais opções (tipo, raça, dentes, obs, prenhez)</button>
             <div id="mg-mais" class="mg-mais escondido">
               <label>Classificação</label>
               <select id="mg-op-tipo"></select>
@@ -153,6 +153,14 @@
               <div class="grid-2">
                 <div><label>Dentes (nº)</label><input id="mg-op-dentes" inputmode="numeric" /></div>
                 <div><label>Observação</label><input id="mg-op-obs" /></div>
+                <div><label>Prenhez</label>
+                  <select id="mg-op-prenhez">
+                    <option value="">— não marcar —</option>
+                    <option value="prenhe">Prenhe (toque)</option>
+                    <option value="mojando">Mojando</option>
+                    <option value="vazia">Vazia (toque)</option>
+                  </select>
+                </div>
               </div>
               <div class="info">Estes campos são opcionais — só preencha se quiser editar o animal.</div>
             </div>
@@ -320,12 +328,12 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=50"></script>
-  <script src="/static/fila-offline.js?v=50"></script>
-  <script src="/static/mangueira.js?v=50"></script>
-  <script src="/static/planilha.js?v=50"></script>
-  <script src="/static/venda-gancho.js?v=50"></script>
-  <script src="/static/cria.js?v=50"></script>
+  <script src="/static/app.js?v=51"></script>
+  <script src="/static/fila-offline.js?v=51"></script>
+  <script src="/static/mangueira.js?v=51"></script>
+  <script src="/static/planilha.js?v=51"></script>
+  <script src="/static/venda-gancho.js?v=51"></script>
+  <script src="/static/cria.js?v=51"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

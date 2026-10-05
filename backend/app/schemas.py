@@ -163,6 +163,7 @@ class PesarDados(BaseModel):
     novo_tipo: str | None = None  # editar a classificação do animal na hora
     nova_raca: str | None = None  # editar a raça do animal na hora
     dentes: int | None = None     # registrar a dentição com a data da pesagem
+    prenhez: str | None = None    # marcar prenhe / mojando / vazia na hora da pesagem
 
 
 class RelatorioExcel(BaseModel):

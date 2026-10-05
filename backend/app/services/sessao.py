@@ -28,6 +28,7 @@ from ..models import (
 )
 from .consultas import lote_atual
 from .gmd import PontoPesagem, resumo_animal
+from .cria import PRENHEZ_VALORES
 from .venda import ACABAMENTOS, KG_POR_ARROBA, calcular_venda, rendimento_padrao
 
 
@@ -298,6 +299,7 @@ def registrar_pesagem(
     novo_tipo: str | None = None,
     nova_raca: str | None = None,
     dentes: int | None = None,
+    prenhez: str | None = None,
 ) -> dict:
     """Registra a pesagem de um animal na sessão.
 
@@ -305,6 +307,10 @@ def registrar_pesagem(
     confirmação do usuário (ambíguo / fora do lote / já pesado / inexistente).
     """
     brinco = brinco.strip()
+    prenhez = (prenhez or "").strip().lower() or None
+    if prenhez is not None and prenhez not in PRENHEZ_VALORES:
+        return {"alerta": "erro", "brinco": brinco,
+                "mensagem": "Marcação de prenhez inválida (use prenhe, mojando ou vazia)."}
     nomes_origem = {l.nome for l in sessao.origens}
     destino = obter_ou_criar_lote(db, destino_lote) if destino_lote else None
 
@@ -373,6 +379,10 @@ def registrar_pesagem(
         animal.tipo = novo_tipo.strip()
     if nova_raca:
         animal.raca = nova_raca.strip()
+    if prenhez:
+        # Toque/visual feito na mangueira: vale a data da sessão.
+        animal.prenhez = prenhez
+        animal.prenhez_data = sessao.data
     if dentes is not None:
         d = (
             db.query(Denticao)

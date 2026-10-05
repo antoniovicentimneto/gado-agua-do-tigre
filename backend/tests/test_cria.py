@@ -137,3 +137,21 @@ def test_vincular_bezerro_sem_brinco_herda_a_mae(db):
     assert r["ok"]
     db.refresh(antigo)
     assert antigo.mae_id == vaca.id and antigo.nascimento == ONTEM
+
+
+def test_pesagem_na_mangueira_marca_prenhez(db):
+    from app.models import TipoSessao
+
+    vaca = _vaca(db)
+    s = svc_sessao.criar_sessao(db, TipoSessao.MANEJO, ONTEM, ["LOTEA"], False)
+    r = svc_sessao.registrar_pesagem(db, s, "900", 430, prenhez="mojando")
+    assert r["ok"]
+    db.refresh(vaca)
+    assert (vaca.prenhez, vaca.prenhez_data) == ("mojando", ONTEM)   # data da sessão
+    # Pesar de novo sem marcar não apaga a marcação.
+    svc_sessao.registrar_pesagem(db, s, "900", 432, forcar=True)
+    db.refresh(vaca)
+    assert vaca.prenhez == "mojando"
+    # Valor inválido não grava nada.
+    r = svc_sessao.registrar_pesagem(db, s, "102", 300, prenhez="talvez")
+    assert r.get("alerta") == "erro"
