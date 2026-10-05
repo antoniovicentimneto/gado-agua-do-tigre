@@ -102,9 +102,19 @@ def criar_animal(dados: schemas.AnimalCriar, db: Session = Depends(get_db),
 
 
 @router.get("/animais/{animal_id}")
-def detalhar_animal(animal_id: int, db: Session = Depends(get_db)):
+def detalhar_animal(animal_id: int, db: Session = Depends(get_db),
+                    usuario: Usuario = Depends(usuario_atual)):
     animal = _buscar_animal(db, animal_id)
     resumo = montar_resumo(animal)
+    # Dados da venda (financeiro) só pro dono.
+    v = animal.venda
+    if v is not None and getattr(usuario, "papel", None) == PapelUsuario.DONO:
+        resumo["venda"] = {
+            "modo": v.modo.value, "pendente": v.pendente, "data": v.data, "peso": v.peso,
+            "peso_carcaca": v.peso_carcaca, "rendimento": v.rendimento,
+            "preco_arroba": v.preco_arroba, "acabamento": v.acabamento,
+            "valor_recebido": v.valor_recebido,
+        }
     resumo["pesagens"] = [
         {"id": p.id, "data": p.data, "peso": p.peso, "observacao": p.observacao}
         for p in animal.pesagens
@@ -647,7 +657,7 @@ def completar_venda(
     """Fecha a venda no gancho com rendimento + peso de carcaça + preço da @."""
     animal = _buscar_animal(db, animal_id)
     r = completar_venda_morto(db, animal, dados.rendimento, dados.peso_carcaca,
-                              dados.preco_arroba)
+                              dados.preco_arroba, dados.acabamento)
     if not r.get("ok"):
         raise HTTPException(status_code=400, detail=r.get("erro", "Erro"))
     return r

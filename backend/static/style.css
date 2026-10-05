@@ -281,6 +281,15 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
 
 .mg-lista { max-height: 46vh; overflow-y: auto; }
+/* Fechamento da venda no gancho: tabela larga rola de lado no celular. */
+.vg-tabela { overflow-x: auto; }
+.vg-tabela table { min-width: 640px; }
+.vg-tabela input { width: 5.2em; padding: 6px; }
+.vg-tabela select { padding: 6px; min-width: 6.5em; }
+.vg-tabela td { vertical-align: middle; }
+.vg-tabela tr.vg-pendente td:first-child { border-left: 3px solid #e0a800; }
+.vg-valor { white-space: nowrap; font-weight: 600; }
+
 .mg-ordem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
 .mg-ordem button {
   padding: 2px 8px; font-size: 0.75rem; border-radius: 6px;

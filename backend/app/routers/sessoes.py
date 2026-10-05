@@ -204,3 +204,28 @@ def remover(sessao_id: int, pesagem_id: int, db: Session = Depends(get_db),
     if not ok:
         raise HTTPException(status_code=404, detail="Pesagem não encontrada nesta sessão")
     return {"ok": True}
+
+
+# ---------------------------------------------------- Fechamento da venda no gancho
+
+@router.get("/{sessao_id}/venda-fechamento")
+def venda_fechamento(sessao_id: int, db: Session = Depends(get_db),
+                     _dono=Depends(requer_dono)):
+    """Animais de uma venda peso morto com os dados do frigorífico (um por linha)."""
+    s = _buscar_sessao(db, sessao_id)
+    if s.tipo != TipoSessao.VENDA_MORTO:
+        raise HTTPException(status_code=400, detail="Esse manejo não é uma venda peso morto")
+    return svc.fechamento_venda(db, s)
+
+
+@router.post("/{sessao_id}/venda-fechamento")
+def salvar_venda_fechamento(sessao_id: int, dados: schemas.FechamentoVenda,
+                            db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    """Salva carcaça/rendimento/preço da @/acabamento de vários animais de uma vez."""
+    s = _buscar_sessao(db, sessao_id)
+    if s.tipo != TipoSessao.VENDA_MORTO:
+        raise HTTPException(status_code=400, detail="Esse manejo não é uma venda peso morto")
+    r = svc.salvar_fechamento_venda(db, s, dados.itens)
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("erro", "Erro ao salvar"))
+    return r

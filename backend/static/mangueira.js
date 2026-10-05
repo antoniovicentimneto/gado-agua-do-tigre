@@ -751,39 +751,21 @@ el("mg-finalizar").onclick = async () => {
     </div>
     <p><b>Por sublote:</b> ${sub}</p>
     <p><a href="/api/sessoes/${mg.sessaoId}/exportar">⬇ Exportar CSV</a></p>`;
-  if (res.vendas_pendentes.length) {
-    html += `<h3>Vendas no gancho pendentes</h3><div id="mg-pend"></div>`;
+  const ehVendaMorto = mg.estado && mg.estado.sessao.tipo === "venda_morto";
+  if (ehVendaMorto) {
+    html += `<p class="info">Quando o frigorífico mandar o romaneio, lance os dados de cada animal em
+      <b>Rebanho › Manejos</b> (abra esta venda) ou pelo botão abaixo.</p>
+      <button id="mg-fechar-venda" style="width:100%">💰 Fechar venda (dados do frigorífico)</button>`;
   }
   mgModal(html);
-  if (res.vendas_pendentes.length) mgRenderPendentes();
+  if (ehVendaMorto) {
+    const sessaoId = mg.sessaoId;
+    el("mg-fechar-venda").onclick = () => {
+      el("mg-modal").classList.add("escondido");
+      abrirFechamentoVenda(sessaoId);
+    };
+  }
 };
-
-async function mgRenderPendentes() {
-  const pend = await api.get("/api/vendas/pendentes");
-  const box = el("mg-pend");
-  if (!box) return;
-  box.innerHTML = "";
-  pend.forEach((v) => {
-    const d = document.createElement("div");
-    d.className = "mg-opcao";
-    d.innerHTML = `<b>${v.brinco}</b> · ${v.tipo || ""} · vivo ${v.peso_vivo} kg
-      <button class="secundario" style="float:right">Lançar frigorífico</button>`;
-    d.querySelector("button").onclick = () => mgCompletarVenda(v.animal_id, v.brinco);
-    box.appendChild(d);
-  });
-  if (!pend.length) box.innerHTML = "<p class='info'>Nenhuma pendente.</p>";
-}
-
-async function mgCompletarVenda(animalId, brinco) {
-  const rendimento = parseFloat(prompt(`Brinco ${brinco} — rendimento (ex.: 0.52):`));
-  const peso_carcaca = parseFloat(prompt("Peso de carcaça (kg):"));
-  const preco_arroba = parseFloat(prompt("Preço da @ (R$):"));
-  const r = await api.post(`/api/animais/${animalId}/venda/completar`, {
-    rendimento: rendimento || null, peso_carcaca: peso_carcaca || null, preco_arroba: preco_arroba || null,
-  });
-  alert(`Fechado: ${r.arrobas} @ · R$ ${r.valor_recebido}`);
-  mgRenderPendentes();
-}
 
 // ----------------------------------------------------------- Vincular sem brinco
 // "peso" (padrão) pareia as duas listas pelo tamanho — o jeito que normalmente se

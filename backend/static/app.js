@@ -268,6 +268,7 @@ const LOG_ACOES = [
   [/^POST \/api\/animais\/\d+\/lote$/, "Mudou lote do animal"],
   [/^POST \/api\/animais\/\d+\/venda\/completar$/, "Completou venda (gancho)"],
   [/^POST \/api\/animais\/\d+\/venda$/, "Registrou venda"],
+  [/^POST \/api\/sessoes\/\d+\/venda-fechamento$/, "Lançou dados do frigorífico (venda no gancho)"],
   [/^POST \/api\/auth\/setup$/, "Criou conta de dono (1º acesso)"],
   [/^POST \/api\/auth\/usuarios$/, "Criou usuário"],
   [/^DELETE \/api\/auth\/usuarios\/\d+$/, "Removeu usuário"],
@@ -777,6 +778,7 @@ async function abrirManejo(chave) {
   ficha.innerHTML = `
     <h2>${TIPO_MANEJO_LABEL[s.tipo] || s.tipo} — ${fmt.data(s.data)}</h2>
     <div class="sub">${[...s.origens, ...s.sublotes].join(", ") || (s.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
+    ${ehDono && prefixo === "s" && s.tipo === "venda_morto" ? `<button id="manejo-fechar-venda" style="width:100%;margin-top:8px">💰 Fechar venda (dados do frigorífico)</button>` : ""}
     ${podeEditarManejo ? `<button id="manejo-editar" class="secundario" style="width:100%;margin-top:8px">✎ Editar manejo (lançar animal esquecido)</button>` : ""}
 
     <div class="grid-2 ficha-secao">
@@ -803,6 +805,11 @@ async function abrirManejo(chave) {
   ficha.querySelectorAll(".brinco-link").forEach((el) => {
     el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id), () => abrirManejo(chave)); };
   });
+
+  const btnFecharVenda = document.getElementById("manejo-fechar-venda");
+  if (btnFecharVenda) {
+    btnFecharVenda.onclick = () => abrirFechamentoVenda(parseInt(valor), () => abrirManejo(chave));
+  }
 
   if (podeEditarManejo) {
     document.getElementById("manejo-editar").onclick = async () => {
@@ -1161,6 +1168,19 @@ async function abrirFicha(id, voltar = null) {
       <textarea id="f-obs" rows="2" style="width:100%">${esc(a.observacao || "")}</textarea>
       <button id="f-obs-salvar" class="secundario" style="margin-top:6px">Salvar observação</button>
     </div>
+
+    ${a.venda ? `<div class="ficha-secao">
+      <h3>Venda${a.venda.data ? " — " + fmt.data(a.venda.data) : ""} ${a.venda.pendente ? '<span class="tag">aguardando frigorífico</span>' : ""}</h3>
+      <div class="info">
+        ${a.venda.modo === "morto" ? "Peso morto (gancho)" : "Peso fazenda"}
+        · fazenda <b>${fmt.peso(a.venda.peso)}</b>
+        ${a.venda.peso_carcaca != null ? ` · carcaça <b>${a.venda.peso_carcaca} kg</b>` : ""}
+        ${a.venda.rendimento != null ? ` · rendimento <b>${(a.venda.rendimento * 100).toFixed(1)}%</b>` : ""}
+        ${a.venda.preco_arroba != null ? ` · @ <b>R$ ${a.venda.preco_arroba.toFixed(2)}</b>` : ""}
+        ${a.venda.acabamento ? ` · acabamento <b>${esc(a.venda.acabamento)}</b>` : ""}
+        ${a.venda.valor_recebido != null ? ` · valor <b>R$ ${a.venda.valor_recebido.toFixed(2)}</b>` : ""}
+      </div>
+    </div>` : ""}
 
     <div class="ficha-secao">
       <h3>Dentição</h3>

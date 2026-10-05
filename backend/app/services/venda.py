@@ -6,6 +6,9 @@ from ..config import config
 # 1 arroba (@) = 15 kg de CARCAÇA (padrão do boi gordo no Brasil).
 KG_POR_ARROBA = 15.0
 
+# Acabamento de gordura na classificação do frigorífico (do pior pro melhor).
+ACABAMENTOS = ["Ausente", "Escasso", "Mediano", "Uniforme"]
+
 
 def rendimento_padrao(tipo: str | None) -> float:
     """Rendimento de carcaça padrão por tipo (editável na venda)."""

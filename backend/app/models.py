@@ -275,6 +275,8 @@ class Venda(Base):
     rendimento: Mapped[float | None] = mapped_column(Float)  # ex.: 0.50 (editável)
     peso_carcaca: Mapped[float | None] = mapped_column(Float)  # kg de carcaça (peso morto)
     preco_arroba: Mapped[float | None] = mapped_column(Float)  # preço da @
+    # Acabamento de gordura na classificação do frigorífico (ver services/venda.ACABAMENTOS).
+    acabamento: Mapped[str | None] = mapped_column(String(20))
     valor_recebido: Mapped[float | None] = mapped_column(Float)  # calculado
 
     animal: Mapped[Animal] = relationship(back_populates="venda")

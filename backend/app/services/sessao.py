@@ -28,7 +28,7 @@ from ..models import (
 )
 from .consultas import lote_atual
 from .gmd import PontoPesagem, resumo_animal
-from .venda import calcular_venda, rendimento_padrao
+from .venda import ACABAMENTOS, KG_POR_ARROBA, calcular_venda, rendimento_padrao
 
 
 # ----------------------------------------------------------- Lotes (apoio)
@@ -271,6 +271,7 @@ def _aplicar_financeiro(db: Session, sessao: SessaoPesagem, animal: Animal, peso
         venda.valor_recebido = calc["valor_recebido"] if sessao.preco_arroba else None
         db.add(venda)
         animal.status = StatusAnimal.VENDIDO
+        animal.data_evento = sessao.data  # data da venda (relatórios por período)
 
     elif sessao.tipo == TipoSessao.VENDA_MORTO:
         venda = animal.venda or Venda(animal_id=animal.id)
@@ -280,6 +281,7 @@ def _aplicar_financeiro(db: Session, sessao: SessaoPesagem, animal: Animal, peso
         venda.peso = peso
         db.add(venda)
         animal.status = StatusAnimal.VENDIDO
+        animal.data_evento = sessao.data  # data da venda (relatórios por período)
 
 
 def registrar_pesagem(
@@ -784,14 +786,25 @@ def resumo(db: Session, sessao: SessaoPesagem) -> dict:
 
 
 def completar_venda_morto(db: Session, animal: Animal, rendimento: float | None,
-                          peso_carcaca: float | None, preco_arroba: float | None) -> dict:
-    """Fecha a venda no gancho com os dados do frigorífico (rendimento + carcaça)."""
+                          peso_carcaca: float | None, preco_arroba: float | None,
+                          acabamento: str | None = None, commit: bool = True) -> dict:
+    """Lança os dados do frigorífico de UM animal (carcaça, rendimento, preço da @ e
+    acabamento — cada animal tem os seus, pela classificação).
+
+    Pode ser salvo aos poucos: a venda só deixa de ser "pendente" quando tem peso de
+    carcaça E preço da @ (aí o valor é calculado). Campo None = não mexe.
+    """
     venda = animal.venda
     if venda is None:
         return {"ok": False, "erro": "Animal não tem venda registrada"}
+    if acabamento is not None:
+        acabamento = acabamento.strip() or None
+        if acabamento and acabamento not in ACABAMENTOS:
+            return {"ok": False, "erro": f"Acabamento inválido: {acabamento}"}
+        venda.acabamento = acabamento
     if peso_carcaca is not None:
         venda.peso_carcaca = peso_carcaca
-        # Rendimento derivado do peso vivo, se não informado.
+        # Rendimento derivado do peso da fazenda, se o frigorífico não informou.
         if rendimento is None and venda.peso:
             rendimento = round(peso_carcaca / venda.peso, 4)
     if rendimento is not None:
@@ -800,9 +813,82 @@ def completar_venda_morto(db: Session, animal: Animal, rendimento: float | None,
         venda.preco_arroba = preco_arroba
 
     # Valor = arrobas de carcaça x preço (@ = 15 kg de carcaça).
-    if venda.peso_carcaca and venda.preco_arroba:
-        venda.valor_recebido = round((venda.peso_carcaca / 15.0) * venda.preco_arroba, 2)
-    venda.pendente = False
-    db.commit()
+    completo = bool(venda.peso_carcaca and venda.preco_arroba)
+    venda.valor_recebido = (
+        round((venda.peso_carcaca / KG_POR_ARROBA) * venda.preco_arroba, 2) if completo else None
+    )
+    venda.pendente = not completo
+    if commit:
+        db.commit()
     return {"ok": True, "valor_recebido": venda.valor_recebido,
-            "arrobas": round(venda.peso_carcaca / 15.0, 2) if venda.peso_carcaca else None}
+            "arrobas": round(venda.peso_carcaca / KG_POR_ARROBA, 2) if venda.peso_carcaca else None}
+
+
+def fechamento_venda(db: Session, sessao: SessaoPesagem) -> dict:
+    """Tela de fechamento da venda no gancho: uma linha por animal + totais."""
+    pesagens = (
+        db.query(Pesagem)
+        .filter(Pesagem.sessao_id == sessao.id)
+        .options(selectinload(Pesagem.animal).selectinload(Animal.venda))
+        .all()
+    )
+    itens = []
+    for p in sorted(pesagens, key=lambda x: x.ordem or 0):
+        a, v = p.animal, p.animal.venda
+        if v is None:
+            continue
+        itens.append({
+            "animal_id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
+            "peso_vivo": v.peso, "peso_carcaca": v.peso_carcaca, "rendimento": v.rendimento,
+            "preco_arroba": v.preco_arroba, "acabamento": v.acabamento,
+            "valor_recebido": v.valor_recebido, "pendente": v.pendente,
+        })
+    fechados = [i for i in itens if not i["pendente"]]
+    carcaca = sum(i["peso_carcaca"] or 0 for i in fechados)
+    vivo = sum(i["peso_vivo"] or 0 for i in fechados)
+    valor = sum(i["valor_recebido"] or 0 for i in fechados)
+    arrobas = carcaca / KG_POR_ARROBA
+    return {
+        "sessao": {"id": sessao.id, "data": sessao.data, "tipo": sessao.tipo.value,
+                   "preco_arroba": sessao.preco_arroba},
+        "acabamentos": ACABAMENTOS,
+        "itens": itens,
+        "totais": {
+            "animais": len(itens),
+            "pendentes": len(itens) - len(fechados),
+            "peso_vivo": round(sum(i["peso_vivo"] or 0 for i in itens), 1),
+            "peso_carcaca": round(carcaca, 1),
+            "arrobas": round(arrobas, 2),
+            "valor": round(valor, 2),
+            # Dos animais já fechados: carcaça total / peso de fazenda total.
+            "rendimento_medio": round(carcaca / vivo, 4) if vivo else None,
+            "preco_medio_arroba": round(valor / arrobas, 2) if arrobas else None,
+        },
+    }
+
+
+def salvar_fechamento_venda(db: Session, sessao: SessaoPesagem, itens: list) -> dict:
+    """Grava os dados do frigorífico de vários animais numa tacada só (um commit)."""
+    ids = [i.animal_id for i in itens]
+    da_sessao = {p.animal_id for p in sessao.pesagens}
+    animais = {
+        a.id: a for a in db.query(Animal).filter(Animal.id.in_(ids))
+        .options(selectinload(Animal.venda)).all()
+    } if ids else {}
+    for i in itens:
+        a = animais.get(i.animal_id)
+        if a is None or a.id not in da_sessao:
+            db.rollback()
+            return {"ok": False, "erro": "Animal não pertence a esta venda"}
+        # A tela manda a linha inteira: campo em branco limpa o que estava gravado
+        # (ex.: romaneio lançado no animal errado).
+        v = a.venda
+        if v is not None:
+            v.peso_carcaca, v.rendimento, v.preco_arroba = None, None, None
+        r = completar_venda_morto(db, a, i.rendimento, i.peso_carcaca, i.preco_arroba,
+                                  i.acabamento or "", commit=False)
+        if not r["ok"]:
+            db.rollback()
+            return {"ok": False, "erro": f"Brinco {a.brinco}: {r['erro']}"}
+    db.commit()
+    return {"ok": True, **fechamento_venda(db, sessao)}

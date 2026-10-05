@@ -169,6 +169,16 @@ class CompletarVendaMorto(BaseModel):
     rendimento: float | None = None
     peso_carcaca: float | None = None
     preco_arroba: float | None = None
+    acabamento: str | None = None
+
+
+class FechamentoVendaItem(CompletarVendaMorto):
+    animal_id: int
+
+
+class FechamentoVenda(BaseModel):
+    """Dados do frigorífico de vários animais de uma venda no gancho, de uma vez."""
+    itens: list[FechamentoVendaItem]
 
 
 # ---------------------------------------------------------------- Lotes (gestão)

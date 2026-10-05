@@ -14,6 +14,29 @@ SessaoLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+# Colunas adicionadas depois que as tabelas já existiam em produção. O create_all só
+# cria tabela nova — não acrescenta coluna — então elas são incluídas aqui (só ADD
+# COLUMN, nunca apaga nem altera dado). Formato: (tabela, coluna, tipo SQL).
+COLUNAS_NOVAS = [
+    ("vendas", "acabamento", "VARCHAR(20)"),
+]
+
+
+def migrar_colunas(eng=None) -> None:
+    """Acrescenta as colunas de COLUNAS_NOVAS que ainda não existem (idempotente)."""
+    from sqlalchemy import inspect, text
+
+    eng = eng or engine
+    insp = inspect(eng)
+    tabelas = set(insp.get_table_names())
+    with eng.begin() as con:
+        for tabela, coluna, tipo in COLUNAS_NOVAS:
+            if tabela not in tabelas:
+                continue
+            if coluna not in {c["name"] for c in insp.get_columns(tabela)}:
+                con.execute(text(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}"))
+
+
 def get_db():
     """Fornece uma sessão de banco por requisição (dependência do FastAPI)."""
     db = SessaoLocal()

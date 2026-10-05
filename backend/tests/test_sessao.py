@@ -389,3 +389,74 @@ def test_lotes_mostram_peso_medio(db):
     assert por_nome["LOTEA"]["peso_medio"] == 360
     assert por_nome["LOTEA"]["ua"] == 1.6
     assert por_nome["LOTEB"]["peso_medio"] == 450
+
+
+def test_fechamento_venda_gancho_individual_por_animal(db):
+    from app import schemas
+
+    s = svc.criar_sessao(db, TipoSessao.VENDA_MORTO, HOJE, ["LOTEA"], False)
+    svc.registrar_pesagem(db, s, "101", 500)
+    svc.registrar_pesagem(db, s, "102", 480)
+    a101 = db.query(Animal).filter(Animal.brinco == "101").first()
+    a102 = db.query(Animal).filter(Animal.brinco == "102").first()
+    # A venda grava a data do evento no animal.
+    assert a101.status == StatusAnimal.VENDIDO and a101.data_evento == HOJE
+
+    f = svc.fechamento_venda(db, s)
+    assert f["totais"] == {**f["totais"], "animais": 2, "pendentes": 2, "valor": 0}
+    assert f["acabamentos"] == ["Ausente", "Escasso", "Mediano", "Uniforme"]
+
+    # Romaneio: cada animal com sua carcaça, rendimento, preço da @ e acabamento.
+    r = svc.salvar_fechamento_venda(db, s, [
+        schemas.FechamentoVendaItem(animal_id=a101.id, peso_carcaca=270, rendimento=0.545,
+                                    preco_arroba=330, acabamento="Uniforme"),
+        # Só carcaça, sem preço ainda: continua pendente; rendimento sai da conta.
+        schemas.FechamentoVendaItem(animal_id=a102.id, peso_carcaca=240),
+    ])
+    assert r["ok"]
+    por = {i["brinco"]: i for i in r["itens"]}
+    assert por["101"]["valor_recebido"] == 5940.0     # 270/15 * 330
+    assert por["101"]["rendimento"] == 0.545 and por["101"]["acabamento"] == "Uniforme"
+    assert por["101"]["pendente"] is False
+    assert por["102"]["pendente"] is True and por["102"]["rendimento"] == 0.5
+    assert r["totais"]["pendentes"] == 1 and r["totais"]["valor"] == 5940.0
+
+    # Completa o 102 com outro preço (classificação diferente).
+    r = svc.salvar_fechamento_venda(db, s, [
+        schemas.FechamentoVendaItem(animal_id=a102.id, peso_carcaca=240, preco_arroba=300,
+                                    acabamento="Escasso"),
+    ])
+    assert r["totais"]["pendentes"] == 0
+    assert r["totais"]["valor"] == 5940.0 + 4800.0    # 240/15 * 300
+    assert r["totais"]["arrobas"] == 34.0
+    assert r["totais"]["rendimento_medio"] == round(510 / 980, 4)
+
+    # Acabamento fora da lista é recusado e nada é gravado.
+    r = svc.salvar_fechamento_venda(db, s, [
+        schemas.FechamentoVendaItem(animal_id=a102.id, acabamento="Gordão"),
+    ])
+    assert not r["ok"]
+    db.refresh(a102.venda)
+    assert a102.venda.acabamento == "Escasso" and a102.venda.peso_carcaca == 240
+
+    # Linha mandada em branco limpa o lançamento (romaneio digitado no animal errado).
+    r = svc.salvar_fechamento_venda(db, s, [schemas.FechamentoVendaItem(animal_id=a102.id)])
+    por = {i["brinco"]: i for i in r["itens"]}
+    assert por["102"]["pendente"] is True and por["102"]["peso_carcaca"] is None
+    assert por["102"]["valor_recebido"] is None and r["totais"]["valor"] == 5940.0
+
+
+def test_migrar_colunas_acrescenta_coluna_que_falta():
+    from sqlalchemy import create_engine, inspect, text
+
+    from app.database import migrar_colunas
+
+    eng = create_engine("sqlite://")
+    with eng.begin() as con:
+        con.execute(text("CREATE TABLE vendas (id INTEGER PRIMARY KEY, peso FLOAT)"))
+        con.execute(text("INSERT INTO vendas (id, peso) VALUES (1, 500)"))
+    migrar_colunas(eng)
+    migrar_colunas(eng)  # rodar de novo não dá erro
+    assert "acabamento" in {c["name"] for c in inspect(eng).get_columns("vendas")}
+    with eng.begin() as con:
+        assert con.execute(text("SELECT peso FROM vendas")).scalar() == 500

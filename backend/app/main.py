@@ -5,12 +5,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .database import Base, engine
+from .database import Base, engine, migrar_colunas
 from .routers import api, auth, sessoes
 from .services import auditoria
 
 # Cria as tabelas no primeiro start (idempotente).
 Base.metadata.create_all(bind=engine)
+migrar_colunas()  # colunas novas em tabelas que já existiam
 
 app = FastAPI(title="Gado Água do Tigre", version="0.1.0")
 app.include_router(auth.router)
