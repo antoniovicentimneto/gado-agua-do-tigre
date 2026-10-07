@@ -155,3 +155,40 @@ def test_pesagem_na_mangueira_marca_prenhez(db):
     # Valor inválido não grava nada.
     r = svc_sessao.registrar_pesagem(db, s, "102", 300, prenhez="talvez")
     assert r.get("alerta") == "erro"
+
+
+def test_mae_e_nascimento_salvam_juntos_e_peao_pode(db):
+    from app.routers import cria as rota
+
+    vaca = _vaca(db)
+    bez = db.query(Animal).filter(Animal.brinco == "102").first()
+    bez.tipo = "Bez Fem"
+    db.commit()
+    # Os dois de uma vez (a rota não exige dono — o peão também lança).
+    rota.mae(bez.id, schemas.MaeDefinir(mae_id=vaca.id, nascimento=ONTEM), db)
+    db.refresh(bez)
+    assert bez.mae_id == vaca.id and bez.nascimento == ONTEM
+    # Só o nascimento: a mãe continua.
+    rota.mae(bez.id, schemas.MaeDefinir(nascimento=None), db)
+    db.refresh(bez)
+    assert bez.mae_id == vaca.id and bez.nascimento is None
+    # Erro num dos campos não grava o outro.
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        rota.mae(bez.id, schemas.MaeDefinir(mae_id=bez.id, nascimento=ONTEM), db)
+    db.refresh(bez)
+    assert bez.nascimento is None
+
+
+def test_peao_corrige_brinco_so_de_bezerro(db):
+    from fastapi import HTTPException
+
+    peao = Usuario(papel=PapelUsuario.PEAO)
+    vaca = _vaca(db)
+    bez = svc.registrar_nascimento(db, vaca, ONTEM, "M")          # sem brinco (provisório)
+    api.atualizar_animal(bez.id, schemas.AnimalAtualizar(brinco="B77"), db, usuario=peao)
+    db.refresh(bez)
+    assert bez.brinco == "B77" and bez.sem_brinco is False
+    with pytest.raises(HTTPException) as exc:                     # vaca: só o dono
+        api.atualizar_animal(vaca.id, schemas.AnimalAtualizar(brinco="901"), db, usuario=peao)
+    assert exc.value.status_code == 403

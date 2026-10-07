@@ -259,7 +259,7 @@ const LOG_ACOES = [
   [/^POST \/api\/pesagem-rapida$/, "Pesagem rápida"],
   [/^POST \/api\/cria\/nascimento$/, "Registrou nascimento de bezerro"],
   [/^PUT \/api\/cria\/prenhez\/\d+$/, "Marcou prenhez (prenhe/mojando/vazia)"],
-  [/^PUT \/api\/cria\/mae\/\d+$/, "Definiu a mãe do animal"],
+  [/^PUT \/api\/cria\/mae\/\d+$/, "Salvou mãe / nascimento do animal"],
   [/^POST \/api\/cria\/desmama\/\d+$/, "Desmamou bezerro"],
   [/^POST \/api\/animais\/\d+\/denticoes$/, "Registrou dentição"],
   [/^DELETE \/api\/animais\/\d+\/denticoes\/\d+$/, "Excluiu dentição"],
@@ -1439,7 +1439,11 @@ async function abrirFicha(id, voltar = null) {
   // exclui/vincula animal nem simula venda — esconde esses controles. Tipo,
   // raça e observação ficam liberados (ele precisa corrigir isso no dia a dia).
   if (!usuarioAtual || usuarioAtual.papel !== "dono") {
-    ["f-brinco", "f-brinco-salvar", "f-status", "f-excluir"].forEach((elId) => {
+    // Brinco de BEZERRO o peão pode corrigir (nasceu sem brinco e foi brincado depois).
+    const ehBezerro = (a.tipo || "").toLowerCase().startsWith("bez");
+    const travados = ehBezerro ? ["f-status", "f-excluir"]
+      : ["f-brinco", "f-brinco-salvar", "f-status", "f-excluir"];
+    travados.forEach((elId) => {
       const el2 = document.getElementById(elId);
       if (el2) el2.disabled = true;
     });

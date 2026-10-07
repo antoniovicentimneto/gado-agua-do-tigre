@@ -274,21 +274,17 @@ function criaSecaoFichaHTML(a) {
       <div class="grid-2">
         <div>
           <label style="font-weight:600;font-size:0.85rem">Mãe (brinco)</label>
-          <div class="linha-pesar">
-            <input id="cf-mae" value="${a.mae ? esc(a.mae.brinco) : ""}" placeholder="brinco da mãe" ${ehDono ? "" : "disabled"} />
-            ${ehDono ? `<button id="cf-mae-salvar" class="secundario">Salvar</button>` : ""}
-          </div>
+          <input id="cf-mae" value="${a.mae ? esc(a.mae.brinco) : ""}" placeholder="brinco da mãe" />
           ${a.mae ? `<div class="info"><a href="#" id="cf-mae-abrir">abrir ficha da mãe</a>${a.mae.status !== "ativo" ? " · " + a.mae.status : ""}</div>` : ""}
         </div>
         <div>
           <label style="font-weight:600;font-size:0.85rem">Nascimento</label>
-          <div class="linha-pesar">
-            <input type="date" id="cf-nasc" value="${a.nascimento || ""}" max="${crHoje()}" ${ehDono ? "" : "disabled"} />
-            ${ehDono ? `<button id="cf-nasc-salvar" class="secundario">Salvar</button>` : ""}
-          </div>
+          <input type="date" id="cf-nasc" value="${a.nascimento || ""}" max="${crHoje()}" />
         </div>
       </div>
       <div id="cf-escolha"></div>
+      <button id="cf-salvar" style="margin-top:8px;width:100%">Salvar mãe e nascimento</button>
+      <div id="cf-msg" class="info"></div>
       ${a.data_desmame ? `<div class="info" style="margin-top:6px">Desmamado em <b>${fmt.data(a.data_desmame)}</b>.</div>` : ""}
       ${podeDesmamar ? `
         <label style="font-weight:600;font-size:0.85rem;display:block;margin-top:10px">Desmama</label>
@@ -316,11 +312,18 @@ function criaLigarFicha(a, id) {
     el.onclick = (ev) => { ev.preventDefault(); abrirFicha(Number(el.dataset.id), () => abrirFicha(id)); };
   });
 
-  if ($("cf-mae-salvar")) {
-    $("cf-mae-salvar").onclick = async () => {
-      const brinco = $("cf-mae").value.trim();
-      try {
-        let maeId = null;
+  // Um botão só: salva a mãe e/ou a data de nascimento JUNTOS (só o que mudou), pra
+  // não perder um campo digitado ao salvar o outro.
+  $("cf-salvar").onclick = async () => {
+    const brinco = $("cf-mae").value.trim();
+    const nasc = $("cf-nasc").value || null;
+    const mudouMae = brinco !== (a.mae ? a.mae.brinco : "");
+    const mudouNasc = nasc !== (a.nascimento || null);
+    if (!mudouMae && !mudouNasc) { $("cf-msg").textContent = "Nada foi alterado."; return; }
+    const dados = {};
+    try {
+      if (mudouNasc) dados.nascimento = nasc;
+      if (mudouMae) {
         if (brinco) {
           // Procura entre os ativos; se não achar, entre todos (mãe já vendida/morta).
           let cands = (await crBuscarPorBrinco(brinco)).filter((x) => x.id !== id);
@@ -330,21 +333,16 @@ function criaLigarFicha(a, id) {
           }
           if (!cands.length) { alert(`Não achei animal com o brinco ${brinco}.`); return; }
           const mae = cands.length === 1 ? cands[0] : await crEscolher($("cf-escolha"), cands);
-          maeId = mae.id;
-        } else if (!confirm("Remover a mãe deste animal?")) return;
-        await api.put(`/api/cria/mae/${id}`, { mae_id: maeId });
-        recarregar();
-      } catch (e) { alert("Erro: " + e.message); }
-    };
-  }
-  if ($("cf-nasc-salvar")) {
-    $("cf-nasc-salvar").onclick = async () => {
-      try {
-        await api.put("/api/animais/" + id, { nascimento: $("cf-nasc").value || null });
-        recarregar();
-      } catch (e) { alert("Erro: " + e.message); }
-    };
-  }
+          dados.mae_id = mae.id;
+        } else {
+          if (!confirm("Remover a mãe deste animal?")) return;
+          dados.mae_id = null;
+        }
+      }
+      await api.put(`/api/cria/mae/${id}`, dados);
+      recarregar();
+    } catch (e) { alert("Erro: " + e.message); }
+  };
   if ($("cf-desmamar")) {
     $("cf-desmamar").onclick = async () => {
       if (!confirm("Desmamar este bezerro? O tipo muda pra Novilha/Boi.")) return;

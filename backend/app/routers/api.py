@@ -154,8 +154,18 @@ def atualizar_animal(
 ):
     animal = _buscar_animal(db, animal_id)
     campos = dados.model_dump(exclude_unset=True)
-    if usuario.papel != PapelUsuario.DONO and not set(campos).issubset(CAMPOS_LIBERADOS_PEAO):
+    # Peão: tipo/raça/obs de qualquer animal; e o brinco só de BEZERRO (ex.: nasceu sem
+    # brinco e foi brincado depois). O resto é só do dono.
+    liberados = CAMPOS_LIBERADOS_PEAO | ({"brinco"} if eh_bezerro(animal.tipo) else set())
+    if usuario.papel != PapelUsuario.DONO and not set(campos).issubset(liberados):
         raise HTTPException(status_code=403, detail="Ação permitida só para o dono")
+    if "brinco" in campos:
+        campos["brinco"] = (campos["brinco"] or "").strip()
+        if not campos["brinco"]:
+            raise HTTPException(status_code=400, detail="O brinco não pode ficar vazio.")
+        # Recebeu um brinco de verdade: deixa de ser provisório.
+        if animal.sem_brinco and campos["brinco"] != animal.brinco:
+            animal.sem_brinco = False
     # Saiu de bezerro trocando o tipo na mão: hoje fica como data do desmame.
     if ("tipo" in campos and eh_bezerro(animal.tipo) and not eh_bezerro(campos["tipo"])
             and animal.data_desmame is None and "data_desmame" not in campos):

@@ -175,6 +175,12 @@ def marcar_prenhez(db: Session, animal: Animal, prenhez: str | None,
     db.commit()
 
 
+def definir_nascimento(animal: Animal, nascimento: date | None) -> None:
+    if nascimento is not None and nascimento > date.today():
+        raise ValueError("A data de nascimento não pode ser no futuro.")
+    animal.nascimento = nascimento
+
+
 def definir_mae(db: Session, cria: Animal, mae: Animal | None) -> None:
     if mae is not None:
         if mae.id == cria.id:

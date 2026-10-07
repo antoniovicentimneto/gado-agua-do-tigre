@@ -52,7 +52,9 @@ class PrenhezMarcar(BaseModel):
 
 
 class MaeDefinir(BaseModel):
+    """Dados de cria do animal, salvos juntos. Só mexe no campo que vier no pedido."""
     mae_id: int | None = None
+    nascimento: date | None = None
 
 
 class DesmamaMarcar(BaseModel):

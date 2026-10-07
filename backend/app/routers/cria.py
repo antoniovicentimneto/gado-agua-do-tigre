@@ -48,14 +48,22 @@ def prenhez(animal_id: int, dados: schemas.PrenhezMarcar, db: Session = Depends(
 
 
 @router.put("/mae/{animal_id}")
-def mae(animal_id: int, dados: schemas.MaeDefinir, db: Session = Depends(get_db),
-        _dono=Depends(requer_dono)):
-    """Liga (ou desliga, com mae_id nulo) um animal à mãe dele."""
+def mae(animal_id: int, dados: schemas.MaeDefinir, db: Session = Depends(get_db)):
+    """Salva a mãe e/ou a data de nascimento do animal, juntos (peão também lança).
+
+    Só altera o que veio no pedido: mae_id nulo desliga a mãe; nascimento nulo limpa.
+    """
     cria = _animal(db, animal_id)
+    enviados = dados.model_fields_set
     try:
-        svc.definir_mae(db, cria, _animal(db, dados.mae_id) if dados.mae_id else None)
+        if "nascimento" in enviados:
+            svc.definir_nascimento(cria, dados.nascimento)
+        if "mae_id" in enviados:
+            svc.definir_mae(db, cria, _animal(db, dados.mae_id) if dados.mae_id else None)
     except ValueError as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
     return {"ok": True}
 
 
