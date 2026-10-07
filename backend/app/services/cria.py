@@ -85,15 +85,20 @@ def resumo_matriz(m: Animal, hoje: date | None = None) -> dict:
     }
 
 
-def painel(db: Session) -> dict:
-    """Tudo que a aba Cria mostra, em poucas consultas (o banco fica longe)."""
+def painel(db: Session, novilhas: bool = False) -> dict:
+    """Tudo que a aba Cria mostra, em poucas consultas (o banco fica longe).
+
+    Matrizes = vacas + qualquer animal que já tem cria; com `novilhas=True` entram
+    também as novilhas (pra lançar a 1ª cria de uma novilha). Bezerros = TODOS os
+    bezerros ativos, com ou sem mãe informada.
+    """
     ids_maes = db.query(Animal.mae_id).filter(Animal.mae_id.isnot(None)).distinct()
+    tipos = [func.lower(Animal.tipo).like("vaca%"), Animal.id.in_(ids_maes)]
+    if novilhas:
+        tipos.append(func.lower(Animal.tipo).like("novilha%"))
     matrizes = (
         db.query(Animal)
-        .filter(
-            Animal.status == StatusAnimal.ATIVO,
-            or_(func.lower(Animal.tipo).like("vaca%"), Animal.id.in_(ids_maes)),
-        )
+        .filter(Animal.status == StatusAnimal.ATIVO, or_(*tipos))
         .options(
             selectinload(Animal.pesagens),
             selectinload(Animal.lotes).selectinload(AnimalLote.lote),
@@ -109,20 +114,26 @@ def painel(db: Session) -> dict:
         return (0, int(b), "") if b.isdigit() else (1, 0, b.upper())
     lista.sort(key=lambda m: chave(m["brinco"]))
 
-    sem_mae = (
+    bezerros = (
         db.query(Animal)
-        .filter(Animal.status == StatusAnimal.ATIVO, Animal.mae_id.is_(None),
-                func.lower(Animal.tipo).like("bez%"))
+        .filter(Animal.status == StatusAnimal.ATIVO, func.lower(Animal.tipo).like("bez%"))
         .options(selectinload(Animal.pesagens),
-                 selectinload(Animal.lotes).selectinload(AnimalLote.lote))
+                 selectinload(Animal.lotes).selectinload(AnimalLote.lote),
+                 selectinload(Animal.mae))
         .all()
     )
+    lista_bez = sorted(
+        ({"id": b.id, "brinco": b.brinco, "sem_brinco": b.sem_brinco, "tipo": b.tipo,
+          "sexo": sexo_do_tipo(b.tipo),
+          "mae": {"id": b.mae.id, "brinco": b.mae.brinco} if b.mae else None,
+          "nascimento": b.nascimento,
+          "idade_dias": (hoje - b.nascimento).days if b.nascimento else None,
+          "desmamado": b.data_desmame is not None,
+          "lote": lote_atual(b), "ultimo_peso": _ultimo_peso(b)} for b in bezerros),
+        key=lambda b: chave(b["brinco"]))
     return {
         "matrizes": lista,
-        "bezerros_sem_mae": sorted(
-            ({"id": b.id, "brinco": b.brinco, "tipo": b.tipo, "nascimento": b.nascimento,
-              "lote": lote_atual(b), "ultimo_peso": _ultimo_peso(b)} for b in sem_mae),
-            key=lambda b: chave(b["brinco"])),
+        "bezerros": lista_bez,
         "resumo": {
             "matrizes": len(lista),
             "com_bezerro": sum(1 for m in lista if m["situacao"] == "com_bezerro"),
@@ -130,8 +141,36 @@ def painel(db: Session) -> dict:
             "prenhes": sum(1 for m in lista if m["prenhez"] in PRENHEZ_POSITIVA),
             "pode_frigorifico": sum(1 for m in lista if m["pode_frigorifico"]),
             "bezerros_ao_pe": sum(1 for m in lista for c in m["crias"] if c["ao_pe"]),
+            "bezerros": len(lista_bez),
+            "bezerros_sem_mae": sum(1 for b in lista_bez if b["mae"] is None),
+            "bezerros_sem_nascimento": sum(1 for b in lista_bez if b["nascimento"] is None),
         },
     }
+
+
+def gerar_excel(titulo: str, cabecalho: list[str], linhas: list[list]) -> bytes:
+    """Excel do que está na tela da Cria (a tela manda as linhas já filtradas/ordenadas)."""
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (titulo or "Cria")[:31]
+    ws.append(cabecalho)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for linha in linhas:
+        ws.append(linha)
+    for i, nome in enumerate(cabecalho, start=1):
+        maior = max([len(str(nome))] + [len(str(l[i - 1])) for l in linhas if i <= len(l)
+                                         and l[i - 1] is not None])
+        ws.column_dimensions[ws.cell(1, i).column_letter].width = min(maior + 2, 40)
+    ws.freeze_panes = "A2"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def registrar_nascimento(db: Session, mae: Animal, data: date, sexo: str,

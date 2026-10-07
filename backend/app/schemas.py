@@ -57,6 +57,13 @@ class MaeDefinir(BaseModel):
     nascimento: date | None = None
 
 
+class CriaExcel(BaseModel):
+    """Tabela da aba Cria como está na tela (já filtrada e ordenada)."""
+    titulo: str = "Cria"
+    cabecalho: list[str]
+    linhas: list[list[str | float | int | None]]
+
+
 class DesmamaMarcar(BaseModel):
     data: date | None = None
     novo_tipo: str | None = None

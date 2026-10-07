@@ -1,7 +1,10 @@
 """Endpoints da aba Cria (vacas e bezerros)."""
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -21,9 +24,20 @@ def _animal(db: Session, animal_id: int) -> Animal:
 
 
 @router.get("")
-def painel(db: Session = Depends(get_db)):
-    """Matrizes com a situação (com bezerro / solteira / prenhe) e bezerros sem mãe."""
-    return svc.painel(db)
+def painel(novilhas: bool = False, db: Session = Depends(get_db)):
+    """Matrizes com a situação (com bezerro / solteira / prenhe) e todos os bezerros."""
+    return svc.painel(db, novilhas=novilhas)
+
+
+@router.post("/excel")
+def excel(dados: schemas.CriaExcel, _dono=Depends(requer_dono)):
+    """Baixa em Excel a tabela que está na tela (vacas ou bezerros)."""
+    nome = f"cria_{dados.titulo.lower()}_{date.today():%Y%m%d}.xlsx"
+    return Response(
+        content=svc.gerar_excel(dados.titulo, dados.cabecalho, dados.linhas),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
 
 
 @router.post("/nascimento", status_code=201)

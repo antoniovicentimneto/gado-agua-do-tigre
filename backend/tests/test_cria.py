@@ -91,11 +91,15 @@ def test_definir_mae_de_bezerro_ja_cadastrado_e_lista_sem_mae(db):
     bez = db.query(Animal).filter(Animal.brinco == "102").first()
     bez.tipo = "Bez Mach"
     db.commit()
-    assert [b["brinco"] for b in svc.painel(db)["bezerros_sem_mae"]] == ["102"]
+    p = svc.painel(db)
+    assert [(b["brinco"], b["mae"]) for b in p["bezerros"]] == [("102", None)]
+    assert p["resumo"]["bezerros_sem_mae"] == 1 and p["resumo"]["bezerros_sem_nascimento"] == 1
 
     svc.definir_mae(db, bez, vaca)
     p = svc.painel(db)
-    assert p["bezerros_sem_mae"] == []
+    # Continua na lista de bezerros (são TODOS), agora com a mãe.
+    assert p["bezerros"][0]["mae"]["brinco"] == "900" and p["bezerros"][0]["sexo"] == "M"
+    assert p["resumo"]["bezerros_sem_mae"] == 0
     assert p["resumo"]["com_bezerro"] == 1 and p["resumo"]["bezerros_ao_pe"] == 1
     # A ficha do bezerro mostra a mãe; a da vaca mostra a cria.
     assert api.detalhar_animal(bez.id, db)["mae"]["brinco"] == "900"
@@ -192,3 +196,21 @@ def test_peao_corrige_brinco_so_de_bezerro(db):
     with pytest.raises(HTTPException) as exc:                     # vaca: só o dono
         api.atualizar_animal(vaca.id, schemas.AnimalAtualizar(brinco="901"), db, usuario=peao)
     assert exc.value.status_code == 403
+
+
+def test_painel_inclui_novilhas_so_quando_pedido_e_gera_excel(db):
+    import io
+
+    import openpyxl
+
+    _vaca(db)
+    nov = db.query(Animal).filter(Animal.brinco == "102").first()
+    nov.tipo = "Novilha"
+    db.commit()
+    # (o 201 do fixture já é Vaca)
+    assert [m["brinco"] for m in svc.painel(db)["matrizes"]] == ["201", "900"]
+    assert [m["brinco"] for m in svc.painel(db, novilhas=True)["matrizes"]] == ["102", "201", "900"]
+
+    xlsx = svc.gerar_excel("Vacas", ["Brinco", "Situação"], [["900", "solteira"], ["102", None]])
+    ws = openpyxl.load_workbook(io.BytesIO(xlsx)).active
+    assert ws.title == "Vacas" and ws.max_row == 3 and ws.cell(2, 2).value == "solteira"

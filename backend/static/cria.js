@@ -1,15 +1,21 @@
-// Rebanho › Cria: vacas e bezerros. Qual vaca é mãe de qual bezerro, quem está com
-// bezerro ao pé, quem está solteira (pode ir pro frigorífico), marcação de prenhe /
-// mojando / vazia, registro de nascimento e desmama.
-// Os dados vêm numa chamada só (/api/cria) e os filtros rodam no aparelho.
+// Rebanho › Cria: vacas e bezerros em formato de planilha, com duas visões:
+//  - Vacas: situação (com bezerro / solteira), prenhez, bezerro ao pé, "+ bezerro".
+//  - Bezerros: TODOS os bezerros, com mãe e nascimento editáveis na própria linha.
+// Os dados vêm numa chamada só (/api/cria); filtro, busca e ordenação rodam no aparelho.
 
 const cr = {
   dados: null,
-  filtro: "todas",   // todas | com_bezerro | solteiras | prenhes | frigorifico
+  visao: "vacas",             // vacas | bezerros
+  filtroV: "todas",           // todas | com_bezerro | solteiras | prenhes | frigorifico
+  filtroB: "todos",           // todos | sem_mae | sem_data | femeas | machos
   busca: "",
+  novilhas: false,            // incluir novilhas na visão Vacas (1ª cria)
+  ordem: { vacas: { col: "brinco", dir: 1 }, bezerros: { col: "brinco", dir: 1 } },
+  editando: null,             // { id, campo } da célula em edição na visão Bezerros
 };
 
 const CR_PRENHEZ = { prenhe: "Prenhe (toque)", mojando: "Mojando", vazia: "Vazia (toque)" };
+const CR_SEXO = { F: "Fêmea", M: "Macho" };
 const crHoje = () => new Date().toLocaleDateString("sv-SE");   // data local AAAA-MM-DD
 
 // Idade legível do bezerro a partir dos dias de vida.
@@ -24,7 +30,7 @@ async function carregarCria() {
   const box = document.getElementById("lista-cria");
   if (!cr.dados) box.innerHTML = "<div class='info'>⏳ Carregando vacas e bezerros...</div>";
   try {
-    cr.dados = await api.get("/api/cria");
+    cr.dados = await api.get("/api/cria" + (cr.novilhas ? "?novilhas=true" : ""));
   } catch (e) {
     box.innerHTML = `<div class="info">⚠ Erro ao carregar: ${esc(e.message)}. <a href="#" id="cr-retentar">Tentar de novo</a></div>`;
     document.getElementById("cr-retentar").onclick = (ev) => { ev.preventDefault(); carregarCria(); };
@@ -33,88 +39,185 @@ async function carregarCria() {
   crRender();
 }
 
-function crPassa(m) {
+// ----------------------------------------------------------- Colunas das duas visões
+// valor: usado pra ordenar · texto: o que vai pro Excel · html: o que aparece na tela
+const crBezerroAoPe = (m) => m.crias.filter((c) => c.ao_pe);
+
+const CR_COL_VACAS = [
+  { id: "brinco", rot: "Brinco", valor: (m) => m.brinco, texto: (m) => m.brinco,
+    html: (m) => `<a href="#" class="cr-ficha" data-id="${m.id}"><b>${esc(m.brinco)}</b></a> <span class="info">${esc(m.tipo || "")}</span>` },
+  { id: "situacao", rot: "Situação", valor: (m) => m.situacao,
+    texto: (m) => (m.situacao === "com_bezerro" ? "com bezerro" : "solteira"),
+    html: (m) => (m.situacao === "com_bezerro"
+      ? `<span class="tag cr-bezerro">com bezerro</span>` : `<span class="tag cr-solteira">solteira</span>`) },
+  { id: "prenhez", rot: "Prenhez", valor: (m) => m.prenhez || "", texto: (m) => m.prenhez || "",
+    html: (m) => `<select class="cr-prenhez" title="${m.prenhez ? "marcado em " + fmt.data(m.prenhez_data) : "marcar prenhez"}">
+        <option value="">—</option>
+        ${Object.entries(CR_PRENHEZ).map(([v, t]) => `<option value="${v}" ${m.prenhez === v ? "selected" : ""}>${t}</option>`).join("")}
+      </select>` },
+  { id: "bezerro", rot: "Bezerro ao pé", valor: (m) => (crBezerroAoPe(m)[0] || {}).brinco || "",
+    texto: (m) => crBezerroAoPe(m).map((c) => c.brinco).join(", "),
+    html: (m) => crBezerroAoPe(m).map((c) =>
+      `<a href="#" class="cr-ficha" data-id="${c.id}"><b>${esc(c.brinco)}</b></a>${c.idade_dias != null ? ` <span class="info">${crIdade(c.idade_dias)}</span>` : ""}`).join("<br>") || "—" },
+  { id: "nasceu", rot: "Nasceu", valor: (m) => (crBezerroAoPe(m)[0] || {}).nascimento || "",
+    texto: (m) => crBezerroAoPe(m).map((c) => (c.nascimento ? fmt.data(c.nascimento) : "")).join(", "),
+    html: (m) => crBezerroAoPe(m).map((c) => (c.nascimento ? fmt.data(c.nascimento) : "—")).join("<br>") || "—" },
+  { id: "crias", rot: "Crias", num: true, valor: (m) => m.total_crias, texto: (m) => m.total_crias,
+    html: (m) => `<span title="${m.ultimo_parto ? "último parto " + fmt.data(m.ultimo_parto) : ""}${m.intervalo_partos_dias ? " · intervalo " + Math.round(m.intervalo_partos_dias / 30.4) + " meses" : ""}">${m.total_crias}</span>` },
+  { id: "peso", rot: "Último peso", num: true, valor: (m) => m.ultimo_peso, texto: (m) => m.ultimo_peso,
+    html: (m) => fmt.peso(m.ultimo_peso) },
+  { id: "lote", rot: "Lote", valor: (m) => m.lote || "", texto: (m) => m.lote || "", html: (m) => esc(m.lote || "—") },
+  { id: "acao", rot: "", semOrdem: true, semExcel: true,
+    html: () => `<button class="secundario cr-nasceu">+ bezerro</button>` },
+];
+
+const CR_COL_BEZERROS = [
+  { id: "brinco", rot: "Brinco", valor: (b) => b.brinco, texto: (b) => b.brinco,
+    html: (b) => `<a href="#" class="cr-ficha" data-id="${b.id}"><b>${esc(b.brinco)}</b></a>${b.sem_brinco ? ` <span class="tag neutro">sem brinco</span>` : ""}` },
+  { id: "sexo", rot: "Sexo", valor: (b) => b.sexo || "", texto: (b) => CR_SEXO[b.sexo] || "",
+    html: (b) => CR_SEXO[b.sexo] || esc(b.tipo || "—") },
+  { id: "mae", rot: "Mãe", valor: (b) => (b.mae ? b.mae.brinco : ""), texto: (b) => (b.mae ? b.mae.brinco : ""),
+    brinco: true, html: (b) => crCelulaEditavel(b, "mae") },
+  { id: "nascimento", rot: "Nascimento", valor: (b) => b.nascimento || "",
+    texto: (b) => (b.nascimento ? fmt.data(b.nascimento) : ""), html: (b) => crCelulaEditavel(b, "nascimento") },
+  { id: "idade", rot: "Idade", num: true, valor: (b) => b.idade_dias, texto: (b) => crIdade(b.idade_dias),
+    html: (b) => crIdade(b.idade_dias) || "—" },
+  { id: "peso", rot: "Último peso", num: true, valor: (b) => b.ultimo_peso, texto: (b) => b.ultimo_peso,
+    html: (b) => fmt.peso(b.ultimo_peso) },
+  { id: "lote", rot: "Lote", valor: (b) => b.lote || "", texto: (b) => b.lote || "", html: (b) => esc(b.lote || "—") },
+];
+
+// Célula de Mãe / Nascimento do bezerro: mostra o valor com um lápis, ou o botão
+// "+ mãe" / "+ data" quando falta; em edição vira o campo com ✓ e ✕.
+function crCelulaEditavel(b, campo) {
+  const editando = cr.editando && cr.editando.id === b.id && cr.editando.campo === campo;
+  if (editando) {
+    const input = campo === "mae"
+      ? `<input class="cr-ed-input" value="${b.mae ? esc(b.mae.brinco) : ""}" placeholder="brinco da mãe" inputmode="numeric" />`
+      : `<input class="cr-ed-input" type="date" value="${b.nascimento || ""}" max="${crHoje()}" />`;
+    return `<span class="cr-ed">${input}<button class="cr-ed-ok" title="salvar">✓</button><button class="cr-ed-x secundario" title="cancelar">✕</button></span>`;
+  }
+  if (campo === "mae") {
+    return b.mae
+      ? `<a href="#" class="cr-ficha" data-id="${b.mae.id}"><b>${esc(b.mae.brinco)}</b></a> <button class="cr-editar" data-campo="mae" title="trocar a mãe">✎</button>`
+      : `<button class="cr-editar cr-falta" data-campo="mae">+ mãe</button>`;
+  }
+  return b.nascimento
+    ? `${fmt.data(b.nascimento)} <button class="cr-editar" data-campo="nascimento" title="corrigir a data">✎</button>`
+    : `<button class="cr-editar cr-falta" data-campo="nascimento">+ data</button>`;
+}
+
+// ----------------------------------------------------------- Filtro, busca e ordem
+function crPassaVaca(m) {
   if (cr.busca) {
     const alvo = cr.busca.toLowerCase();
-    const bate = m.brinco.toLowerCase().includes(alvo) ||
-      m.crias.some((c) => c.brinco.toLowerCase().includes(alvo));
-    if (!bate) return false;
+    if (!(m.brinco.toLowerCase().includes(alvo) ||
+          m.crias.some((c) => c.brinco.toLowerCase().includes(alvo)))) return false;
   }
-  if (cr.filtro === "com_bezerro") return m.situacao === "com_bezerro";
-  if (cr.filtro === "solteiras") return m.situacao === "solteira";
-  if (cr.filtro === "prenhes") return m.prenhez === "prenhe" || m.prenhez === "mojando";
-  if (cr.filtro === "frigorifico") return m.pode_frigorifico;
+  if (cr.filtroV === "com_bezerro") return m.situacao === "com_bezerro";
+  if (cr.filtroV === "solteiras") return m.situacao === "solteira";
+  if (cr.filtroV === "prenhes") return m.prenhez === "prenhe" || m.prenhez === "mojando";
+  if (cr.filtroV === "frigorifico") return m.pode_frigorifico;
   return true;
 }
 
+function crPassaBezerro(b) {
+  if (cr.busca) {
+    const alvo = cr.busca.toLowerCase();
+    if (!(b.brinco.toLowerCase().includes(alvo) ||
+          (b.mae && b.mae.brinco.toLowerCase().includes(alvo)))) return false;
+  }
+  if (cr.filtroB === "sem_mae") return !b.mae;
+  if (cr.filtroB === "sem_data") return !b.nascimento;
+  if (cr.filtroB === "femeas") return b.sexo === "F";
+  if (cr.filtroB === "machos") return b.sexo === "M";
+  return true;
+}
+
+// Linhas da visão atual, já filtradas e ordenadas (vazios sempre no fim).
+function crLinhas() {
+  const vacas = cr.visao === "vacas";
+  const colunas = vacas ? CR_COL_VACAS : CR_COL_BEZERROS;
+  const lista = (vacas ? cr.dados.matrizes.filter(crPassaVaca) : cr.dados.bezerros.filter(crPassaBezerro)).slice();
+  const { col, dir } = cr.ordem[cr.visao];
+  const c = colunas.find((x) => x.id === col) || colunas[0];
+  lista.sort((x, y) => {
+    const vx = c.valor(x), vy = c.valor(y);
+    const semX = vx == null || vx === "", semY = vy == null || vy === "";
+    if (semX || semY) return semX === semY ? comparaBrinco(x.brinco, y.brinco) : (semX ? 1 : -1);
+    const r = c.num ? vx - vy : (c.id === "brinco" || c.brinco) ? comparaBrinco(vx, vy)
+      : String(vx).localeCompare(String(vy), "pt-BR");
+    return (r || comparaBrinco(x.brinco, y.brinco)) * dir;
+  });
+  return { colunas, lista };
+}
+
+// ----------------------------------------------------------- Tela
 function crRender() {
   const d = cr.dados, r = d.resumo;
+  const vacas = cr.visao === "vacas";
+  const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
   const box = document.getElementById("lista-cria");
-  const chip = (id, rotulo, n) =>
-    `<button data-filtro="${id}" class="${cr.filtro === id ? "ativo" : ""}">${rotulo} <b>${n}</b></button>`;
+  const { colunas, lista } = crLinhas();
+  const ordem = cr.ordem[cr.visao];
 
-  const matrizes = d.matrizes.filter(crPassa);
-  const cartoes = matrizes.map((m) => {
-    const noPe = m.crias.filter((c) => c.ao_pe);
-    const tagSit = m.situacao === "com_bezerro"
-      ? `<span class="tag cr-bezerro">com bezerro</span>` : `<span class="tag cr-solteira">solteira</span>`;
-    const tagPrenhez = m.prenhez
-      ? `<span class="tag cr-${m.prenhez}" title="marcado em ${fmt.data(m.prenhez_data)}">${m.prenhez}</span>` : "";
-    const crias = noPe.map((c) => `
-      <div class="cr-cria">🐄 <a href="#" class="cr-ficha" data-id="${c.id}"><b>${esc(c.brinco)}</b></a>
-        <span class="info">${esc(c.tipo || "")}${c.nascimento ? ` · nasceu ${fmt.data(c.nascimento)} (${crIdade(c.idade_dias)})` : " · sem data de nascimento"}${c.ultimo_peso != null ? ` · ${fmt.peso(c.ultimo_peso)}` : ""}</span>
-      </div>`).join("");
-    const historico = m.total_crias
-      ? `${m.total_crias} cria${m.total_crias > 1 ? "s" : ""}${m.ultimo_parto ? ` · último parto ${fmt.data(m.ultimo_parto)}` : ""}${m.intervalo_partos_dias ? ` · intervalo ${Math.round(m.intervalo_partos_dias / 30.4)} meses` : ""}`
-      : "nenhuma cria registrada";
-    return `
-      <div class="card-cria" data-id="${m.id}">
-        <div class="card-cria-topo">
-          <a href="#" class="cr-ficha" data-id="${m.id}"><b>${esc(m.brinco)}</b></a>
-          ${tagSit}${tagPrenhez}
-        </div>
-        <div class="sub">${[m.tipo, m.raca, m.lote, m.ultimo_peso != null ? fmt.peso(m.ultimo_peso) : null].filter(Boolean).map(esc).join(" · ")}</div>
-        ${crias}
-        <div class="info">${historico}</div>
-        <div class="card-cria-acoes">
-          <select class="cr-prenhez" title="marcar prenhez">
-            <option value="">sem marcação</option>
-            ${Object.entries(CR_PRENHEZ).map(([v, t]) => `<option value="${v}" ${m.prenhez === v ? "selected" : ""}>${t}</option>`).join("")}
-          </select>
-          <button class="secundario cr-nasceu">+ Nasceu bezerro</button>
-        </div>
-      </div>`;
-  }).join("");
+  const chip = (grupo, id, rotulo, n) => {
+    const ativo = (grupo === "v" ? cr.filtroV : cr.filtroB) === id;
+    return `<button data-grupo="${grupo}" data-filtro="${id}" class="${ativo ? "ativo" : ""}">${rotulo} <b>${n}</b></button>`;
+  };
+  const bz = d.bezerros;
+  const filtros = vacas
+    ? chip("v", "todas", "Todas", r.matrizes) + chip("v", "com_bezerro", "Com bezerro", r.com_bezerro) +
+      chip("v", "solteiras", "Solteiras", r.solteiras) + chip("v", "prenhes", "Prenhes / mojando", r.prenhes) +
+      chip("v", "frigorifico", "Podem ir pro frigorífico", r.pode_frigorifico)
+    : chip("b", "todos", "Todos", r.bezerros) + chip("b", "sem_mae", "Sem mãe", r.bezerros_sem_mae) +
+      chip("b", "sem_data", "Sem data de nascimento", r.bezerros_sem_nascimento) +
+      chip("b", "femeas", "Fêmeas", bz.filter((b) => b.sexo === "F").length) +
+      chip("b", "machos", "Machos", bz.filter((b) => b.sexo === "M").length);
 
-  const semMae = d.bezerros_sem_mae.length ? `
-    <h3 style="margin-top:18px">Bezerros sem mãe informada (${d.bezerros_sem_mae.length})</h3>
-    <div class="info">Toque no brinco pra abrir a ficha e informar a mãe e a data de nascimento.</div>
-    ${d.bezerros_sem_mae.map((b) => `
-      <div class="card-cria">
-        <div class="card-cria-topo">
-          <a href="#" class="cr-ficha" data-id="${b.id}"><b>${esc(b.brinco)}</b></a>
-          <span class="info">${[b.tipo, b.lote, b.ultimo_peso != null ? fmt.peso(b.ultimo_peso) : null, b.nascimento ? "nasceu " + fmt.data(b.nascimento) : null].filter(Boolean).map(esc).join(" · ")}</span>
-        </div>
-      </div>`).join("")}` : "";
+  const cab = colunas.map((c) => c.semOrdem ? "<th></th>"
+    : `<th class="cr-th" data-col="${c.id}">${c.rot}${ordem.col === c.id ? (ordem.dir === 1 ? " ▲" : " ▼") : ""}</th>`).join("");
+  const corpo = lista.map((x) => `
+    <tr data-id="${x.id}">${colunas.map((c) =>
+      `<td class="cr-c-${c.id}" ${c.rot ? `data-rot="${c.rot}"` : ""}>${c.html(x)}</td>`).join("")}</tr>`).join("");
 
   box.innerHTML = `
-    <div class="cr-filtros">
-      ${chip("todas", "Todas", r.matrizes)}
-      ${chip("com_bezerro", "Com bezerro", r.com_bezerro)}
-      ${chip("solteiras", "Solteiras", r.solteiras)}
-      ${chip("prenhes", "Prenhes / mojando", r.prenhes)}
-      ${chip("frigorifico", "Podem ir pro frigorífico", r.pode_frigorifico)}
+    <div class="cr-visao">
+      <button data-visao="vacas" class="${vacas ? "ativa" : ""}">🐄 Vacas <b>${r.matrizes}</b></button>
+      <button data-visao="bezerros" class="${vacas ? "" : "ativa"}">🍼 Bezerros <b>${r.bezerros}</b></button>
     </div>
+    <div class="cr-filtros">${filtros}</div>
     <div class="filtros">
       <input id="cr-busca" placeholder="Buscar brinco da vaca ou do bezerro..." value="${esc(cr.busca)}" />
       <button id="cr-novo">+ Nascimento</button>
     </div>
-    <div class="info">${matrizes.length} vaca${matrizes.length === 1 ? "" : "s"} · ${r.bezerros_ao_pe} bezerro${r.bezerros_ao_pe === 1 ? "" : "s"} ao pé no total${cr.filtro === "frigorifico" ? " · solteiras e não marcadas como prenhe/mojando" : ""}</div>
-    ${cartoes || "<div class='info' style='margin-top:10px'>Nenhuma vaca nesse filtro.</div>"}
-    ${cr.filtro === "todas" && !cr.busca ? semMae : ""}`;
+    <div class="pl-barra">
+      <div class="info">${lista.length} ${vacas ? "vaca" : "bezerro"}${lista.length === 1 ? "" : "s"} na lista${vacas
+        ? ` · ${r.bezerros_ao_pe} bezerro${r.bezerros_ao_pe === 1 ? "" : "s"} ao pé no total`
+        : ` · faltam ${r.bezerros_sem_mae} sem mãe e ${r.bezerros_sem_nascimento} sem data`}</div>
+      <div class="pl-acoes">
+        ${vacas ? `<label class="check cr-novilhas"><input type="checkbox" id="cr-novilhas" ${cr.novilhas ? "checked" : ""}/> mostrar novilhas também</label>` : ""}
+        ${ehDono ? `<button id="cr-excel" class="secundario">⬇ Baixar Excel</button>` : ""}
+      </div>
+    </div>
+    <div class="cr-tabela">
+      <table>
+        <thead><tr>${cab}</tr></thead>
+        <tbody>${corpo || `<tr><td colspan="${colunas.length}" class="cr-vazio">Nenhum ${vacas ? "animal" : "bezerro"} nesse filtro.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div id="cr-escolha"></div>`;
 
+  // Visão, filtros, busca, ordenação.
+  box.querySelectorAll(".cr-visao button").forEach((b) => {
+    b.onclick = () => { cr.visao = b.dataset.visao; cr.editando = null; crRender(); };
+  });
   box.querySelectorAll(".cr-filtros button").forEach((b) => {
-    b.onclick = () => { cr.filtro = b.dataset.filtro; crRender(); };
+    b.onclick = () => {
+      if (b.dataset.grupo === "v") cr.filtroV = b.dataset.filtro; else cr.filtroB = b.dataset.filtro;
+      cr.editando = null;
+      crRender();
+    };
   });
   const busca = document.getElementById("cr-busca");
   busca.oninput = () => {
@@ -123,18 +226,95 @@ function crRender() {
     const novo = document.getElementById("cr-busca");   // mantém o cursor ao redesenhar
     novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length);
   };
+  box.querySelectorAll(".cr-th").forEach((th) => {
+    th.onclick = () => {
+      if (ordem.col === th.dataset.col) ordem.dir = -ordem.dir;
+      else { ordem.col = th.dataset.col; ordem.dir = 1; }
+      crRender();
+    };
+  });
   document.getElementById("cr-novo").onclick = () => crAbrirNascimento(null);
+  const chkNov = document.getElementById("cr-novilhas");
+  if (chkNov) chkNov.onchange = () => { cr.novilhas = chkNov.checked; carregarCria(); };
+  if (ehDono) document.getElementById("cr-excel").onclick = crBaixarExcel;
+
   box.querySelectorAll(".cr-ficha").forEach((a) => {
     a.onclick = (ev) => { ev.preventDefault(); abrirFicha(Number(a.dataset.id)); };
   });
-  box.querySelectorAll(".card-cria[data-id]").forEach((card) => {
-    const id = Number(card.dataset.id);
-    const m = d.matrizes.find((x) => x.id === id);
-    const sel = card.querySelector(".cr-prenhez");
+
+  // Ações por linha.
+  box.querySelectorAll("tbody tr[data-id]").forEach((tr) => {
+    const id = Number(tr.dataset.id);
+    const sel = tr.querySelector(".cr-prenhez");
     if (sel) sel.onchange = () => crMarcarPrenhez(id, sel.value);
-    const nasceu = card.querySelector(".cr-nasceu");
-    if (nasceu) nasceu.onclick = () => crAbrirNascimento(m);
+    const nasceu = tr.querySelector(".cr-nasceu");
+    if (nasceu) nasceu.onclick = () => crAbrirNascimento(d.matrizes.find((m) => m.id === id));
+    tr.querySelectorAll(".cr-editar").forEach((b) => {
+      b.onclick = () => { cr.editando = { id, campo: b.dataset.campo }; crRender(); };
+    });
+    const ok = tr.querySelector(".cr-ed-ok");
+    if (ok) {
+      const input = tr.querySelector(".cr-ed-input");
+      input.focus();
+      const salvar = () => crSalvarCelula(id, cr.editando.campo, input.value.trim());
+      ok.onclick = salvar;
+      input.onkeydown = (ev) => {
+        if (ev.key === "Enter") salvar();
+        if (ev.key === "Escape") { cr.editando = null; crRender(); }
+      };
+      tr.querySelector(".cr-ed-x").onclick = () => { cr.editando = null; crRender(); };
+    }
   });
+}
+
+// Salva a mãe ou a data de nascimento digitada na própria linha do bezerro.
+async function crSalvarCelula(id, campo, valor) {
+  const b = cr.dados.bezerros.find((x) => x.id === id);
+  const dados = {};
+  try {
+    if (campo === "nascimento") {
+      dados.nascimento = valor || null;
+    } else if (!valor) {
+      if (b.mae && !confirm("Remover a mãe deste bezerro?")) return;
+      dados.mae_id = null;
+    } else {
+      // Procura entre os ativos; se não achar, entre todos (mãe já vendida/morta).
+      let cands = (await crBuscarPorBrinco(valor)).filter((x) => x.id !== id);
+      if (!cands.length) {
+        cands = (await api.get("/api/animais?busca=" + encodeURIComponent(valor)))
+          .filter((x) => x.brinco === valor && x.id !== id);
+      }
+      if (!cands.length) { alert(`Não achei animal com o brinco ${valor}.`); return; }
+      const mae = cands.length === 1 ? cands[0] : await crEscolher(document.getElementById("cr-escolha"), cands);
+      dados.mae_id = mae.id;
+    }
+    await api.put(`/api/cria/mae/${id}`, dados);
+    cr.editando = null;
+    await carregarCria();
+  } catch (e) { alert("Erro: " + e.message); }
+}
+
+async function crBaixarExcel() {
+  const { colunas, lista } = crLinhas();
+  if (!lista.length) { alert("Nenhum animal na lista."); return; }
+  const cols = colunas.filter((c) => !c.semExcel);
+  const btn = document.getElementById("cr-excel");
+  btn.disabled = true; btn.textContent = "Gerando...";
+  try {
+    await baixarArquivo("/api/cria/excel", "cria.xlsx", {
+      method: "POST",
+      headers: cabecalhos({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        titulo: cr.visao === "vacas" ? "Vacas" : "Bezerros",
+        cabecalho: cols.map((c) => c.rot),
+        linhas: lista.map((x) => cols.map((c) => { const v = c.texto(x); return v == null ? "" : v; })),
+      }),
+    });
+  } catch (e) {
+    alert("Não foi possível gerar o Excel: " + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "⬇ Baixar Excel";
+  }
 }
 
 async function crMarcarPrenhez(animalId, valor) {

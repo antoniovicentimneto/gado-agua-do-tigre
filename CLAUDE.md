@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=53 / cache v45.**
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=54 / cache v46.**
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -169,6 +169,10 @@ de cada animal. Serviço: `app/services/manejos.py`.
   `data_desmame`. Vaca **solteira** = sem bezerro ao pé. `Animal.prenhez` = prenhe (toque) /
   mojando (visual) / vazia; nascimento limpa. **Pode ir pro frigorífico** = solteira e não
   prenhe/mojando. Trocar o tipo de bezerro na mão grava `data_desmame` = hoje.
+- Tela em formato de planilha com duas visões (**Vacas** / **Bezerros** — todos os bezerros,
+  mãe e nascimento editáveis na linha), filtros, ordenação por coluna, "mostrar novilhas" e
+  Excel do que está na tela (dono). **Peão lança** mãe, nascimento, prenhez, nascimento de
+  bezerro e corrige brinco de bezerro; desmama é só dono.
 - **Venda peso morto**: fechamento por animal (carcaça, rendimento, preço da @, acabamento)
   em `static/venda-gancho.js`, aberto pelo manejo de venda. Só dono.
 - **Colunas novas** em tabela existente: acrescentar em `COLUNAS_NOVAS` (`database.py`) —

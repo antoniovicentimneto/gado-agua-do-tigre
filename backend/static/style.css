@@ -290,16 +290,49 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
   background: var(--verde-claro); color: var(--verde);
 }
 .cr-filtros button.ativo { background: var(--verde); color: #fff; }
-.card-cria {
-  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
-  padding: 10px 12px; margin-top: 8px;
+.cr-visao { display: flex; gap: 6px; margin-bottom: 8px; }
+.cr-visao button {
+  flex: 1; background: #fff; color: var(--cinza); border: 1px solid var(--borda); padding: 8px;
 }
-.card-cria-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.card-cria-topo b { font-size: 1.05rem; }
-.cr-cria { margin-top: 6px; font-size: 0.9rem; }
-.card-cria-acoes { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.card-cria-acoes select { flex: 1 1 9em; padding: 6px; }
-.card-cria-acoes button { flex: 1 1 9em; padding: 6px 10px; font-size: 0.85rem; }
+.cr-visao button.ativa { background: var(--verde); color: #fff; border-color: var(--verde); }
+.cr-novilhas { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; margin: 0; }
+.cr-novilhas input { width: auto; }
+.cr-tabela { overflow-x: auto; background: #fff; border: 1px solid var(--borda); border-radius: 10px; }
+.cr-tabela th { white-space: nowrap; cursor: pointer; user-select: none; }
+.cr-tabela td { vertical-align: middle; }
+.cr-tabela select.cr-prenhez { padding: 4px; min-width: 7.5em; width: auto; }
+.cr-tabela button { width: auto; padding: 4px 10px; font-size: 0.8rem; }
+.cr-tabela .cr-nasceu { white-space: nowrap; }
+.cr-vazio { color: var(--cinza); padding: 14px; }
+/* Lápis discreto ao lado do valor; "+ mãe" / "+ data" chamam atenção pro que falta. */
+.cr-editar { background: none; color: var(--cinza); border: none; padding: 0 4px !important; }
+.cr-editar.cr-falta {
+  background: #fff3cd; color: #8a6100; border: 1px dashed #e0a800;
+  padding: 3px 8px !important; border-radius: 6px; font-weight: 600;
+}
+.cr-ed { display: inline-flex; gap: 4px; align-items: center; }
+.cr-ed input { width: 8.5em; padding: 4px 6px; }
+.cr-ed button { padding: 4px 8px !important; }
+
+@media (max-width: 760px) {
+  .cr-tabela { overflow-x: visible; border: none; background: none; }
+  .cr-tabela table, .cr-tabela tbody { display: block; width: 100%; }
+  .cr-tabela thead { display: none; }
+  .cr-tabela tr {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; background: #fff;
+    border: 1px solid var(--borda); border-radius: 10px; padding: 10px; margin-bottom: 8px;
+  }
+  .cr-tabela td { display: block; border: none; padding: 0; min-width: 0; }
+  .cr-tabela td.cr-c-brinco { grid-column: 1 / -1; font-size: 1.05rem; }
+  .cr-tabela td.cr-c-brinco[data-rot]::before { display: none; }
+  .cr-tabela td.cr-c-acao { grid-column: 1 / -1; }
+  .cr-tabela td.cr-c-acao button { width: 100%; padding: 8px; }
+  .cr-tabela td[data-rot]::before {
+    content: attr(data-rot); display: block; font-size: 0.72rem; color: var(--cinza);
+  }
+  .cr-tabela select.cr-prenhez { width: 100%; }
+  .cr-ed input { width: 100%; min-width: 0; }
+}
 .tag.cr-bezerro { background: #e3f2fd; color: #1565c0; }
 .tag.cr-solteira { background: #eee; color: #555; }
 .tag.cr-prenhe, .tag.cr-mojando { background: #fff3cd; color: #8a6100; }
