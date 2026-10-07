@@ -20,6 +20,7 @@ Base = declarative_base()
 COLUNAS_NOVAS = [
     ("vendas", "acabamento", "VARCHAR(20)"),
     ("vendas", "dentes_frigorifico", "INTEGER"),
+    ("pesagens", "chave_cliente", "VARCHAR(40)"),
     ("animais", "mae_id", "INTEGER REFERENCES animais(id)"),
     ("animais", "data_desmame", "DATE"),
     ("animais", "prenhez", "VARCHAR(10)"),

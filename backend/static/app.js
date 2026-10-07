@@ -19,23 +19,65 @@ async function _resposta(r) {
   return r.json();
 }
 
+// ---- Rede fraca -------------------------------------------------------------
+// No campo o celular costuma dizer que "tem rede" com um sinal que não passa nada:
+// o envio ficava pendurado até o navegador desistir (às vezes mais de 1 minuto).
+// Por isso os lançamentos têm PRAZO: passou do prazo, vai pra fila offline. E depois
+// de uma falha a rede é considerada ruim por um tempo — os próximos lançamentos vão
+// direto pra fila (na hora), sem esperar o prazo de novo a cada animal.
+const PRAZO_LANCAMENTO_MS = 8000;      // quanto espera um lançamento antes de jogar na fila
+const REDE_RUIM_MS = 45000;            // por quanto tempo evita a rede depois de uma falha
+const rede = { ruimAte: 0 };
+
+function redeBoa() {
+  return navigator.onLine && Date.now() > rede.ruimAte;
+}
+function marcarRedeRuim() {
+  rede.ruimAte = Date.now() + REDE_RUIM_MS;
+}
+function marcarRedeBoa() {
+  rede.ruimAte = 0;
+}
+
+// fetch que desiste depois de `prazo` ms. Estouro de prazo vira TypeError — o mesmo
+// erro de "sem rede" — pra quem chama tratar os dois casos igual (fila offline).
+async function fetchComPrazo(url, opcoes = {}, prazo = 0) {
+  if (!prazo) return fetch(url, opcoes);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), prazo);
+  try {
+    return await fetch(url, { ...opcoes, signal: ctrl.signal });
+  } catch (e) {
+    if (e && e.name === "AbortError") throw new TypeError("Sem resposta do servidor (prazo esgotado)");
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Identificador único de um lançamento (o servidor usa pra não gravar duas vezes).
+function novaChave() {
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+}
+
 const api = {
-  async get(url) {
-    return _resposta(await fetch(url, { headers: cabecalhos() }));
+  async get(url, prazo = 0) {
+    return _resposta(await fetchComPrazo(url, { headers: cabecalhos() }, prazo));
   },
-  async post(url, dados) {
-    return _resposta(await fetch(url, {
+  async post(url, dados, prazo = 0) {
+    return _resposta(await fetchComPrazo(url, {
       method: "POST",
       headers: cabecalhos({ "Content-Type": "application/json" }),
       body: JSON.stringify(dados),
-    }));
+    }, prazo));
   },
-  async put(url, dados) {
-    return _resposta(await fetch(url, {
+  async put(url, dados, prazo = 0) {
+    return _resposta(await fetchComPrazo(url, {
       method: "PUT",
       headers: cabecalhos({ "Content-Type": "application/json" }),
       body: JSON.stringify(dados),
-    }));
+    }, prazo));
   },
   async delete(url) {
     return _resposta(await fetch(url, { method: "DELETE", headers: cabecalhos() }));
@@ -508,7 +550,7 @@ async function salvarCampoAnimal(id, brinco, campo, valor) {
     cacheUpsertAnimal({ id, brinco, [campo]: valor });
     persistirCacheAnimaisAtual();
   };
-  if (!navigator.onLine) { guardarNaFila(); return { offline: true }; }
+  if (!redeBoa()) { guardarNaFila(); return { offline: true }; }
   try {
     await api.put("/api/animais/" + id, corpo);
     cacheUpsertAnimal({ id, brinco, [campo]: valor });
@@ -1008,6 +1050,9 @@ const modal = document.getElementById("modal");
 // em vez de simplesmente fechar tudo (fecharModalOuVoltar cuida disso).
 let modalVoltar = null;
 function fecharModalOuVoltar() {
+  if (fichaSuja && document.getElementById("f-salvar-tudo") &&
+      !confirm("Há modificações não salvas nesta ficha. Sair sem salvar?")) return;
+  fichaSuja = false;
   if (modalVoltar) {
     const voltar = modalVoltar;
     modalVoltar = null;
@@ -1092,9 +1137,8 @@ async function abrirFicha(id, voltar = null) {
     .reverse()
     .map((p) => `<tr data-id="${p.id}">
         <td>${fmt.data(p.data)}${p.observacao ? ` <span title="${esc(p.observacao)}">📝</span>` : ""}</td>
-        <td><input type="number" step="0.1" class="pesagem-peso" value="${p.peso}" style="width:5.5em"></td>
+        <td><input type="number" step="0.1" class="pesagem-peso" value="${p.peso}" data-orig="${p.peso}" style="width:5.5em"></td>
         <td style="white-space:nowrap">
-          <button class="pesagem-salvar" title="salvar peso">✓</button>
           <button class="pesagem-apagar" data-id="${p.id}" title="apagar esta pesagem">×</button>
         </td>
       </tr>`)
@@ -1123,12 +1167,14 @@ async function abrirFicha(id, voltar = null) {
     <h2>Brinco ${esc(a.brinco)} ${a.status !== "ativo" ? `<span class="tag ${a.status}">${a.status}${a.data_evento ? " · " + fmt.data(a.data_evento) : ""}</span>` : ""}</h2>
     <div class="sub">${esc(a.tipo || "")} · ${esc(a.raca || "sem raça")} · ${esc(a.lote_atual || "sem lote")}</div>
 
+    <div class="ficha-salvar-barra">
+      <button id="f-salvar-tudo">💾 Salvar modificações</button>
+      <div id="f-salvar-msg" class="info">${fichaAvisoSalvo || "Mexa no que precisar abaixo e salve tudo de uma vez aqui."}</div>
+    </div>
+
     <div class="ficha-secao">
       <label style="font-weight:600;font-size:0.85rem">Brinco</label>
-      <div class="linha-pesar">
-        <input id="f-brinco" value="${esc(a.brinco)}" />
-        <button id="f-brinco-salvar">Salvar</button>
-      </div>
+      <input id="f-brinco" value="${esc(a.brinco)}" style="display:block;width:100%" />
       <div class="info">Corrija aqui se o número foi digitado errado na hora de pesar.</div>
     </div>
 
@@ -1167,13 +1213,11 @@ async function abrirFicha(id, voltar = null) {
         <label style="font-weight:600;font-size:0.85rem">Data do evento (venda/morte/perda)</label>
         <input type="date" id="f-status-data" value="${a.data_evento || ""}" />
       </div>
-      <button id="f-status-salvar" class="secundario ${a.status === "ativo" ? "escondido" : ""}" style="margin-top:8px;width:100%">Salvar situação</button>
     </div>
 
     <div class="ficha-secao">
       <label style="font-weight:600;font-size:0.85rem">Observação</label>
       <textarea id="f-obs" rows="2" style="width:100%">${esc(a.observacao || "")}</textarea>
-      <button id="f-obs-salvar" class="secundario" style="margin-top:6px">Salvar observação</button>
     </div>
 
     ${a.venda ? `<div class="ficha-secao">
@@ -1206,8 +1250,7 @@ async function abrirFicha(id, voltar = null) {
           ${[0, 2, 4, 6, 8].map((n) => `<option value="${n}">${n} dentes</option>`).join("")}
         </select>
       </div>
-      <button id="f-dent-salvar" class="secundario" style="margin-top:6px;width:100%">Salvar dentição</button>
-      <div class="info">Informe a data em que a boca foi olhada. Se já houver dentição nessa data, ela é corrigida.</div>
+      <div class="info">Escolha o nº de dentes e a data em que a boca foi olhada. Se já houver dentição nessa data, ela é corrigida.</div>
     </div>
 
     <div class="grid-2 ficha-secao">
@@ -1226,9 +1269,9 @@ async function abrirFicha(id, voltar = null) {
     </div>
 
     <div class="ficha-secao">
-      <h3>Mudar lote</h3>
+      <h3>Lote</h3>
       <div id="ficha-lote-caixa">${await seletorLoteHTML("ficha-lote", a.lote_atual || "")}</div>
-      <button id="btn-lote" style="margin-top:8px;width:100%">Mover de lote</button>
+      <div class="info">Pra mudar o animal de lote, escolha o novo lote aqui.</div>
     </div>
 
     <div class="ficha-secao">
@@ -1264,78 +1307,32 @@ async function abrirFicha(id, voltar = null) {
   ligarSeletorLote("ficha-lote");
   criaLigarFicha(a, id);
   document.getElementById("gp-calcular").onclick = () => calcularGmdPeriodo(id);
-  document.getElementById("btn-lote").onclick = () => moverLote(id);
   document.getElementById("btn-simular").onclick = () => simularVenda(id, a.tipo);
 
-  // Brinco (corrige número digitado errado).
-  document.getElementById("f-brinco-salvar").onclick = async () => {
-    const novo = document.getElementById("f-brinco").value.trim();
-    if (!novo) { alert("O brinco não pode ficar vazio."); return; }
-    try {
-      await api.put("/api/animais/" + id, { brinco: novo });
-      carregarLista();
-      abrirFicha(id, modalVoltar);
-    } catch (e) { alert("Erro: " + e.message); }
-  };
-
-  // Classificação e raça (salvam na hora ao trocar; sem rede, entram na fila).
-  document.getElementById("f-tipo").onchange = async (e) => {
-    await salvarCampoAnimal(id, a.brinco, "tipo", e.target.value || null);
-    carregarLista();
-  };
-  document.getElementById("f-raca").onchange = async (e) => {
-    await salvarCampoAnimal(id, a.brinco, "raca", e.target.value || null);
-    carregarLista();
-  };
-  document.getElementById("f-obs-salvar").onclick = async () => {
-    const r = await salvarCampoAnimal(id, a.brinco, "observacao", document.getElementById("f-obs").value || null);
-    document.getElementById("f-obs-salvar").textContent = r.offline ? "Salvo ✓ (na fila)" : "Salvo ✓";
-    carregarLista();
-  };
-
-  // Situação do animal (ativo/vendido/perdido/morto). Ao ficar ATIVO salva na
-  // hora (como antes); ao marcar INATIVO, pede a data do evento antes de salvar
-  // — assim dá pra tirar relatório de mortes/vendas/perdas por período depois.
+  // Situação: ao marcar inativo aparece a data do evento (salva junto, no botão do topo).
   const selStatus = document.getElementById("f-status");
   const linhaData = document.getElementById("f-status-data-linha");
   const inputData = document.getElementById("f-status-data");
-  const btnStatusSalvar = document.getElementById("f-status-salvar");
   selStatus.value = a.status;
-  selStatus.onchange = async () => {
+  selStatus.onchange = () => {
     const inativo = selStatus.value !== "ativo";
     linhaData.classList.toggle("escondido", !inativo);
-    btnStatusSalvar.classList.toggle("escondido", !inativo);
-    if (inativo) {
-      if (!inputData.value) inputData.value = new Date().toISOString().slice(0, 10);
-      return;  // espera confirmar no botão, junto com a data
-    }
-    await api.put("/api/animais/" + id, { status: "ativo", data_evento: null });
-    carregarLista();
-  };
-  btnStatusSalvar.onclick = async () => {
-    if (!inputData.value) { alert("Informe a data do evento (venda/morte/perda)."); return; }
-    try {
-      await api.put("/api/animais/" + id, { status: selStatus.value, data_evento: inputData.value });
-      carregarLista();
-      abrirFicha(id, modalVoltar);
-    } catch (e) { alert("Erro: " + e.message); }
+    if (inativo && !inputData.value) inputData.value = new Date().toLocaleDateString("sv-SE");
   };
 
-  // Editar o peso de uma pesagem específica (corrige lançamento errado).
-  ficha.querySelectorAll(".pesagem-salvar").forEach((btn) => {
-    btn.onclick = async () => {
-      const tr = btn.closest("tr");
-      const peso = parseFloat(tr.querySelector(".pesagem-peso").value);
-      if (isNaN(peso) || peso <= 0) { alert("Peso inválido."); return; }
-      try {
-        await api.put(`/api/animais/${id}/pesagens/${tr.dataset.id}`, { peso });
-        abrirFicha(id, modalVoltar);
-        carregarLista();
-        // Senão o "último peso" mostrado na mangueira/pesagem rápida fica com o valor errado.
-        if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
-      } catch (e) { alert("Erro ao salvar: " + e.message); }
-    };
-  });
+  // ---- Um botão só: "Salvar modificações" grava tudo o que foi mexido na ficha.
+  fichaSuja = false;
+  fichaAvisoSalvo = "";
+  const btnSalvarTudo = document.getElementById("f-salvar-tudo");
+  // Campos que são de consulta/ação própria e não contam como "modificação a salvar".
+  const NAO_SALVAM = new Set(["gp-inicio", "gp-fim", "v-rend", "v-arroba", "f-vinc-busca", "cf-desmama-data"]);
+  ficha.oninput = ficha.onchange = (ev) => {
+    if (!document.getElementById("f-salvar-tudo") || NAO_SALVAM.has(ev.target.id)) return;
+    fichaSuja = true;
+    document.getElementById("f-salvar-tudo").classList.add("pendente");
+    document.getElementById("f-salvar-msg").textContent = "Há modificações não salvas.";
+  };
+  btnSalvarTudo.onclick = () => salvarFicha(a, id);
 
   // Apagar uma pesagem específica (lançamento errado).
   ficha.querySelectorAll(".pesagem-apagar").forEach((btn) => {
@@ -1349,21 +1346,6 @@ async function abrirFicha(id, voltar = null) {
       } catch (e) { alert("Erro: " + e.message); }
     };
   });
-
-  // Lançar dentição com data (animal que ficou sem dentes anotados na pesagem).
-  document.getElementById("f-dent-salvar").onclick = async () => {
-    const data = document.getElementById("f-dent-data").value;
-    const num = document.getElementById("f-dent-num").value;
-    if (!data) { alert("Informe a data da dentição."); return; }
-    if (num === "") { alert("Escolha o número de dentes."); return; }
-    try {
-      await api.post(`/api/animais/${id}/denticoes`, { data, dentes: parseInt(num, 10) });
-      abrirFicha(id, modalVoltar);
-      carregarLista();
-      // Mantém o cache da mangueira com a dentição nova (mostrada ao digitar o brinco).
-      if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
-    } catch (e) { alert("Erro: " + e.message); }
-  };
 
   // Apagar uma dentição lançada errada (só dono).
   ficha.querySelectorAll(".denticao-apagar").forEach((btn) => {
@@ -1474,13 +1456,129 @@ async function calcularGmdPeriodo(id) {
   }
 }
 
-async function moverLote(id) {
-  const nome = valorLote("ficha-lote");
-  if (!nome) { alert("Escolha ou digite o lote destino."); return; }
-  await api.post(`/api/animais/${id}/lote?nome_lote=${encodeURIComponent(nome)}`, {});
-  limparCacheLotes();
-  abrirFicha(id, modalVoltar);
+// Estado do botão único da ficha.
+let fichaSuja = false;        // tem modificação ainda não salva?
+let fichaAvisoSalvo = "";     // recado mostrado na ficha recarregada depois de salvar
+
+// Junta tudo o que foi modificado na ficha (comparando com `a`, o que veio do servidor)
+// e grava de uma vez: dados do animal, mãe/nascimento, prenhez, dentição nova, pesos
+// corrigidos e lote. Só manda o que mudou.
+async function salvarFicha(a, id) {
+  const $ = (elId) => document.getElementById(elId);
+  const val = (elId) => { const e = $(elId); return e && !e.disabled ? e.value : null; };
+  const btn = $("f-salvar-tudo"), msg = $("f-salvar-msg");
+
+  // --- 1. dados do animal
+  const animal = {};
+  const brinco = val("f-brinco");
+  if (brinco !== null && brinco.trim() !== a.brinco) {
+    if (!brinco.trim()) { alert("O brinco não pode ficar vazio."); return; }
+    animal.brinco = brinco.trim();
+  }
+  const tipo = val("f-tipo"), raca = val("f-raca"), obs = val("f-obs");
+  if (tipo !== null && (tipo || null) !== (a.tipo || null)) animal.tipo = tipo || null;
+  if (raca !== null && (raca || null) !== (a.raca || null)) animal.raca = raca || null;
+  if (obs !== null && (obs || null) !== (a.observacao || null)) animal.observacao = obs || null;
+  const status = val("f-status");
+  if (status !== null) {
+    const dataEv = $("f-status-data").value || null;
+    if (status !== "ativo" && !dataEv) { alert("Informe a data do evento (venda/morte/perda)."); return; }
+    if (status !== a.status) {
+      animal.status = status;
+      animal.data_evento = status === "ativo" ? null : dataEv;
+    } else if (status !== "ativo" && dataEv !== (a.data_evento || null)) {
+      animal.data_evento = dataEv;
+    }
+  }
+
+  // --- 2. cria: mãe e nascimento
+  const cria = {};
+  const nasc = val("cf-nasc");
+  if (nasc !== null && (nasc || null) !== (a.nascimento || null)) cria.nascimento = nasc || null;
+  const mae = val("cf-mae");
+  if (mae !== null && mae.trim() !== (a.mae ? a.mae.brinco : "")) {
+    if (mae.trim()) {
+      const maeId = await criaResolverMae(mae.trim(), id, $("cf-escolha"));
+      if (maeId == null) return;
+      cria.mae_id = maeId;
+    } else {
+      if (!confirm("Remover a mãe deste animal?")) return;
+      cria.mae_id = null;
+    }
+  }
+
+  // --- 3. prenhez, dentição, pesos, lote
+  const prenhez = val("cf-prenhez");
+  const prenhezMudou = prenhez !== null && (prenhez || null) !== ((a.cria && a.cria.prenhez) || null);
+  let denticao = null;
+  if (val("f-dent-num")) {
+    if (!$("f-dent-data").value) { alert("Informe a data da dentição."); return; }
+    denticao = { data: $("f-dent-data").value, dentes: parseInt($("f-dent-num").value, 10) };
+  }
+  const pesos = [];
+  for (const inp of document.querySelectorAll("#ficha .pesagem-peso")) {
+    if (inp.disabled || inp.value === inp.dataset.orig) continue;
+    const peso = parseFloat(inp.value);
+    if (isNaN(peso) || peso <= 0) { alert("Tem um peso inválido na lista de pesagens."); return; }
+    pesos.push({ pesagemId: inp.closest("tr").dataset.id, peso });
+  }
+  const lote = valorLote("ficha-lote");
+  const loteMudou = !!lote && lote !== (a.lote_atual || "");
+
+  const temAnimal = Object.keys(animal).length > 0, temCria = Object.keys(cria).length > 0;
+  const precisaRede = temCria || prenhezMudou || denticao || pesos.length || loteMudou;
+  if (!temAnimal && !precisaRede) { msg.textContent = "Nada foi modificado."; return; }
+
+  // Guarda os dados do animal na fila offline (e no cache local, pra tela já mostrar).
+  const animalNaFila = () => {
+    filaAdicionar({ metodo: "PUT", url: "/api/animais/" + id, corpo: animal,
+                    rotulo: `Editar brinco ${a.brinco}` });
+    cacheUpsertAnimal({ id, brinco: a.brinco, ...animal });
+    persistirCacheAnimaisAtual();
+  };
+  const avisoSemRede = (guardou) =>
+    (guardou ? "Sem rede: os dados do animal ficaram guardados e serão enviados sozinhos. " : "Sem rede. ") +
+    (precisaRede ? "Mãe, nascimento, prenhez, dentição, pesos e lote precisam de internet — salve de novo quando tiver sinal." : "");
+
+  if (!redeBoa()) {
+    if (temAnimal) animalNaFila();
+    fichaSuja = precisaRede;
+    msg.textContent = avisoSemRede(temAnimal);
+    if (!precisaRede) btn.classList.remove("pendente");
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Salvando...";
+  let animalEnviado = !temAnimal;
+  try {
+    if (temAnimal) { await api.put("/api/animais/" + id, animal, PRAZO_LANCAMENTO_MS * 2); animalEnviado = true; }
+    if (temCria) await api.put(`/api/cria/mae/${id}`, cria);
+    if (prenhezMudou) {
+      await api.put(`/api/cria/prenhez/${id}`, { prenhez: prenhez || null, data: new Date().toLocaleDateString("sv-SE") });
+    }
+    if (denticao) await api.post(`/api/animais/${id}/denticoes`, denticao);
+    for (const p of pesos) await api.put(`/api/animais/${id}/pesagens/${p.pesagemId}`, { peso: p.peso });
+    if (loteMudou) {
+      await api.post(`/api/animais/${id}/lote?nome_lote=${encodeURIComponent(lote)}`, {});
+      limparCacheLotes();
+    }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "💾 Salvar modificações";
+    if (e instanceof TypeError) {
+      marcarRedeRuim();
+      if (!animalEnviado) animalNaFila();
+      msg.textContent = avisoSemRede(!animalEnviado);
+      return;
+    }
+    alert("Erro ao salvar: " + e.message);
+    return;
+  }
+  fichaSuja = false;
+  fichaAvisoSalvo = "✓ Modificações salvas.";
+  await abrirFicha(id, modalVoltar);
   carregarLista();
+  if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
+  if (typeof cr !== "undefined" && cr.dados) carregarCria();
 }
 
 async function simularVenda(id, tipo) {

@@ -285,6 +285,22 @@ def _aplicar_financeiro(db: Session, sessao: SessaoPesagem, animal: Animal, peso
         animal.data_evento = sessao.data  # data da venda (relatórios por período)
 
 
+def _ja_recebido(db: Session, chave: str | None) -> dict | None:
+    """Se esse lançamento (mesma chave do aparelho) já foi gravado, devolve o resultado
+    dele em vez de gravar de novo — o reenvio da fila offline não pode duplicar."""
+    if not chave:
+        return None
+    p = db.query(Pesagem).filter(Pesagem.chave_cliente == chave).first()
+    if p is None:
+        return None
+    ordem = db.query(Pesagem).filter(Pesagem.sessao_id == p.sessao_id).count()
+    return {"ok": True, "repetido": True, "pesagem_id": p.id, "ordem": ordem,
+            "animal_id": p.animal_id, "brinco": p.animal.brinco, "tipo": p.animal.tipo,
+            "raca": p.animal.raca, "lote_atual": lote_atual(p.animal), "peso": p.peso,
+            "destino": p.destino_lote.nome if p.destino_lote else None,
+            "sem_brinco": p.animal.sem_brinco}
+
+
 def registrar_pesagem(
     db: Session,
     sessao: SessaoPesagem,
@@ -300,12 +316,16 @@ def registrar_pesagem(
     nova_raca: str | None = None,
     dentes: int | None = None,
     prenhez: str | None = None,
+    chave: str | None = None,
 ) -> dict:
     """Registra a pesagem de um animal na sessão.
 
     Devolve {"ok": True, ...} ou {"alerta": "<tipo>", ...} quando precisa de
     confirmação do usuário (ambíguo / fora do lote / já pesado / inexistente).
     """
+    repetido = _ja_recebido(db, chave)
+    if repetido:
+        return repetido
     brinco = brinco.strip()
     prenhez = (prenhez or "").strip().lower() or None
     if prenhez is not None and prenhez not in PRENHEZ_VALORES:
@@ -404,6 +424,7 @@ def registrar_pesagem(
     if pesagem:
         pesagem.peso = peso
         pesagem.sessao_id = sessao.id
+        pesagem.chave_cliente = chave or pesagem.chave_cliente
         if pesagem.ordem is None:
             pesagem.ordem = _proxima_ordem(sessao)
         if destino:
@@ -419,6 +440,7 @@ def registrar_pesagem(
             ordem=_proxima_ordem(sessao),
             observacao=observacao,
             destino_lote_id=destino.id if destino else None,
+            chave_cliente=chave,
         )
         db.add(pesagem)
 
@@ -451,9 +473,12 @@ def registrar_pesagem(
 def pesar_sem_brinco(
     db: Session, sessao: SessaoPesagem, peso: float,
     destino_lote: str | None = None, observacao: str | None = None,
-    tipo: str | None = None, dentes: int | None = None,
+    tipo: str | None = None, dentes: int | None = None, chave: str | None = None,
 ) -> dict:
     """Pesa um animal sem brinco (cria um registro provisório p/ vincular depois)."""
+    repetido = _ja_recebido(db, chave)
+    if repetido:
+        return repetido
     destino = obter_ou_criar_lote(db, destino_lote) if destino_lote else None
     # Brinco provisório legível: S/B-<id da sessão>-<sequência>.
     seq = sum(1 for p in sessao.pesagens if p.animal.sem_brinco) + 1
@@ -462,7 +487,7 @@ def pesar_sem_brinco(
     pesagem = Pesagem(
         animal_id=animal.id, data=sessao.data, peso=peso, sessao_id=sessao.id,
         ordem=_proxima_ordem(sessao), observacao=observacao,
-        destino_lote_id=destino.id if destino else None,
+        destino_lote_id=destino.id if destino else None, chave_cliente=chave,
     )
     db.add(pesagem)
     if dentes is not None:

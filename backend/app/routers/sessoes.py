@@ -115,6 +115,7 @@ def pesar(sessao_id: int, dados: schemas.PesarDados, db: Session = Depends(get_d
         nova_raca=dados.nova_raca,
         dentes=dados.dentes,
         prenhez=dados.prenhez,
+        chave=dados.chave,
     )
 
 
@@ -125,7 +126,7 @@ def pesar_sem_brinco(sessao_id: int, dados: schemas.PesarSemBrinco,
     if s.status != StatusSessao.ABERTA:
         raise HTTPException(status_code=400, detail="Sessão já finalizada")
     return svc.pesar_sem_brinco(db, s, dados.peso, dados.destino_lote,
-                                dados.observacao, dados.tipo, dados.dentes)
+                                dados.observacao, dados.tipo, dados.dentes, chave=dados.chave)
 
 
 @router.get("/{sessao_id}/faltantes")

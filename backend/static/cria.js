@@ -463,8 +463,7 @@ function criaSecaoFichaHTML(a) {
         </div>
       </div>
       <div id="cf-escolha"></div>
-      <button id="cf-salvar" style="margin-top:8px;width:100%">Salvar mãe e nascimento</button>
-      <div id="cf-msg" class="info"></div>
+
       ${a.data_desmame ? `<div class="info" style="margin-top:6px">Desmamado em <b>${fmt.data(a.data_desmame)}</b>.</div>` : ""}
       ${podeDesmamar ? `
         <label style="font-weight:600;font-size:0.85rem;display:block;margin-top:10px">Desmama</label>
@@ -475,6 +474,19 @@ function criaSecaoFichaHTML(a) {
         <div class="info">Grava a data e muda o tipo pra Novilha/Boi. (Trocar o tipo na mão também grava a data de hoje.)</div>` : ""}
       ${blocoMatriz}
     </div>`;
+}
+
+// Acha a mãe pelo brinco digitado na ficha (pergunta qual, se o brinco é repetido).
+// Devolve o id, ou null se não achou (já avisa o usuário).
+async function criaResolverMae(brinco, idCria, boxEscolha) {
+  // Procura entre os ativos; se não achar, entre todos (mãe já vendida/morta).
+  let cands = (await crBuscarPorBrinco(brinco)).filter((x) => x.id !== idCria);
+  if (!cands.length) {
+    cands = (await api.get("/api/animais?busca=" + encodeURIComponent(brinco)))
+      .filter((x) => x.brinco === brinco && x.id !== idCria);
+  }
+  if (!cands.length) { alert(`Não achei animal com o brinco ${brinco} pra ser a mãe.`); return null; }
+  return (cands.length === 1 ? cands[0] : await crEscolher(boxEscolha, cands)).id;
 }
 
 function criaLigarFicha(a, id) {
@@ -492,51 +504,12 @@ function criaLigarFicha(a, id) {
     el.onclick = (ev) => { ev.preventDefault(); abrirFicha(Number(el.dataset.id), () => abrirFicha(id)); };
   });
 
-  // Um botão só: salva a mãe e/ou a data de nascimento JUNTOS (só o que mudou), pra
-  // não perder um campo digitado ao salvar o outro.
-  $("cf-salvar").onclick = async () => {
-    const brinco = $("cf-mae").value.trim();
-    const nasc = $("cf-nasc").value || null;
-    const mudouMae = brinco !== (a.mae ? a.mae.brinco : "");
-    const mudouNasc = nasc !== (a.nascimento || null);
-    if (!mudouMae && !mudouNasc) { $("cf-msg").textContent = "Nada foi alterado."; return; }
-    const dados = {};
-    try {
-      if (mudouNasc) dados.nascimento = nasc;
-      if (mudouMae) {
-        if (brinco) {
-          // Procura entre os ativos; se não achar, entre todos (mãe já vendida/morta).
-          let cands = (await crBuscarPorBrinco(brinco)).filter((x) => x.id !== id);
-          if (!cands.length) {
-            cands = (await api.get("/api/animais?busca=" + encodeURIComponent(brinco)))
-              .filter((x) => x.brinco === brinco && x.id !== id);
-          }
-          if (!cands.length) { alert(`Não achei animal com o brinco ${brinco}.`); return; }
-          const mae = cands.length === 1 ? cands[0] : await crEscolher($("cf-escolha"), cands);
-          dados.mae_id = mae.id;
-        } else {
-          if (!confirm("Remover a mãe deste animal?")) return;
-          dados.mae_id = null;
-        }
-      }
-      await api.put(`/api/cria/mae/${id}`, dados);
-      recarregar();
-    } catch (e) { alert("Erro: " + e.message); }
-  };
   if ($("cf-desmamar")) {
     $("cf-desmamar").onclick = async () => {
       if (!confirm("Desmamar este bezerro? O tipo muda pra Novilha/Boi.")) return;
       try {
         await api.post(`/api/cria/desmama/${id}`, { data: $("cf-desmama-data").value || null });
         if (cacheAnimais.porBrinco) carregarCacheAnimais().catch(() => {});
-        recarregar();
-      } catch (e) { alert("Erro: " + e.message); }
-    };
-  }
-  if ($("cf-prenhez")) {
-    $("cf-prenhez").onchange = async () => {
-      try {
-        await api.put(`/api/cria/prenhez/${id}`, { prenhez: $("cf-prenhez").value || null, data: crHoje() });
         recarregar();
       } catch (e) { alert("Erro: " + e.message); }
     };

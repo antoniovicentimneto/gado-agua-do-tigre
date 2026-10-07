@@ -492,3 +492,20 @@ def test_fechamento_venda_compara_dentes_anotados_com_os_do_frigorifico(db):
         schemas.FechamentoVendaItem(animal_id=a101.id, peso_carcaca=270, preco_arroba=330,
                                     dentes_frigorifico=9)])
     assert not r["ok"]
+
+
+def test_reenvio_com_a_mesma_chave_nao_duplica(db):
+    # Rede caiu depois de o servidor gravar: a fila offline reenvia o MESMO lançamento.
+    s = _abrir_manejo(db, separar=False)
+    r1 = svc.pesar_sem_brinco(db, s, 300, chave="abc-1")
+    r2 = svc.pesar_sem_brinco(db, s, 300, chave="abc-1")
+    assert r2["repetido"] and r2["pesagem_id"] == r1["pesagem_id"] and r2["brinco"] == r1["brinco"]
+    assert db.query(Animal).filter(Animal.sem_brinco == True).count() == 1  # noqa: E712
+
+    r1 = svc.registrar_pesagem(db, s, "101", 410, chave="abc-2")
+    r2 = svc.registrar_pesagem(db, s, "101", 410, forcar=True, chave="abc-2")
+    assert r2["ok"] and r2["repetido"] and r2["pesagem_id"] == r1["pesagem_id"]
+    assert len(svc.estado_sessao(db, s)["pesados"]) == 2
+    # Sem chave continua funcionando como antes.
+    assert svc.pesar_sem_brinco(db, s, 280)["ok"]
+    assert db.query(Animal).filter(Animal.sem_brinco == True).count() == 2  # noqa: E712

@@ -283,6 +283,15 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
 
 .mg-lista { max-height: 46vh; overflow-y: auto; }
+/* Ficha do animal: um botão só, fixo no topo, salva tudo o que foi modificado. */
+.ficha-salvar-barra {
+  position: sticky; top: -18px; z-index: 3; background: #fff;
+  padding: 10px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--borda);
+}
+.ficha-salvar-barra button { width: 100%; }
+.ficha-salvar-barra button.pendente { background: #e07b00; }
+.ficha-salvar-barra .info { margin-top: 4px; }
+
 /* Rebanho › Cria (vacas e bezerros) */
 .cr-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .cr-filtros button {
@@ -393,6 +402,7 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
   font-size: 0.7rem; padding: 1px 6px; border-radius: 6px;
   background: var(--verde-claro); color: var(--verde);
 }
+.mg-item .destino-tag.mg-pendente { background: #fff3cd; color: #8a6100; }
 .mg-item .remover { background: none; color: var(--vermelho); padding: 2px 8px; font-size: 1rem; }
 
 .mg-lotes-ativos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -512,6 +522,7 @@ header { display: flex; justify-content: space-between; align-items: center; gap
   border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; font-weight: 600;
   margin-bottom: 10px; text-align: center;
 }
+.fila-status.fila-recusadas { background: #fde2e2; color: #b3261e; border-color: #e5a3a0; cursor: pointer; }
 
 /* ------------------------------------------------ Rebanho › Planilha */
 .pl-dica { margin-bottom: 6px; }

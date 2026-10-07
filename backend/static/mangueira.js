@@ -197,12 +197,14 @@ async function mgAbrirSessao(id) {
 
 // ----------------------------------------------------------- Render do estado
 function mgRenderEstado(estado) {
-  mg.estado = estado;
+  mg.estado = estado;          // o que o servidor mandou
+  const vis = mgComFila(estado); // + lançamentos ainda só no aparelho
+  mg.estadoVisivel = vis;
   const s = estado.sessao;
   el("mg-titulo").textContent = `#${s.id} · ${s.tipo}`;
   el("mg-subtitulo").textContent = `${s.data.split("-").reverse().join("/")} · ${s.origens.join(", ")}`;
   // Só dá pra cancelar enquanto não foi pesado nenhum animal.
-  el("mg-cancelar").classList.toggle("escondido", estado.contadores.pesados > 0);
+  el("mg-cancelar").classList.toggle("escondido", vis.contadores.pesados > 0);
 
   // Botões de lote ativo (sublotes).
   const box = el("mg-lotes-ativos");
@@ -226,33 +228,34 @@ function mgRenderEstado(estado) {
   }
 
   // A pesar.
-  el("mg-falta").textContent = estado.contadores.a_pesar;
+  el("mg-falta").textContent = vis.contadores.a_pesar;
   mgRenderAPesar();
 
   // Pesados.
-  el("mg-total").textContent = estado.contadores.pesados;
+  el("mg-total").textContent = vis.contadores.pesados;
   const ps = el("mg-pesados");
   ps.innerHTML = "";
-  estado.pesados.slice().reverse().forEach((p) => {
+  vis.pesados.slice().reverse().forEach((p) => {
     const d = document.createElement("div");
     d.className = "mg-item";
     const destino = p.destino ? `<span class="destino-tag">${p.destino}</span>` : "";
+    // Lançado sem rede: ainda está só no aparelho (não dá pra remover até enviar).
     d.innerHTML = `
-      <span><span class="ordem">${p.ordem}</span><b>${p.brinco}</b> ${p.peso} kg ${destino}</span>
-      <button class="remover" title="remover">×</button>`;
-    d.querySelector(".remover").onclick = () => mgRemover(p.pesagem_id);
+      <span><span class="ordem">${p.ordem}</span><b>${p.brinco}</b> ${p.peso} kg ${destino}${p.pendente ? ` <span class="destino-tag mg-pendente" title="guardado no aparelho, aguardando a rede">📡 aguardando</span>` : ""}</span>
+      ${p.pendente ? "" : `<button class="remover" title="remover">×</button>`}`;
+    if (!p.pendente) d.querySelector(".remover").onclick = () => mgRemover(p.pesagem_id);
     ps.appendChild(d);
   });
 
   // Totais dos pesados: peso somado + uGMD médio do lote em pesagem.
-  const c = estado.contadores;
+  const c = vis.contadores;
   const totais = [];
   if (c.peso_total) totais.push(`total <b>${c.peso_total} kg</b>`);
   if (c.ugmd_medio != null) totais.push(`uGMD médio <b>${c.ugmd_medio.toFixed(3)}</b>`);
   el("mg-totais").innerHTML = totais.join(" · ");
 
   // Contagem por sublote.
-  const porSub = estado.contadores.por_sublote;
+  const porSub = vis.contadores.por_sublote;
   el("mg-por-sublote").innerHTML = Object.entries(porSub)
     .map(([k, v]) => `<span><b>${v}</b> ${k}</span>`).join("");
 
@@ -270,7 +273,7 @@ function mgCompararBrinco(a, b) {
 // Desenha a coluna "A pesar" na ordem escolhida (brinco / peso / dentes).
 function mgRenderAPesar() {
   const { campo, asc } = mg.ordemAPesar;
-  const lista = (mg.estado ? mg.estado.a_pesar : []).slice();
+  const lista = (mg.estadoVisivel ? mg.estadoVisivel.a_pesar : []).slice();
   const valor = (a) => (campo === "peso" ? a.ultimo_peso : a.dentes);
   lista.sort((x, y) => {
     if (campo !== "brinco") {
@@ -388,7 +391,18 @@ function mgEnviar(extra) {
     destino_lote: mg.loteAtivo,
     ...mgOpcoesExtras(),
     ...extra,
-  });
+  }, PRAZO_LANCAMENTO_MS);
+}
+
+// Atualiza as listas com o estado do servidor; com rede ruim não trava o lançamento
+// seguinte — mantém o que está na tela e segue.
+async function mgAtualizarEstado() {
+  try {
+    mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`, PRAZO_LANCAMENTO_MS));
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e;
+    marcarRedeRuim();
+  }
 }
 
 async function mgSucesso(r) {
@@ -411,13 +425,43 @@ async function mgSucesso(r) {
   el("mg-alerta").classList.add("escondido");
   mgLimparMaisOpcoes();
   el("mg-brinco").focus();
-  mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`));
+  await mgAtualizarEstado();
+}
+
+// Estado da sessão como deve aparecer na tela: o do servidor MAIS os lançamentos desta
+// sessão que ainda estão na fila offline (saem de "A pesar" e entram em "Pesados"
+// marcados como aguardando envio). Não altera o estado original.
+function mgComFila(estado) {
+  const base = `/api/sessoes/${estado.sessao.id}/pesar`;
+  const itens = filaLer().filter((i) => i.url === base || i.url === base + "-sem-brinco");
+  if (!itens.length) return estado;
+  const vis = {
+    ...estado, a_pesar: estado.a_pesar.slice(), pesados: estado.pesados.slice(),
+    contadores: { ...estado.contadores },
+  };
+  itens.forEach((item) => {
+    const c = item.corpo || {};
+    const brinco = c.brinco || "(sem brinco)";
+    const mesmos = vis.a_pesar.filter((a) => a.brinco === brinco);
+    const alvo = c.animal_id != null ? vis.a_pesar.find((a) => a.animal_id === c.animal_id)
+      : (mesmos.length === 1 ? mesmos[0] : null);
+    if (alvo) vis.a_pesar = vis.a_pesar.filter((a) => a !== alvo);
+    vis.pesados.push({
+      ordem: vis.pesados.length + 1, pesagem_id: null, brinco, peso: c.peso,
+      destino: c.destino_lote || null, pendente: true,
+    });
+    vis.contadores.peso_total = Math.round(((vis.contadores.peso_total || 0) + (c.peso || 0)) * 10) / 10;
+  });
+  vis.contadores.a_pesar = vis.a_pesar.length;
+  vis.contadores.pesados = vis.pesados.length;
+  return vis;
 }
 
 // Mostra a pesagem na hora, mesmo sem ter ido pro servidor ainda (fila offline).
 function mgSucessoOffline(brinco, peso) {
+  if (mg.estado) mgRenderEstado(mg.estado);   // redesenha já com o item da fila
   const msg = el("mg-msg");
-  msg.textContent = `✓ ${brinco}: ${peso} kg (offline, aguardando envio)`;
+  msg.textContent = `✓ ${brinco}: ${peso} kg (guardado no aparelho, envia sozinho quando a rede voltar)`;
   msg.className = "mg-msg ok";
   el("mg-form").classList.add("mg-flash");
   setTimeout(() => el("mg-form").classList.remove("mg-flash"), 500);
@@ -451,27 +495,30 @@ async function mgEnviarOuFila(extra) {
   const textoOriginal = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Enviando...";
+  // A mesma chave vai no envio direto e na fila: se o servidor já gravou e a resposta
+  // se perdeu, o reenvio não duplica.
+  const chave = novaChave();
+  const paraFila = () => {
+    filaAdicionar({
+      sessaoId: mg.sessaoId, tipo: "pesar",
+      dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra, chave },
+    });
+    mgSucessoOffline(brinco, peso);
+    setTimeout(filaSincronizar, 3000);
+  };
   try {
-    if (!navigator.onLine) {
-      filaAdicionar({
-        sessaoId: mg.sessaoId, tipo: "pesar",
-        dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
-      });
-      mgSucessoOffline(brinco, peso);
-      return;
-    }
+    // Sem rede, ou rede que acabou de falhar: guarda na hora, sem ficar esperando.
+    if (!redeBoa()) { paraFila(); return; }
     try {
-      const r = await mgEnviar({ forcar: false, ...extra });
+      const r = await mgEnviar({ forcar: false, ...extra, chave });
+      marcarRedeBoa();
       if (r.alerta) return mgMostrarAlerta(r);
       if (r.ok) await mgSucesso(r);
     } catch (e) {
       if (e instanceof TypeError) {
-        // Caiu o sinal durante o envio: guarda na fila e segue.
-        filaAdicionar({
-          sessaoId: mg.sessaoId, tipo: "pesar",
-          dados: { brinco, peso, destino_lote: mg.loteAtivo, forcar: true, ...mgOpcoesExtras(), ...extra },
-        });
-        mgSucessoOffline(brinco, peso);
+        // Sinal caiu ou o servidor não respondeu no prazo: guarda na fila e segue.
+        marcarRedeRuim();
+        paraFila();
         return;
       }
       el("mg-msg").textContent = "Erro: " + e.message;
@@ -678,30 +725,23 @@ async function mgPesarSemBrinco(ev) {
   const btn = ev && ev.currentTarget;
   const textoOriginal = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "Pesando..."; }
+  const dados = { peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco(), chave: novaChave() };
+  const paraFila = () => {
+    filaAdicionar({ sessaoId: mg.sessaoId, tipo: "pesar-sem-brinco", dados });
+    mgSucessoOffline("(sem brinco)", peso);
+    setTimeout(filaSincronizar, 3000);
+  };
   try {
-    if (!navigator.onLine) {
-      filaAdicionar({
-        sessaoId: mg.sessaoId,
-        tipo: "pesar-sem-brinco",
-        dados: { peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco() },
-      });
-      mgSucessoOffline("(sem brinco)", peso);
-      return;
-    }
+    if (!redeBoa()) { paraFila(); return; }
 
     try {
-      const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, {
-        peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco(),
-      });
+      const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, dados, PRAZO_LANCAMENTO_MS);
+      marcarRedeBoa();
       if (r.ok) await mgSucesso(r);
     } catch (e) {
       if (e instanceof TypeError) {
-        filaAdicionar({
-          sessaoId: mg.sessaoId,
-          tipo: "pesar-sem-brinco",
-          dados: { peso, destino_lote: mg.loteAtivo, ...mgExtrasSemBrinco() },
-        });
-        mgSucessoOffline("(sem brinco)", peso);
+        marcarRedeRuim();
+        paraFila();
         return;
       }
       el("mg-msg").textContent = "Erro: " + e.message;

@@ -173,6 +173,7 @@ class PesarDados(BaseModel):
     nova_raca: str | None = None  # editar a raça do animal na hora
     dentes: int | None = None     # registrar a dentição com a data da pesagem
     prenhez: str | None = None    # marcar prenhe / mojando / vazia na hora da pesagem
+    chave: str | None = None      # id do lançamento gerado no aparelho (evita duplicar no reenvio)
 
 
 class RelatorioExcel(BaseModel):
@@ -185,6 +186,7 @@ class PesarSemBrinco(BaseModel):
     observacao: str | None = None
     tipo: str | None = None
     dentes: int | None = None
+    chave: str | None = None      # id do lançamento gerado no aparelho (evita duplicar no reenvio)
 
 
 class VincularBrinco(BaseModel):

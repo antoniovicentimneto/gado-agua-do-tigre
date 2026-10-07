@@ -159,6 +159,10 @@ class Pesagem(Base):
     ordem: Mapped[int | None] = mapped_column(Integer)  # ordem em que foi pesado na sessão (1º, 2º...)
     observacao: Mapped[str | None] = mapped_column(Text)
     destino_lote_id: Mapped[int | None] = mapped_column(ForeignKey("lotes.id"))  # sublote escolhido
+    # Identificador gerado no aparelho pra cada lançamento. Se o mesmo lançamento chegar
+    # duas vezes (rede caiu depois de o servidor gravar e a fila offline reenviou), o
+    # servidor reconhece e não duplica.
+    chave_cliente: Mapped[str | None] = mapped_column(String(40))
 
     animal: Mapped[Animal] = relationship(back_populates="pesagens")
     sessao: Mapped[SessaoPesagem | None] = relationship(back_populates="pesagens")

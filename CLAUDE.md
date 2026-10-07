@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=54 / cache v46.**
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=55 / cache v47.**
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -125,6 +125,14 @@ usuários, cache de animais). `mangueira.js` = tela de pesagem. Comunicação vi
   login): a consulta do brinco é LOCAL/instantânea (sem ir à rede a cada tecla, sem "puxar
   brinco errado" por resposta atrasada). Duplicados e cadastro de compra resolvidos a partir
   do cache. `cacheUpsertAnimal` mantém atualizado após cada pesagem.
+
+- **Rede fraca** (`app.js`: `fetchComPrazo`, `redeBoa/marcarRedeRuim`): lançamento da mangueira
+  tem prazo de 8 s; estourou, vai pra fila e a rede fica "ruim" por 45 s (os próximos entram
+  na fila na hora). Cada lançamento leva uma `chave` (Pesagem.chave_cliente) — reenvio não
+  duplica. A fila NUNCA descarta: 5xx/401/sem resposta mantém; 4xx ou resposta com `alerta`
+  vai pra lista de "recusadas" (aviso vermelho, o usuário refaz na mão).
+- **Ficha do animal**: um botão só ("Salvar modificações", `salvarFicha`) grava tudo o que
+  mudou; fechar com mudança pendente pede confirmação.
 
 ## Regras de negócio (confirmadas pelo usuário)
 
