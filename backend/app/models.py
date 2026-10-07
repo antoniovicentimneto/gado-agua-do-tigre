@@ -290,6 +290,8 @@ class Venda(Base):
     preco_arroba: Mapped[float | None] = mapped_column(Float)  # preço da @
     # Acabamento de gordura na classificação do frigorífico (ver services/venda.ACABAMENTOS).
     acabamento: Mapped[str | None] = mapped_column(String(20))
+    # Nº de dentes que o frigorífico considerou (pra comparar com a dentição anotada).
+    dentes_frigorifico: Mapped[int | None] = mapped_column(Integer)
     valor_recebido: Mapped[float | None] = mapped_column(Float)  # calculado
 
     animal: Mapped[Animal] = relationship(back_populates="venda")

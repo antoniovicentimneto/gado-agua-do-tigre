@@ -114,6 +114,7 @@ def detalhar_animal(animal_id: int, db: Session = Depends(get_db),
             "modo": v.modo.value, "pendente": v.pendente, "data": v.data, "peso": v.peso,
             "peso_carcaca": v.peso_carcaca, "rendimento": v.rendimento,
             "preco_arroba": v.preco_arroba, "acabamento": v.acabamento,
+            "dentes_frigorifico": v.dentes_frigorifico,
             "valor_recebido": v.valor_recebido,
         }
     # Cria: mãe do animal, crias dele e marcação de prenhez.
@@ -668,7 +669,8 @@ def completar_venda(
     """Fecha a venda no gancho com rendimento + peso de carcaça + preço da @."""
     animal = _buscar_animal(db, animal_id)
     r = completar_venda_morto(db, animal, dados.rendimento, dados.peso_carcaca,
-                              dados.preco_arroba, dados.acabamento)
+                              dados.preco_arroba, dados.acabamento,
+                              dentes_frigorifico=dados.dentes_frigorifico)
     if not r.get("ok"):
         raise HTTPException(status_code=400, detail=r.get("erro", "Erro"))
     return r

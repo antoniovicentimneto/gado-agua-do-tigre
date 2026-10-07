@@ -1185,6 +1185,7 @@ async function abrirFicha(id, voltar = null) {
         ${a.venda.rendimento != null ? ` · rendimento <b>${(a.venda.rendimento * 100).toFixed(1)}%</b>` : ""}
         ${a.venda.preco_arroba != null ? ` · @ <b>R$ ${a.venda.preco_arroba.toFixed(2)}</b>` : ""}
         ${a.venda.acabamento ? ` · acabamento <b>${esc(a.venda.acabamento)}</b>` : ""}
+        ${a.venda.dentes_frigorifico != null ? ` · dentes no frigorífico <b>${a.venda.dentes_frigorifico}</b>${a.dentes != null && a.dentes !== a.venda.dentes_frigorifico ? ` <span class="tag vg-dif">anotado: ${a.dentes}</span>` : ""}` : ""}
         ${a.venda.valor_recebido != null ? ` · valor <b>R$ ${a.venda.valor_recebido.toFixed(2)}</b>` : ""}
       </div>
     </div>` : ""}

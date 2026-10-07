@@ -806,7 +806,8 @@ def resumo(db: Session, sessao: SessaoPesagem) -> dict:
 
 def completar_venda_morto(db: Session, animal: Animal, rendimento: float | None,
                           peso_carcaca: float | None, preco_arroba: float | None,
-                          acabamento: str | None = None, commit: bool = True) -> dict:
+                          acabamento: str | None = None, commit: bool = True,
+                          dentes_frigorifico: int | None = None) -> dict:
     """Lança os dados do frigorífico de UM animal (carcaça, rendimento, preço da @ e
     acabamento — cada animal tem os seus, pela classificação).
 
@@ -821,6 +822,10 @@ def completar_venda_morto(db: Session, animal: Animal, rendimento: float | None,
         if acabamento and acabamento not in ACABAMENTOS:
             return {"ok": False, "erro": f"Acabamento inválido: {acabamento}"}
         venda.acabamento = acabamento
+    if dentes_frigorifico is not None:
+        if not 0 <= dentes_frigorifico <= 8:
+            return {"ok": False, "erro": "Número de dentes deve ser de 0 a 8."}
+        venda.dentes_frigorifico = dentes_frigorifico
     if peso_carcaca is not None:
         venda.peso_carcaca = peso_carcaca
         # Rendimento derivado do peso da fazenda, se o frigorífico não informou.
@@ -848,7 +853,8 @@ def fechamento_venda(db: Session, sessao: SessaoPesagem) -> dict:
     pesagens = (
         db.query(Pesagem)
         .filter(Pesagem.sessao_id == sessao.id)
-        .options(selectinload(Pesagem.animal).selectinload(Animal.venda))
+        .options(selectinload(Pesagem.animal).selectinload(Animal.venda),
+                 selectinload(Pesagem.animal).selectinload(Animal.denticoes))
         .all()
     )
     itens = []
@@ -856,7 +862,14 @@ def fechamento_venda(db: Session, sessao: SessaoPesagem) -> dict:
         a, v = p.animal, p.animal.venda
         if v is None:
             continue
+        # Dentição anotada na fazenda: a última avaliação feita ATÉ a data da venda
+        # (uma dentição lançada depois não mexe na comparação com o frigorífico).
+        ate_venda = [x for x in a.denticoes if v.data is None or x.data <= v.data]
+        dent = ate_venda[-1] if ate_venda else None
         itens.append({
+            "dentes": dent.dentes if dent else None,
+            "data_dentes": dent.data if dent else None,
+            "dentes_frigorifico": v.dentes_frigorifico,
             "animal_id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "peso_vivo": v.peso, "peso_carcaca": v.peso_carcaca, "rendimento": v.rendimento,
             "preco_arroba": v.preco_arroba, "acabamento": v.acabamento,
@@ -875,6 +888,11 @@ def fechamento_venda(db: Session, sessao: SessaoPesagem) -> dict:
         "totais": {
             "animais": len(itens),
             "pendentes": len(itens) - len(fechados),
+            # Animais em que o frigorífico contou dentes diferente do anotado na fazenda.
+            "dentes_diferentes": sum(
+                1 for i in itens
+                if i["dentes"] is not None and i["dentes_frigorifico"] is not None
+                and i["dentes"] != i["dentes_frigorifico"]),
             "peso_vivo": round(sum(i["peso_vivo"] or 0 for i in itens), 1),
             "peso_carcaca": round(carcaca, 1),
             "arrobas": round(arrobas, 2),
@@ -904,8 +922,10 @@ def salvar_fechamento_venda(db: Session, sessao: SessaoPesagem, itens: list) -> 
         v = a.venda
         if v is not None:
             v.peso_carcaca, v.rendimento, v.preco_arroba = None, None, None
+            v.dentes_frigorifico = None
         r = completar_venda_morto(db, a, i.rendimento, i.peso_carcaca, i.preco_arroba,
-                                  i.acabamento or "", commit=False)
+                                  i.acabamento or "", commit=False,
+                                  dentes_frigorifico=i.dentes_frigorifico)
         if not r["ok"]:
             db.rollback()
             return {"ok": False, "erro": f"Brinco {a.brinco}: {r['erro']}"}

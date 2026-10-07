@@ -305,14 +305,41 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 .tag.cr-prenhe, .tag.cr-mojando { background: #fff3cd; color: #8a6100; }
 .tag.cr-vazia { background: #fde2e2; color: #b3261e; }
 
-/* Fechamento da venda no gancho: tabela larga rola de lado no celular. */
+/* Fechamento da venda no gancho. No computador o modal abre largo pra caber a tabela
+   inteira; no celular cada animal vira um cartão compacto (sem rolar de lado). */
+.modal-conteudo:has(.vg-tabela) { max-width: 1180px; }
 .vg-tabela { overflow-x: auto; }
-.vg-tabela table { min-width: 640px; }
 .vg-tabela input { width: 5.2em; padding: 6px; }
-.vg-tabela select { padding: 6px; min-width: 6.5em; }
+.vg-tabela select { padding: 6px; min-width: 4em; }
 .vg-tabela td { vertical-align: middle; }
 .vg-tabela tr.vg-pendente td:first-child { border-left: 3px solid #e0a800; }
+.vg-tabela tr.vg-dentes-dif td { background: #fff4e5; }
+.vg-dif-aviso { color: #b26a00; font-weight: 700; white-space: nowrap; }
+.tag.vg-dif { background: #fff3cd; color: #8a6100; }
 .vg-valor { white-space: nowrap; font-weight: 600; }
+.vg-totais { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+
+@media (max-width: 760px) {
+  .vg-tabela { overflow-x: visible; }
+  .vg-tabela table, .vg-tabela tbody { display: block; width: 100%; }
+  .vg-tabela thead { display: none; }
+  .vg-tabela tr {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
+    border: 1px solid var(--borda); border-radius: 10px; padding: 10px; margin-bottom: 8px;
+  }
+  .vg-tabela tr.vg-pendente { border-left: 4px solid #e0a800; }
+  .vg-tabela tr.vg-pendente td:first-child { border-left: none; }
+  .vg-tabela tr.vg-dentes-dif { background: #fff4e5; }
+  .vg-tabela tr.vg-dentes-dif td { background: none; }
+  .vg-tabela td { display: block; border: none; padding: 0; }
+  .vg-tabela td.vg-c-brinco { grid-column: 1 / -1; font-size: 1.05rem; }
+  .vg-tabela td.vg-c-brinco .info { display: inline; margin-left: 6px; }
+  .vg-tabela td[data-rot]::before {
+    content: attr(data-rot); display: block; font-size: 0.72rem; color: var(--cinza);
+  }
+  .vg-tabela input, .vg-tabela select { width: 100%; }
+  .vg-tabela td[data-rot="Dentes frigorífico"] select { width: 4.5em; }
+}
 
 .mg-ordem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
 .mg-ordem button {

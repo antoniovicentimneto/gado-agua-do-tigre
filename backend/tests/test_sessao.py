@@ -460,3 +460,35 @@ def test_migrar_colunas_acrescenta_coluna_que_falta():
     assert "acabamento" in {c["name"] for c in inspect(eng).get_columns("vendas")}
     with eng.begin() as con:
         assert con.execute(text("SELECT peso FROM vendas")).scalar() == 500
+
+
+def test_fechamento_venda_compara_dentes_anotados_com_os_do_frigorifico(db):
+    from datetime import timedelta
+
+    from app import schemas
+    from app.models import Denticao
+
+    s = svc.criar_sessao(db, TipoSessao.VENDA_MORTO, HOJE, ["LOTEA"], False)
+    svc.registrar_pesagem(db, s, "101", 500, dentes=4)     # anotado 4 dentes na fazenda
+    svc.registrar_pesagem(db, s, "102", 480)               # sem dentição anotada
+    a101 = db.query(Animal).filter(Animal.brinco == "101").first()
+    a102 = db.query(Animal).filter(Animal.brinco == "102").first()
+    # Dentição lançada DEPOIS da venda não entra na comparação.
+    db.add(Denticao(animal_id=a101.id, data=HOJE + timedelta(days=10), dentes=6))
+    db.commit()
+
+    r = svc.salvar_fechamento_venda(db, s, [
+        schemas.FechamentoVendaItem(animal_id=a101.id, peso_carcaca=270, preco_arroba=330,
+                                    dentes_frigorifico=6),
+        schemas.FechamentoVendaItem(animal_id=a102.id, peso_carcaca=240, preco_arroba=330,
+                                    dentes_frigorifico=2),
+    ])
+    por = {i["brinco"]: i for i in r["itens"]}
+    assert (por["101"]["dentes"], por["101"]["dentes_frigorifico"]) == (4, 6)
+    assert (por["102"]["dentes"], por["102"]["dentes_frigorifico"]) == (None, 2)
+    assert r["totais"]["dentes_diferentes"] == 1          # só o 101 (o 102 não tinha anotação)
+
+    r = svc.salvar_fechamento_venda(db, s, [
+        schemas.FechamentoVendaItem(animal_id=a101.id, peso_carcaca=270, preco_arroba=330,
+                                    dentes_frigorifico=9)])
+    assert not r["ok"]

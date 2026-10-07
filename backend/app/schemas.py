@@ -194,6 +194,7 @@ class CompletarVendaMorto(BaseModel):
     peso_carcaca: float | None = None
     preco_arroba: float | None = None
     acabamento: str | None = None
+    dentes_frigorifico: int | None = None
 
 
 class FechamentoVendaItem(CompletarVendaMorto):
