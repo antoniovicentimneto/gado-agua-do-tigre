@@ -55,15 +55,37 @@ async function mgCarregarLotes() {
   });
 }
 
+const CHAVE_ABERTAS_OFFLINE = "gat_cache_sessoes_abertas";
+const CHAVE_ESTADOS_OFFLINE = "gat_cache_sessoes_estado";   // último estado de cada sessão aberta
+
 async function mgCarregarAbertas() {
-  const abertas = await api.get("/api/sessoes/abertas");
+  let abertas;
+  try {
+    abertas = await api.get("/api/sessoes/abertas", PRAZO_LANCAMENTO_MS);
+    salvarOffline(CHAVE_ABERTAS_OFFLINE, abertas);
+    // Esquece o estado guardado das sessões que já não estão abertas.
+    const estados = lerOffline(CHAVE_ESTADOS_OFFLINE) || {};
+    const ids = new Set(abertas.map((s) => String(s.id)));
+    Object.keys(estados).forEach((id) => { if (!ids.has(id)) delete estados[id]; });
+    salvarOffline(CHAVE_ESTADOS_OFFLINE, estados);
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e;
+    abertas = lerOffline(CHAVE_ABERTAS_OFFLINE) || [];   // sem rede: a última lista vista
+  }
+  // Sessões abertas sem sinal que ainda não chegaram ao servidor.
+  const provisorias = filaLer().filter((i) => i.sessaoProvisoria).map((i) => ({
+    id: i.sessaoProvisoria, tipo: i.corpo.tipo, origens: i.corpo.lotes_origem || [],
+    pesados: filaDaSessao(i.sessaoProvisoria).filter((x) => /\/pesar/.test(x.url)).length,
+  }));
+  abertas = [...provisorias, ...abertas];
   const box = el("mg-abertas");
   if (!abertas.length) { box.innerHTML = ""; return; }
   box.innerHTML = "<label>Sessões abertas (retomar)</label>";
   abertas.forEach((s) => {
     const div = document.createElement("div");
     div.className = "mg-aberta";
-    div.innerHTML = `<span>#${s.id} · ${s.tipo} · ${s.origens.join(", ")} · ${s.pesados} pesados</span>`;
+    const nome = sessaoProvisoria(s.id) ? "📡 sem sinal" : `#${s.id}`;
+    div.innerHTML = `<span>${nome} · ${s.tipo} · ${esc(s.origens.join(", "))} · ${s.pesados} pesados</span>`;
     const b = document.createElement("button");
     b.textContent = "Retomar";
     b.onclick = () => mgAbrirSessao(s.id);
@@ -140,6 +162,8 @@ el("mg-iniciar").onclick = async () => {
     preco_kg: parseFloat(el("mg-preco-kg").value) || null,
     preco_arroba: parseFloat(el("mg-preco-arroba").value) || null,
     vendedor: el("mg-vendedor").value || null,
+    // Gerada no aparelho: se a abertura for reenviada pela fila, o servidor não duplica.
+    chave: novaChave(),
   };
   const btn = el("mg-iniciar");
   const textoOriginal = btn.textContent;
@@ -147,11 +171,25 @@ el("mg-iniciar").onclick = async () => {
   btn.textContent = "Abrindo...";
   try {
     mgUltimoTipoCompra = mgUltimaRacaCompra = "";   // cada compra começa sem padrão
-    const estado = await api.post("/api/sessoes", dados);
+    // Sem sinal (ou rede que acabou de falhar): abre no aparelho na hora.
+    if (!redeBoa()) { mgAbrirSessaoOffline(dados); return; }
+    let estado;
+    try {
+      estado = await api.post("/api/sessoes", dados, PRAZO_LANCAMENTO_MS);
+      marcarRedeBoa();
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+      // Não respondeu no prazo: abre no aparelho. Se o servidor chegou a criar, o
+      // reenvio com a mesma chave devolve a mesma sessão (não duplica).
+      marcarRedeRuim();
+      mgAbrirSessaoOffline(dados);
+      return;
+    }
     mg.sessaoId = estado.sessao.id;
     mgRenderEstado(estado);
     mgMostrarSessao();
-    await carregarCacheAnimais();   // carrega os animais na memória p/ consulta local
+    // Carrega os animais na memória p/ consulta local (sem rede usa o que está guardado).
+    await carregarCacheAnimais().catch(() => {});
   } catch (e) {
     alert("Erro ao iniciar a pesagem: " + e.message);
   } finally {
@@ -159,6 +197,66 @@ el("mg-iniciar").onclick = async () => {
     btn.textContent = textoOriginal;
   }
 };
+
+// Sessão aberta sem sinal: a abertura vai pra fila (com a chave) e a tela é montada no
+// aparelho com o cache de animais. Os lançamentos usam o id provisório até a sessão
+// chegar ao servidor (fila-offline.js troca pelo id real).
+function mgAbrirSessaoOffline(dados) {
+  const id = PREFIXO_SESSAO_OFF + dados.chave;
+  const lotes = (dados.lotes_origem.length ? dados.lotes_origem : dados.sublotes).join(", ");
+  filaAdicionar({
+    metodo: "POST", url: "/api/sessoes", corpo: dados, sessaoProvisoria: id,
+    rotulo: `Abrir sessão (${dados.tipo}) ${lotes}`,
+  });
+  mgRetomarOffline(id, dados);
+  el("mg-msg").textContent = "📡 Sem sinal: sessão aberta no aparelho. Pode pesar — tudo é enviado quando a rede voltar.";
+  el("mg-msg").className = "mg-msg ok";
+  setTimeout(filaSincronizar, 3000);
+}
+
+function mgRetomarOffline(id, dados) {
+  hidratarCacheAnimaisOfflineSeVazio();
+  mg.sessaoId = id;
+  mgRenderEstado(mgEstadoLocal(id, dados));
+  mgMostrarSessao();
+}
+
+// Monta no aparelho o mesmo formato que GET /api/sessoes/{id} devolve.
+function mgEstadoLocal(id, d) {
+  const origens = new Set(d.lotes_origem);
+  const a_pesar = [...cacheAnimais.porBrinco.values()].flat()
+    .filter((a) => origens.has(a.lote))
+    .map((a) => ({
+      animal_id: a.id, brinco: a.brinco, tipo: a.tipo, lote: a.lote,
+      ultimo_peso: a.ultimo_peso, data_ultimo_peso: null, dentes: a.dentes ?? null,
+    }));
+  return {
+    sessao: {
+      id, tipo: d.tipo, data: d.data, status: "aberta", separar_lotes: d.separar_lotes,
+      origens: d.lotes_origem, sublotes: d.separar_lotes ? d.sublotes : [],
+      preco_kg: d.preco_kg, preco_arroba: d.preco_arroba, vendedor: d.vendedor,
+    },
+    a_pesar,
+    pesados: [],
+    contadores: { a_pesar: a_pesar.length, pesados: 0, por_sublote: {}, peso_total: 0, ugmd_medio: null },
+  };
+}
+
+// A abertura feita sem sinal chegou ao servidor: a tela passa a usar o id real.
+window.addEventListener("sessao-sincronizada", (ev) => {
+  const { provisorio, real } = ev.detail;
+  if (mg.sessaoId !== provisorio) return;
+  mg.sessaoId = real;
+  if (mg.estado) mgRenderEstado({ ...mg.estado, sessao: { ...mg.estado.sessao, id: real } });
+});
+
+// Ações que precisam da sessão já no servidor (finalizar, vincular...).
+function mgSessaoNoServidor() {
+  if (!sessaoProvisoria(mg.sessaoId)) return true;
+  alert("Esta sessão foi aberta sem sinal e ainda não chegou ao servidor. " +
+    "Continue pesando; quando a rede voltar (📡 some), isso fica disponível.");
+  return false;
+}
 
 function mgMostrarSessao() {
   el("mg-abertura").classList.add("escondido");
@@ -168,7 +266,15 @@ function mgMostrarSessao() {
 el("mg-cancelar").onclick = async () => {
   if (!confirm("Cancelar esta sessão? Ela será apagada (só funciona porque ainda não tem nenhuma pesagem).")) return;
   try {
-    await api.delete(`/api/sessoes/${mg.sessaoId}`);
+    if (sessaoProvisoria(mg.sessaoId)) {
+      // Nunca chegou ao servidor: basta tirar da fila a abertura (e os sublotes) dela.
+      const id = mg.sessaoId;
+      const dela = filaDaSessao(id);
+      if (dela.some((i) => /\/pesar/.test(i.url))) throw new Error("a sessão já tem pesagem");
+      filaSalvar(filaLer().filter((i) => i.sessaoProvisoria !== id && !dela.some((d) => d.id === i.id)));
+    } else {
+      await api.delete(`/api/sessoes/${mg.sessaoId}`);
+    }
   } catch (e) {
     alert("Erro ao cancelar: " + e.message);
     return;
@@ -188,20 +294,41 @@ el("mg-encerrar").onclick = async () => {
 };
 
 async function mgAbrirSessao(id) {
+  if (sessaoProvisoria(id)) {
+    const item = filaLer().find((i) => i.sessaoProvisoria === id);
+    if (item) { mgRetomarOffline(id, item.corpo); return; }
+    await mgInit();   // já foi enviada nesse meio-tempo: a lista passa a mostrar o id real
+    return;
+  }
+  let estado;
+  try {
+    estado = await api.get("/api/sessoes/" + id, PRAZO_LANCAMENTO_MS);
+  } catch (e) {
+    // Sem rede: usa o último estado visto desta sessão, se houver.
+    estado = e instanceof TypeError && (lerOffline(CHAVE_ESTADOS_OFFLINE) || {})[id];
+    if (!estado) { alert("Sem sinal e sem cópia desta sessão no aparelho. Abra uma sessão nova."); return; }
+    marcarRedeRuim();
+    hidratarCacheAnimaisOfflineSeVazio();
+  }
   mg.sessaoId = id;
-  const estado = await api.get("/api/sessoes/" + id);
   mgRenderEstado(estado);
   mgMostrarSessao();
-  await carregarCacheAnimais();   // carrega os animais na memória p/ consulta local
+  await carregarCacheAnimais().catch(() => {});   // animais na memória p/ consulta local
 }
 
 // ----------------------------------------------------------- Render do estado
 function mgRenderEstado(estado) {
+  // Guarda a cópia do que veio do servidor, pra retomar a sessão sem sinal.
+  if (estado !== mg.estado && !sessaoProvisoria(estado.sessao.id)) {
+    const estados = lerOffline(CHAVE_ESTADOS_OFFLINE) || {};
+    estados[estado.sessao.id] = estado;
+    salvarOffline(CHAVE_ESTADOS_OFFLINE, estados);
+  }
   mg.estado = estado;          // o que o servidor mandou
   const vis = mgComFila(estado); // + lançamentos ainda só no aparelho
   mg.estadoVisivel = vis;
-  const s = estado.sessao;
-  el("mg-titulo").textContent = `#${s.id} · ${s.tipo}`;
+  const s = vis.sessao;
+  el("mg-titulo").textContent = sessaoProvisoria(s.id) ? `📡 nova (sem sinal) · ${s.tipo}` : `#${s.id} · ${s.tipo}`;
   el("mg-subtitulo").textContent = `${s.data.split("-").reverse().join("/")} · ${s.origens.join(", ")}`;
   // Só dá pra cancelar enquanto não foi pesado nenhum animal.
   el("mg-cancelar").classList.toggle("escondido", vis.contadores.pesados > 0);
@@ -329,10 +456,24 @@ async function mgNovoSubloteRapido() {
   el("mg-sub-ok").onclick = async () => {
     const nome = valorLote("mg-sub");
     if (!nome) { alert("Escolha ou digite o nome do sublote."); return; }
-    const estado = await api.post(`/api/sessoes/${mg.sessaoId}/sublotes`, { nome });
+    const url = `/api/sessoes/${mg.sessaoId}/sublotes`;
+    let estado = null;
+    if (redeBoa() && !sessaoProvisoria(mg.sessaoId)) {
+      try {
+        estado = await api.post(url, { nome }, PRAZO_LANCAMENTO_MS);
+      } catch (e) {
+        if (!(e instanceof TypeError)) { alert("Erro ao adicionar sublote: " + e.message); return; }
+        marcarRedeRuim();
+      }
+    }
+    // Sem sinal: guarda na fila e o botão do sublote já aparece (mgComFila).
+    if (!estado) {
+      filaAdicionar({ metodo: "POST", url, corpo: { nome }, rotulo: `Sublote ${nome}` });
+      setTimeout(filaSincronizar, 3000);
+    }
     mg.loteAtivo = nome;
     el("mg-modal").classList.add("escondido");
-    mgRenderEstado(estado);
+    mgRenderEstado(estado || mg.estado);
   };
 }
 
@@ -433,12 +574,20 @@ async function mgSucesso(r) {
 // marcados como aguardando envio). Não altera o estado original.
 function mgComFila(estado) {
   const base = `/api/sessoes/${estado.sessao.id}/pesar`;
-  const itens = filaLer().filter((i) => i.url === base || i.url === base + "-sem-brinco");
-  if (!itens.length) return estado;
+  const daSessao = filaDaSessao(estado.sessao.id);
+  const itens = daSessao.filter((i) => i.url === base || i.url === base + "-sem-brinco");
+  const subs = daSessao.filter((i) => i.url.endsWith("/sublotes")).map((i) => i.corpo.nome);
+  if (!itens.length && !subs.length) return estado;
   const vis = {
     ...estado, a_pesar: estado.a_pesar.slice(), pesados: estado.pesados.slice(),
-    contadores: { ...estado.contadores },
+    contadores: { ...estado.contadores, por_sublote: { ...estado.contadores.por_sublote } },
+    sessao: { ...estado.sessao, sublotes: estado.sessao.sublotes.slice() },
   };
+  // Sublote criado sem sinal: o botão dele já aparece.
+  subs.forEach((nome) => {
+    if (!vis.sessao.sublotes.includes(nome)) vis.sessao.sublotes.push(nome);
+    vis.sessao.separar_lotes = true;
+  });
   itens.forEach((item) => {
     const c = item.corpo || {};
     const brinco = c.brinco || "(sem brinco)";
@@ -451,6 +600,8 @@ function mgComFila(estado) {
       destino: c.destino_lote || null, pendente: true,
     });
     vis.contadores.peso_total = Math.round(((vis.contadores.peso_total || 0) + (c.peso || 0)) * 10) / 10;
+    const k = c.destino_lote || "(sem separação)";
+    vis.contadores.por_sublote[k] = (vis.contadores.por_sublote[k] || 0) + 1;
   });
   vis.contadores.a_pesar = vis.a_pesar.length;
   vis.contadores.pesados = vis.pesados.length;
@@ -507,8 +658,9 @@ async function mgEnviarOuFila(extra) {
     setTimeout(filaSincronizar, 3000);
   };
   try {
-    // Sem rede, ou rede que acabou de falhar: guarda na hora, sem ficar esperando.
-    if (!redeBoa()) { paraFila(); return; }
+    // Sem rede, rede que acabou de falhar ou sessão que ainda não chegou ao servidor:
+    // guarda na hora, sem ficar esperando.
+    if (!redeBoa() || sessaoProvisoria(mg.sessaoId)) { paraFila(); return; }
     try {
       const r = await mgEnviar({ forcar: false, ...extra, chave });
       marcarRedeBoa();
@@ -732,7 +884,7 @@ async function mgPesarSemBrinco(ev) {
     setTimeout(filaSincronizar, 3000);
   };
   try {
-    if (!redeBoa()) { paraFila(); return; }
+    if (!redeBoa() || sessaoProvisoria(mg.sessaoId)) { paraFila(); return; }
 
     try {
       const r = await api.post(`/api/sessoes/${mg.sessaoId}/pesar-sem-brinco`, dados, PRAZO_LANCAMENTO_MS);
@@ -780,6 +932,15 @@ el("mg-modal").addEventListener("click", (e) => {
 
 // ----------------------------------------------------------- Finalizar + resumo
 el("mg-finalizar").onclick = async () => {
+  if (!mgSessaoNoServidor()) return;
+  const pendentes = filaDaSessao(mg.sessaoId).length;
+  if (pendentes) {
+    // Finalizar antes de enviar faria o servidor recusar esses lançamentos.
+    alert(`Ainda há ${pendentes} lançamento(s) desta sessão aguardando a rede (📡). ` +
+      "Espere enviar antes de finalizar.");
+    filaSincronizar();
+    return;
+  }
   if (!confirm("Finalizar a sessão? Os animais vão para os sublotes escolhidos.")) return;
   const res = await api.post(`/api/sessoes/${mg.sessaoId}/finalizar`, {});
   const sub = Object.entries(res.por_sublote).map(([k, v]) => `${v} ${k}`).join(" · ") || "—";
@@ -816,6 +977,7 @@ el("mg-finalizar").onclick = async () => {
 let mgVincOrdem = "peso";
 
 el("mg-vincular-btn").onclick = async () => {
+  if (!mgSessaoNoServidor()) return;
   const d = await api.get(`/api/sessoes/${mg.sessaoId}/faltantes`);
   mgRenderVincular(d);
 };

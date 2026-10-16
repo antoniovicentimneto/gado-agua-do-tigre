@@ -29,6 +29,8 @@ function filaAdicionar(item) {
         url: item.url,
         corpo: item.corpo,
         rotulo: item.rotulo || item.url,
+        // Abertura de sessão sem sinal: id provisório que os lançamentos dela usam.
+        ...(item.sessaoProvisoria ? { sessaoProvisoria: item.sessaoProvisoria } : {}),
       }
     : {
         metodo: "POST",
@@ -40,6 +42,30 @@ function filaAdicionar(item) {
       };
   lista.push({ id: Date.now() + "_" + Math.random().toString(36).slice(2), ...generico });
   filaSalvar(lista);
+}
+
+// ---- Sessão aberta sem sinal ----------------------------------------------------
+// Até o servidor criar a sessão, ela tem um id provisório ("off-<chave>") e os
+// lançamentos dela entram na fila com esse id na URL. O item que abre a sessão vem
+// antes deles na fila; quando ele é aceito, o id provisório é trocado pelo real.
+const PREFIXO_SESSAO_OFF = "off-";
+
+function sessaoProvisoria(id) {
+  return typeof id === "string" && id.startsWith(PREFIXO_SESSAO_OFF);
+}
+
+// Itens da fila que pertencem a uma sessão (pelo id na URL).
+function filaDaSessao(id, lista = filaLer()) {
+  const prefixo = `/api/sessoes/${id}/`;
+  return lista.filter((i) => i.url.startsWith(prefixo));
+}
+
+// A sessão chegou ao servidor: aponta o resto da fila pro id real e avisa a mangueira.
+function filaTrocarSessao(provisorio, real) {
+  const de = `/api/sessoes/${provisorio}/`;
+  filaSalvar(filaLer().map((i) => (i.url.startsWith(de)
+    ? { ...i, url: `/api/sessoes/${real}/` + i.url.slice(de.length) } : i)));
+  window.dispatchEvent(new CustomEvent("sessao-sincronizada", { detail: { provisorio, real } }));
 }
 
 // ---- Ações recusadas -----------------------------------------------------------
@@ -103,12 +129,15 @@ let filaSincronizando = false;
 //    em "recusadas", com o motivo, pra pessoa refazer na mão.
 async function filaSincronizar() {
   if (filaSincronizando || !navigator.onLine) return;
-  let lista = filaLer();
+  const lista = filaLer();
   if (!lista.length) return;
   filaSincronizando = true;
   let enviou = false;
+  const vistos = new Set();   // trava de segurança: nunca reenviar o mesmo item no mesmo ciclo
   try {
-    for (const item of lista) {
+    // Lê a fila de novo a cada item: abrir uma sessão troca a URL dos itens seguintes.
+    for (let item = lista[0]; item && !vistos.has(item.id); item = filaLer()[0]) {
+      vistos.add(item.id);
       let r;
       try {
         r = await fetchComPrazo(item.url, {
@@ -131,15 +160,30 @@ async function filaSincronizar() {
         recusadasSalvar([...recusadasLer(), { descricao: filaDescrever(item), motivo }]);
       }
       // Gravado (ou recusado de vez): sai da fila.
-      lista = lista.filter((x) => x.id !== item.id);
-      filaSalvar(lista);
+      filaSalvar(filaLer().filter((x) => x.id !== item.id));
+      if (item.sessaoProvisoria) {
+        if (!motivo && corpo.sessao && corpo.sessao.id) {
+          filaTrocarSessao(item.sessaoProvisoria, corpo.sessao.id);
+        } else {
+          // A sessão não foi criada: os lançamentos dela vão pra lista de recusadas
+          // (com o peso, pra refazer na mão) — nada some.
+          const deps = filaDaSessao(item.sessaoProvisoria);
+          recusadasSalvar([...recusadasLer(), ...deps.map((d) => ({
+            descricao: filaDescrever(d),
+            motivo: "a sessão aberta sem sinal não foi criada" + (motivo ? ` (${motivo})` : ""),
+          }))]);
+          filaSalvar(filaLer().filter((x) => !deps.some((d) => d.id === x.id)));
+        }
+      }
       enviou = true;
       marcarRedeBoa();
     }
     const naMangueira = typeof mg !== "undefined" && mg.sessaoId &&
       document.getElementById("mg-sessao") &&
       !document.getElementById("mg-sessao").classList.contains("escondido");
-    if (enviou && naMangueira) {
+    if (enviou && naMangueira && sessaoProvisoria(mg.sessaoId)) {
+      mgRenderEstado(mg.estado);   // sessão ainda não chegou: só redesenha os pendentes
+    } else if (enviou && naMangueira) {
       try {
         mgRenderEstado(await api.get(`/api/sessoes/${mg.sessaoId}`, PRAZO_FILA_MS));
         carregarCacheAnimais().catch(() => {});

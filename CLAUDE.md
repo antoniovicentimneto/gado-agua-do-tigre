@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=56 / cache v48.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=57 / cache v49.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -131,6 +131,15 @@ usuários, cache de animais). `mangueira.js` = tela de pesagem. Comunicação vi
   na fila na hora). Cada lançamento leva uma `chave` (Pesagem.chave_cliente) — reenvio não
   duplica. A fila NUNCA descarta: 5xx/401/sem resposta mantém; 4xx ou resposta com `alerta`
   vai pra lista de "recusadas" (aviso vermelho, o usuário refaz na mão).
+- **Sessão aberta sem sinal**: "Iniciar pesagem" sem rede (ou sem resposta em 8 s) abre a
+  sessão no aparelho com id provisório `off-<chave>`; a abertura entra na fila (POST
+  `/api/sessoes` com `chave` → `SessaoPesagem.chave_cliente`, servidor não duplica) e os
+  lançamentos vão pra fila com o id provisório na URL. Quando a abertura é aceita,
+  `filaTrocarSessao` troca o id pelo real no resto da fila e avisa a mangueira
+  (`sessao-sincronizada`). Se a abertura for recusada, as pesagens dela vão pras recusadas.
+  Finalizar/vincular esperam a sessão chegar e a fila dela esvaziar. Sessões abertas sem
+  sinal aparecem em "retomar"; sessões do servidor podem ser retomadas sem rede pelo último
+  estado guardado (`gat_cache_sessoes_estado`).
 - **Ficha do animal**: um botão só ("Salvar modificações", `salvarFicha`) grava tudo o que
   mudou; fechar com mudança pendente pede confirmação.
 
