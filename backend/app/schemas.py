@@ -265,3 +265,46 @@ class PesagemEditar(BaseModel):
     peso: float | None = None
     destino_lote: str | None = None
     observacao: str | None = None
+
+
+# ---------------------------------------------------------------- Pastos
+
+class PastoMover(BaseModel):
+    lote_id: int
+    piquete_id: int
+    data: date | None = None
+    chave: str | None = None  # gerada no aparelho (fila offline não duplica)
+
+
+class PastoJuntar(BaseModel):
+    origem_id: int
+    destino_id: int
+    data: date | None = None
+    chave: str | None = None
+
+
+class PastoSeparar(BaseModel):
+    origem_id: int
+    animal_ids: list[int]
+    novo_lote: str | None = None        # cria um lote novo com esse nome...
+    lote_destino_id: int | None = None  # ...ou manda pra um lote que já existe
+    piquete_id: int | None = None       # onde o lote novo vai ficar (vazio = sem piquete)
+    data: date | None = None
+    chave: str | None = None
+
+
+class AreaPastoEntrada(BaseModel):
+    nome: str
+    tipo: str = "propria"
+    observacao: str | None = None
+
+
+class PiqueteEntrada(BaseModel):
+    nome: str
+    area_id: int | None = None
+    area_nome: str | None = None  # cria a área se ainda não existir
+    hectares: float | None = None
+    capim: str | None = None
+    descanso_meta_dias: int | None = None
+    observacao: str | None = None
+    geometria: dict | None = None  # GeoJSON Polygon/MultiPolygon

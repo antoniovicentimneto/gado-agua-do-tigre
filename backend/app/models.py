@@ -325,3 +325,78 @@ class OpcaoCadastro(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     categoria: Mapped[str] = mapped_column(String(20), index=True)  # 'tipo' ou 'raca'
     nome: Mapped[str] = mapped_column(String(60))
+
+
+# ---------------------------------------------------------------- Pastos (piquetes)
+
+class TipoArea(str, enum.Enum):
+    """De quem é a terra onde o gado está."""
+    PROPRIA = "propria"
+    ARRENDADA = "arrendada"   # pastagem alugada de terceiros (ex.: Castro/Rosa)
+    AZEVEM = "azevem"         # área de lavoura que volta pro gado no inverno
+    OUTRA = "outra"
+
+
+class AreaPasto(Base):
+    """Agrupamento de piquetes (ex.: Sede, Castro/Rosa, Azevém inverno)."""
+    __tablename__ = "areas_pasto"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(80), unique=True)
+    tipo: Mapped[TipoArea] = mapped_column(Enum(TipoArea), default=TipoArea.PROPRIA)
+    observacao: Mapped[str | None] = mapped_column(Text)
+
+    piquetes: Mapped[list[Piquete]] = relationship(back_populates="area")
+
+
+class Piquete(Base):
+    """Piquete (divisão de pasto). A geometria vem do arquivo importado ou do desenho
+    no mapa; os hectares são calculados dela, mas podem ser corrigidos na mão."""
+    __tablename__ = "piquetes"
+    __table_args__ = (UniqueConstraint("area_id", "nome", name="uq_piquete_area_nome"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    area_id: Mapped[int | None] = mapped_column(ForeignKey("areas_pasto.id"), index=True)
+    nome: Mapped[str] = mapped_column(String(80))
+    hectares: Mapped[float | None] = mapped_column(Float)
+    geometria: Mapped[str | None] = mapped_column(Text)  # GeoJSON (Polygon/MultiPolygon), lon/lat
+    capim: Mapped[str | None] = mapped_column(String(60))
+    descanso_meta_dias: Mapped[int | None] = mapped_column(Integer)  # dias de descanso desejados
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    area: Mapped[AreaPasto | None] = relationship(back_populates="piquetes")
+    ocupacoes: Mapped[list[LotePiquete]] = relationship(back_populates="piquete")
+
+
+class LotePiquete(Base):
+    """Histórico: qual lote esteve em qual piquete e quando (data_saida nula = está lá)."""
+    __tablename__ = "lote_piquete"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lote_id: Mapped[int] = mapped_column(ForeignKey("lotes.id"), index=True)
+    piquete_id: Mapped[int] = mapped_column(ForeignKey("piquetes.id"), index=True)
+    data_entrada: Mapped[date] = mapped_column(Date)
+    data_saida: Mapped[date | None] = mapped_column(Date)
+    cabecas: Mapped[int | None] = mapped_column(Integer)  # quantas cabeças entraram
+
+    lote: Mapped[Lote] = relationship()
+    piquete: Mapped[Piquete] = relationship(back_populates="ocupacoes")
+
+
+class MovimentacaoPasto(Base):
+    """Uma ação de manejo de pasto (mover, separar, juntar). Guarda as linhas que criou
+    e as que fechou, pra poder DESFAZER exatamente o que foi feito."""
+    __tablename__ = "movimentacoes_pasto"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(20))  # mover / separar / juntar
+    data: Mapped[date] = mapped_column(Date, index=True)
+    resumo: Mapped[str] = mapped_column(Text)  # frase pronta pra mostrar na tela
+    alteracoes: Mapped[str] = mapped_column(Text)  # JSON com ids criados/fechados
+    usuario_nome: Mapped[str | None] = mapped_column(String(100))
+    # Identificador gerado no aparelho: reenvio da fila offline não duplica a ação.
+    chave_cliente: Mapped[str | None] = mapped_column(String(40), index=True)
+    desfeita: Mapped[bool] = mapped_column(Boolean, default=False)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
