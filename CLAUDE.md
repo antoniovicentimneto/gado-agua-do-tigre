@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=55 / cache v47.**
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=56 / cache v48.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -186,6 +186,26 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - **Colunas novas** em tabela existente: acrescentar em `COLUNAS_NOVAS` (`database.py`) —
   `create_all` não adiciona coluna; a migração leve roda no start (só ADD COLUMN).
 - Pendente: exportação/restauração Excel ainda NÃO leva mãe, desmame, prenhez nem venda.
+
+## Pastos (aba Pastos) — fase 1 do plano em `docs/levantamento_apps_pecuaria.md`
+
+- **Modelos:** `AreaPasto` (agrupamento: Sede, Castro/Rosa, azevém) → `Piquete` (geometria
+  GeoJSON + hectares) ; `LotePiquete` = histórico de qual LOTE esteve em qual piquete
+  (`data_saida` nula = está lá) ; `MovimentacaoPasto` = cada ação (mover/separar/juntar)
+  com o JSON das linhas criadas/fechadas — é o que permite o **Desfazer** exato.
+- **Serviços:** `services/pastos.py` (painel, mover, juntar, separar, desfazer, cadastro,
+  importar) e `services/geo.py` (lê KML/KMZ/XML-KML/GeoJSON e calcula hectares em Python
+  puro). Router: `routers/pastos.py` (`/api/pastos`). Peão move/separa/junta/desfaz;
+  cadastrar/importar/remover piquete é só dono.
+- **Painel em poucas consultas** (`_rebanho_por_lote`): cabeças e último peso por lote em 2
+  queries — não usar `montar_resumo` por animal aqui (N+1 com o banco em SP).
+- Lote que esvaziou por fora (venda, mangueira) continua com `LotePiquete` aberto; o painel
+  trata como saída na data do último `AnimalLote.data_fim` daquele lote.
+- **Frontend:** `static/pastos.js`. Toque no lote → "Levar para cá" (ou segurar e arrastar)
+  → confirma; separar/juntar pela barra fixa do rodapé. Sem rede: vai pra fila offline com
+  `chave` (servidor não duplica) e a tela é atualizada de forma otimista.
+- **Datas:** usar `hojeLocal()` (app.js) — `toISOString()` é UTC e depois das 21h já é o dia
+  seguinte. O painel recebe `?hoje=` do aparelho porque o servidor (Render) roda em UTC.
 
 ## Estado atual (jul/2026)
 

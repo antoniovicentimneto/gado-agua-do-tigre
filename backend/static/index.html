@@ -8,7 +8,8 @@
   <meta name="theme-color" content="#2e7d32" />
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
-  <link rel="stylesheet" href="/static/style.css?v=55" />
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="/static/style.css?v=56" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -54,6 +55,7 @@
 
   <nav class="abas">
     <button data-aba="mangueira" class="ativa">Mangueira</button>
+    <button data-aba="pastos">Pastos</button>
     <button data-aba="rebanho">Rebanho</button>
     <button data-aba="pesar">Pesar</button>
     <button data-aba="painel">Painel</button>
@@ -196,6 +198,45 @@
     </div>
   </section>
 
+  <!-- ABA PASTOS (piquetes e mudança de lote) -->
+  <section id="aba-pastos" class="aba">
+    <div class="modo-toggle pt-modos">
+      <button data-ptmodo="lista" class="ativa">📋 Lista</button>
+      <button data-ptmodo="mapa">🗺 Mapa</button>
+    </div>
+    <div id="pt-aviso" class="info"></div>
+    <div id="pt-resumo" class="pt-resumo"></div>
+
+    <div id="pt-ferramentas" class="pt-ferramentas escondido">
+      <button type="button" id="pt-btn-importar" class="secundario">📥 Importar arquivo de áreas</button>
+      <button type="button" id="pt-btn-desenhar" class="secundario">✏ Desenhar piquete</button>
+    </div>
+
+    <div id="pt-sem-piquete"></div>
+
+    <div id="pt-lista"></div>
+
+    <div id="pt-mapa-box" class="escondido">
+      <div id="pt-desenho-barra" class="pt-desenho-barra escondido">
+        <div id="pt-desenho-info">Toque no mapa para marcar os cantos do piquete.</div>
+        <div class="pt-desenho-botoes">
+          <button type="button" id="pt-desenho-voltar" class="secundario">↶ Ponto</button>
+          <button type="button" id="pt-desenho-ok">✔ Concluir</button>
+          <button type="button" id="pt-desenho-cancelar" class="secundario">✖ Cancelar</button>
+        </div>
+      </div>
+      <div id="pt-mapa"></div>
+      <div class="pt-legenda">
+        <span><i class="pt-cor ocupado"></i>Ocupado</span>
+        <span><i class="pt-cor descansando"></i>Descansando</span>
+        <span><i class="pt-cor pronto"></i>Pronto</span>
+        <span><i class="pt-cor sem_registro"></i>Sem registro</span>
+      </div>
+    </div>
+
+    <div id="pt-movs"></div>
+  </section>
+
   <!-- ABA REBANHO -->
   <section id="aba-rebanho" class="aba">
     <div class="modo-toggle">
@@ -319,6 +360,18 @@
     </div>
   </section>
 
+  <!-- BARRA DO LOTE SELECIONADO (aba Pastos) -->
+  <div id="pt-barra" class="pt-barra escondido"></div>
+  <div id="pt-toast" class="pt-toast escondido"></div>
+
+  <!-- MODAL DA ABA PASTOS -->
+  <div id="pt-modal" class="modal escondido">
+    <div class="modal-conteudo">
+      <button class="fechar" id="pt-fechar-modal">×</button>
+      <div id="pt-modal-corpo"></div>
+    </div>
+  </div>
+
   <!-- MODAL FICHA DO ANIMAL -->
   <div id="modal" class="modal escondido">
     <div class="modal-conteudo">
@@ -328,12 +381,14 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=55"></script>
-  <script src="/static/fila-offline.js?v=55"></script>
-  <script src="/static/mangueira.js?v=55"></script>
-  <script src="/static/planilha.js?v=55"></script>
-  <script src="/static/venda-gancho.js?v=55"></script>
-  <script src="/static/cria.js?v=55"></script>
+  <script src="/static/app.js?v=56"></script>
+  <script src="/static/fila-offline.js?v=56"></script>
+  <script src="/static/mangueira.js?v=56"></script>
+  <script src="/static/planilha.js?v=56"></script>
+  <script src="/static/venda-gancho.js?v=56"></script>
+  <script src="/static/cria.js?v=56"></script>
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script src="/static/pastos.js?v=56"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

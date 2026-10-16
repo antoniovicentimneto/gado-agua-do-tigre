@@ -22,6 +22,11 @@ digitado.
 - **Lotes com histórico**: ao mudar o animal de lote, o vínculo anterior é fechado com data.
 - **Venda**: puxa o rendimento padrão por tipo (Vaca 48%, Novilha 50%, Boi 52%), editável,
   e calcula a arroba líquida e o valor recebido pelo preço da @ líquida.
+- **Pastos**: piquetes no mapa de satélite (importados de arquivo KML/KMZ/GeoJSON ou
+  desenhados na tela, com hectares calculados), onde cada lote está, há quantos dias, UA/ha
+  e descanso de cada piquete (ocupado / descansando / pronto). Mudança de piquete pelo
+  celular: toca no lote e no destino (ou segura e arrasta), separa animais num lote novo,
+  junta lotes — tudo com **Desfazer** e funcionando sem sinal.
 - **Painel**: total, ativos, vendidos, GMD médio do rebanho e total de pesagens.
 - **Login com perfis**: dono/dona tem acesso completo; o peão só lança peso e
   mexe em lotes durante a pesagem — não edita/remove pesagens antigas, não

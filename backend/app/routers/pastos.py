@@ -1,6 +1,8 @@
 """Endpoints da aba Pastos (piquetes, mudança de piquete, importação de áreas)."""
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -34,9 +36,12 @@ def _tipo_area(valor: str | None) -> TipoArea:
 # ---------------------------------------------------------------- Consulta (todos)
 
 @router.get("")
-def painel(db: Session = Depends(get_db)):
-    """Piquetes, lotes em cada um, descanso, lotes sem piquete e últimas mudanças."""
-    return svc.painel(db)
+def painel(hoje: date | None = None, db: Session = Depends(get_db)):
+    """Piquetes, lotes em cada um, descanso, lotes sem piquete e últimas mudanças.
+
+    `hoje` vem do aparelho: o servidor roda em UTC e, à noite no Brasil, já estaria
+    no dia seguinte (os dias de descanso sairiam com 1 a mais)."""
+    return svc.painel(db, hoje)
 
 
 @router.get("/lotes/{lote_id}/animais")

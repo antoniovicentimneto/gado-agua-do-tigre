@@ -148,6 +148,8 @@ async function filaSincronizar() {
   } finally {
     filaSincronizando = false;
     filaAtualizarContador();
+    // Avisa as outras telas (ex.: aba Pastos) que a fila foi enviada.
+    if (enviou) window.dispatchEvent(new Event("fila-sincronizada"));
   }
 }
 

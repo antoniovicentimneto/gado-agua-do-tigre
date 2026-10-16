@@ -419,6 +419,13 @@ const fmt = {
 };
 
 // Escapa texto pra usar com segurança dentro de HTML/atributos.
+// Data de hoje no fuso do aparelho, em AAAA-MM-DD. (toISOString() é UTC: depois das
+// 21h no Brasil já devolve o dia seguinte e a pesagem saía com a data errada.)
+function hojeLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -613,6 +620,7 @@ document.querySelectorAll(".abas button").forEach((b) => {
     if (b.dataset.aba === "painel") carregarPainel();
     if (b.dataset.aba === "usuarios") carregarUsuarios();
     if (b.dataset.aba === "config") carregarConfig();
+    if (b.dataset.aba === "pastos" && window.ptAbrir) window.ptAbrir();
   };
 });
 
@@ -1601,7 +1609,7 @@ async function simularVenda(id, tipo) {
 }
 
 // ----------------------------------------------------------- Pesagem rápida
-const hoje = new Date().toISOString().slice(0, 10);
+const hoje = hojeLocal();
 document.getElementById("pesar-data").value = hoje;
 
 // Mostra dados do animal ao digitar o brinco (igual à mangueira).

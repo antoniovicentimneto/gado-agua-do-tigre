@@ -11,7 +11,7 @@ const el = (id) => document.getElementById(id);
 
 // ----------------------------------------------------------- Inicialização da aba
 async function mgInit() {
-  if (!el("mg-data").value) el("mg-data").value = new Date().toISOString().slice(0, 10);
+  if (!el("mg-data").value) el("mg-data").value = hojeLocal();
   await mgCarregarLotes();
   await mgCarregarAbertas();
   await mgPreencherOpcoes();
