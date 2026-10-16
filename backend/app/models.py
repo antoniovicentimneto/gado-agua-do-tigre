@@ -238,6 +238,9 @@ class SessaoPesagem(Base):
     preco_kg: Mapped[float | None] = mapped_column(Float)        # compra: preço por kg vivo
     preco_arroba: Mapped[float | None] = mapped_column(Float)    # venda: preço da @
     vendedor: Mapped[str | None] = mapped_column(String(100))    # compra: de quem comprou
+    # Id gerado no aparelho ao abrir a sessão (pode ser sem sinal): o reenvio pela fila
+    # offline devolve a mesma sessão em vez de abrir outra.
+    chave_cliente: Mapped[str | None] = mapped_column(String(40), index=True)
 
     origens: Mapped[list[Lote]] = relationship(secondary=sessao_origem)
     sublotes: Mapped[list[Lote]] = relationship(secondary=sessao_sublote)

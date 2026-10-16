@@ -154,6 +154,7 @@ class SessaoCriar(BaseModel):
     preco_kg: float | None = None
     preco_arroba: float | None = None
     vendedor: str | None = None
+    chave: str | None = None  # gerada no aparelho (sessão aberta sem sinal não duplica)
 
 
 class SubloteCriar(BaseModel):

@@ -42,6 +42,7 @@ def criar(dados: schemas.SessaoCriar, db: Session = Depends(get_db),
         preco_kg=dados.preco_kg,
         preco_arroba=dados.preco_arroba,
         vendedor=dados.vendedor,
+        chave=dados.chave,
     )
     return svc.estado_sessao(db, s)
 

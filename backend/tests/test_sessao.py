@@ -509,3 +509,44 @@ def test_reenvio_com_a_mesma_chave_nao_duplica(db):
     # Sem chave continua funcionando como antes.
     assert svc.pesar_sem_brinco(db, s, 280)["ok"]
     assert db.query(Animal).filter(Animal.sem_brinco == True).count() == 2  # noqa: E712
+
+
+def test_abrir_sessao_com_a_mesma_chave_nao_duplica(db):
+    # Sessão aberta sem sinal: a fila reenvia a criação (ou a resposta se perdeu).
+    s1 = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], True, ["Gordo"],
+                          chave="sessao-off-1")
+    s2 = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], True, ["Gordo"],
+                          chave="sessao-off-1")
+    assert s2.id == s1.id
+    assert db.query(SessaoPesagem).filter(SessaoPesagem.chave_cliente == "sessao-off-1").count() == 1
+    # Chave diferente (ou sem chave) abre outra sessão normalmente.
+    s3 = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], False, chave="sessao-off-2")
+    s4 = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], False)
+    assert len({s1.id, s3.id, s4.id}) == 3
+
+
+def test_sessao_offline_sincroniza_pesagens_sem_duplicar(db):
+    # Fluxo do campo: abre a sessão sem sinal, pesa, e a fila reenvia tudo duas vezes.
+    for _ in range(2):
+        s = svc.criar_sessao(db, TipoSessao.MANEJO, HOJE, ["LOTEA"], False, chave="off-x")
+        svc.registrar_pesagem(db, s, "101", 410, forcar=True, chave="p-1")
+        svc.registrar_pesagem(db, s, "102", 330, forcar=True, chave="p-2")
+        svc.pesar_sem_brinco(db, s, 280, chave="p-3")
+    assert db.query(SessaoPesagem).count() == 1
+    estado = svc.estado_sessao(db, s)
+    assert sorted(p["peso"] for p in estado["pesados"]) == [280, 330, 410]
+    assert db.query(Pesagem).filter(Pesagem.sessao_id == s.id).count() == 3
+
+
+def test_endpoint_criar_sessao_repassa_a_chave(db):
+    # O router repassa a chave do corpo (schema) para o serviço — sem importar app.main.
+    from app import schemas
+    from app.models import PapelUsuario, Usuario
+    from app.routers.sessoes import criar
+
+    dono = Usuario(nome="t", papel=PapelUsuario.DONO)
+    corpo = schemas.SessaoCriar(lotes_origem=["LOTEA"], data=HOJE, chave="via-api")
+    e1 = criar(corpo, db=db, usuario=dono)
+    e2 = criar(corpo, db=db, usuario=dono)
+    assert e1["sessao"]["id"] == e2["sessao"]["id"]
+    assert db.query(SessaoPesagem).count() == 1

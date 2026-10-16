@@ -25,6 +25,7 @@ COLUNAS_NOVAS = [
     ("animais", "data_desmame", "DATE"),
     ("animais", "prenhez", "VARCHAR(10)"),
     ("animais", "prenhez_data", "DATE"),
+    ("sessoes_pesagem", "chave_cliente", "VARCHAR(40)"),
 ]
 
 

@@ -57,8 +57,20 @@ def criar_sessao(
     preco_kg: float | None = None,
     preco_arroba: float | None = None,
     vendedor: str | None = None,
+    chave: str | None = None,
 ) -> SessaoPesagem:
-    """Abre uma nova sessão de pesagem."""
+    """Abre uma nova sessão de pesagem.
+
+    `chave` é gerada no aparelho: se a mesma chave chegar de novo (reenvio da fila
+    offline, resposta perdida no caminho), devolve a sessão já aberta em vez de criar
+    outra.
+    """
+    if chave:
+        existente = (
+            db.query(SessaoPesagem).filter(SessaoPesagem.chave_cliente == chave).first()
+        )
+        if existente is not None:
+            return existente
     sessao = SessaoPesagem(
         tipo=tipo,
         data=data_sessao,
@@ -67,6 +79,7 @@ def criar_sessao(
         preco_kg=preco_kg,
         preco_arroba=preco_arroba,
         vendedor=vendedor,
+        chave_cliente=chave,
     )
     for nome in lotes_origem:
         sessao.origens.append(obter_ou_criar_lote(db, nome))
