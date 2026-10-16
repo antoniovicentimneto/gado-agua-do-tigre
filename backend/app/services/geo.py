@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import json
 import math
+import unicodedata
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -65,6 +66,50 @@ def validar_geometria(geometria: dict) -> dict:
     if hectares(geometria) <= 0:
         raise ArquivoInvalido("A área desenhada ficou com tamanho zero — marque pelo menos 3 pontos.")
     return geometria
+
+
+# ---------------------------------------------------------------- Atributos (nome / área)
+
+# Campos que costumam trazer o nome da área nos arquivos de agrimensura, CAR e GPS.
+CAMPOS_NOME = ("nome", "name", "talhao", "talhoes", "piquete", "pasto", "gleba", "descricao", "id")
+
+
+def _chave(texto: str) -> str:
+    """Normaliza o nome do campo: minúsculas, sem acento e sem espaço/pontuação."""
+    t = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode().lower()
+    return "".join(c for c in t if c.isalnum())
+
+
+def numero_br(valor) -> float | None:
+    if valor is None:
+        return None
+    t = str(valor).strip()
+    if "," in t:
+        t = t.replace(".", "").replace(",", ".")
+    try:
+        n = float(t)
+    except ValueError:
+        return None
+    return n if n > 0 else None
+
+
+def _nome_dos_atributos(attrs: dict) -> str | None:
+    por_chave = {_chave(k): v for k, v in attrs.items() if v not in (None, "")}
+    for campo in CAMPOS_NOME:
+        if por_chave.get(campo):
+            return str(por_chave[campo]).strip()
+    return None
+
+
+def _hectares_dos_atributos(attrs: dict) -> float | None:
+    """Área informada no próprio arquivo (ex.: campo 'AREA (HA)'), quando existir."""
+    for k, v in attrs.items():
+        c = _chave(k)
+        if c in ("areaha", "hectares", "ha", "areahectares", "areaemha") or (c.startswith("area") and c.endswith("ha")):
+            n = numero_br(v)
+            if n:
+                return round(n, 2)
+    return None
 
 
 # ---------------------------------------------------------------- KML / KMZ
@@ -143,6 +188,18 @@ def _geometria_placemark(placemark) -> dict | None:
     return {"type": "MultiPolygon", "coordinates": poligonos}
 
 
+def _atributos_kml(placemark) -> dict:
+    """Dados extras do Placemark: <SimpleData name=...> e <Data name=...><value>."""
+    attrs = {}
+    for el in placemark.iter():
+        nome = _local(el.tag)
+        if nome == "SimpleData" and el.get("name"):
+            attrs[el.get("name")] = (el.text or "").strip()
+        elif nome == "Data" and el.get("name"):
+            attrs[el.get("name")] = (_texto_filho(el, "value") or "").strip()
+    return attrs
+
+
 def _ler_kml(conteudo: bytes) -> list[dict]:
     try:
         raiz = ET.fromstring(conteudo)
@@ -161,10 +218,12 @@ def _ler_kml(conteudo: bytes) -> list[dict]:
             elif nome == "Placemark":
                 geo = _geometria_placemark(filho)
                 if geo:
+                    attrs = _atributos_kml(filho)
                     achados.append({
-                        "nome": _texto_filho(filho, "name") or "",
+                        "nome": _texto_filho(filho, "name") or _nome_dos_atributos(attrs) or "",
                         "area": pasta,
                         "geometria": geo,
+                        "hectares_arquivo": _hectares_dos_atributos(attrs),
                     })
 
     percorrer(raiz, None)
@@ -204,9 +263,13 @@ def _ler_geojson(conteudo: bytes) -> list[dict]:
         if geo.get("type") not in ("Polygon", "MultiPolygon"):
             continue
         props = f.get("properties") or {}
-        nome = next((str(props[k]) for k in ("nome", "name", "Name", "NOME") if props.get(k)), "")
-        area = next((str(props[k]) for k in ("area", "Area", "retiro", "pasta") if props.get(k)), None)
-        achados.append({"nome": nome, "area": area, "geometria": geo})
+        area = next((str(props[k]) for k in ("retiro", "pasta", "grupo") if props.get(k)), None)
+        achados.append({
+            "nome": _nome_dos_atributos(props) or "",
+            "area": area,
+            "geometria": geo,
+            "hectares_arquivo": _hectares_dos_atributos(props),
+        })
     return achados
 
 
@@ -235,5 +298,8 @@ def ler_arquivo_areas(nome_arquivo: str, conteudo: bytes) -> list[dict]:
     for i, a in enumerate(achados, start=1):
         a["nome"] = (a["nome"] or f"Piquete {i}").strip()[:80]
         a["area"] = (a["area"] or "").strip()[:80] or None
-        a["hectares"] = hectares(a["geometria"])
+        a["hectares_calculado"] = hectares(a["geometria"])
+        # O arquivo de agrimensura/CAR traz a área medida em projeção UTM, que é a
+        # referência do técnico — quando existe, é ela que vale.
+        a["hectares"] = a.get("hectares_arquivo") or a["hectares_calculado"]
     return achados

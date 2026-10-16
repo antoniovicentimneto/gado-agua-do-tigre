@@ -96,6 +96,25 @@ def test_le_geojson():
     assert achados[0]["nome"] == "P7"
 
 
+def test_kml_com_nome_e_area_nos_dados_extras():
+    """Formato do arquivo de talhões da fazenda (exportado de GIS): sem <name>, com o nome
+    e a área em ExtendedData/SchemaData."""
+    kml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Document id="T">
+  <Placemark id="T.1"><ExtendedData><SchemaData schemaUrl="#T.schema">
+    <SimpleData name="TALHOES">AVNBV 01</SimpleData>
+    <SimpleData name="AREA (HA)">1.05</SimpleData>
+  </SchemaData></ExtendedData>
+  <Polygon><outerBoundaryIs><LinearRing><coordinates>
+    0,0,0 0.000898315,0,0 0.000898315,0.000898315,0 0,0.000898315,0 0,0,0
+  </coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+</Document></Document></kml>"""
+    a = geo.ler_arquivo_areas("TALHOES.kml", kml)[0]
+    assert a["nome"] == "AVNBV 01"
+    assert a["hectares"] == 1.05             # vale a área do arquivo (medida pelo técnico)
+    assert a["hectares_calculado"] == pytest.approx(1.0, abs=0.02)
+
+
 def test_arquivo_sem_poligono_da_erro_amigavel():
     sem = b'<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><Point><coordinates>0,0</coordinates></Point></Placemark></kml>'
     with pytest.raises(geo.ArquivoInvalido):

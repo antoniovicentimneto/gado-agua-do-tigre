@@ -141,6 +141,7 @@ def importar_confirmar(
             "nome": str(a.get("nome") or "").strip()[:80] or f"Piquete {len(limpos) + 1}",
             "area": (str(a.get("area") or "").strip()[:80] or None),
             "geometria": g,
-            "hectares": geo.hectares(g),
+            # Área informada no arquivo (prévia) vale mais que a calculada.
+            "hectares": geo.numero_br(a.get("hectares_arquivo")) or geo.hectares(g),
         })
     return _executar(svc.importar, db, limpos, selecionados, area_padrao, _tipo_area(tipo_area))

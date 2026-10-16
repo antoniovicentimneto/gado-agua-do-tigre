@@ -990,7 +990,8 @@ function ptMostrarPrevia(areas) {
         <td><input type="checkbox" data-i="${i}" checked style="width:22px;height:22px"></td>
         <td><input data-nome="${i}" value="${esc(a.nome)}"></td>
         <td><input data-area="${i}" value="${esc(a.area || "")}" placeholder="(padrão)"></td>
-        <td>${ptNum(a.hectares, 2)}</td></tr>`).join("")}
+        <td>${ptNum(a.hectares, 2)}${a.hectares_arquivo && Math.abs(a.hectares_arquivo - a.hectares_calculado) >= 0.01
+          ? `<br><small class="info" title="Área calculada pelo contorno">contorno: ${ptNum(a.hectares_calculado, 2)}</small>` : ""}</td></tr>`).join("")}
     </table></div>
     <label>Área para os que não têm pasta</label>
     <input id="pt-i-area" value="Sede" />
@@ -1001,7 +1002,9 @@ function ptMostrarPrevia(areas) {
       <option value="azevem">Azevém de inverno (área de lavoura)</option>
       <option value="outra">Outra</option>
     </select>
-    <p class="info">Piquete com o mesmo nome na mesma área é atualizado (não duplica).</p>
+    <p class="info">Piquete com o mesmo nome na mesma área é atualizado (não duplica).
+      Quando o arquivo informa a área, vale a área do arquivo (medida pelo técnico); o
+      "contorno" é só a conferência calculada pelo app.</p>
     <div class="pt-linha-botoes">
       <button type="button" class="secundario" id="pt-i-cancelar">Cancelar</button>
       <button type="button" id="pt-i-ok">✔ Importar marcados</button>
