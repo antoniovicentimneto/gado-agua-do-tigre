@@ -118,3 +118,46 @@ pastejo que hoje não é medido**.
 - [Embrapa — Pastejo rotacionado](https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/1072007/1/PastejoRotacionadoFINAL.pdf)
 - [Embrapa — Aplicativo de monitoramento de pastagens](https://www.alice.cnptia.embrapa.br/alice/bitstream/doc/1140827/1/Desenvolvimento-aplicativo-monitoramento-pastagens.pdf)
 - [Compre Rural — Pastagens e custos](https://www.comprerural.com/manejo-adequado-das-pastagens-pode-reduzir-25-dos-custos-na-pecuaria)
+
+---
+
+## 6. Decisões do Antonio (15/10/2026)
+
+| # | Ideia | Decisão | Observação |
+|---|---|---|---|
+| 1 | Áreas e piquetes | **Entra** | Importar o arquivo das áreas (XML/KML que ele já tem) **ou** desenhar no mapa |
+| 2 | Mudança de piquete | **Entra** | Mover o gado de uma área para outra pelo celular com facilidade; cuidar de juntar e separar lotes; botões grandes e fáceis de acertar |
+| 3 | Altura de entrada e saída | **Opcional** | Hoje não conseguem medir. O campo existe, mas não é obrigatório |
+| 4 | Painel de descanso | **Entra** | |
+| 5 | GMD por fator | **Entra (ampliado)** | Por piquete, lote, fornecedor, raça e outros, mostrando **qual fator mais influencia** |
+| 6 | Indicadores por hectare | **Entra** | |
+| 7 | Custo da @ produzida | **Depois** | Junto com o módulo financeiro/administrativo |
+| 8 | Sanidade | **Fora** | Usam pouco medicamento; só tratam quem precisa (metodologia SICOPA) |
+| 9 | Tarefas do peão | **Entra** | Agenda: o que fazer, quando fazer, e o peão marca como feito |
+| 10 | Mapa com satélite | **Entra** | Junto com os itens 1 e 2 |
+| 11 | Escores livres | **Entra** | O dono cria os escores que quiser |
+| 12 | Lista de descarte | **Entra** | |
+| 13 | Offline completo | **Entra** | |
+| 14 | Voz | **Fase posterior** | |
+| 15 | Pluviômetro | **Opcional** | Campo disponível, não obrigatório |
+| 16 | Balança/brinco eletrônico | **Fora por ora** | A tela de pesagem atual atende bem |
+
+## 7. Fases de implementação
+
+**Fase 1 — Mapa e pasto (o coração)**
+- Áreas e piquetes: importar o arquivo (KML/KMZ/XML/GeoJSON) ou desenhar no mapa com satélite; a área em hectares é calculada sozinha (1, 10)
+- Mudança de piquete no celular: toque no lote → toque no destino (arrastar como atalho), com resumo antes de confirmar e opção de **desfazer**; juntar e separar lotes no mesmo fluxo (2)
+- Painel de descanso (4)
+- Já nasce funcionando **sem sinal** (13), estendendo o offline também às sessões da mangueira
+
+**Fase 2 — Análises**
+- GMD por fator: piquete, lote, fornecedor, raça, tipo, capado e época, com ranking de "o que mais influencia" e o número de animais de cada grupo (5)
+- Indicadores por hectare, com o hectare equivalente para o azevém de inverno, no formato Inttegra (6)
+- Lista de descarte (12)
+- Escores livres (11), incluindo a nota visual do pasto como alternativa mais fácil à altura (3, opcional) e a chuva (15, opcional)
+
+**Fase 3 — Rotina**
+- Agenda de tarefas do peão (9)
+- Lançamento por voz (14)
+
+**Depois** — módulo financeiro/administrativo, com o custo da @ produzida (7).
