@@ -26,7 +26,9 @@ digitado.
   desenhados na tela, com hectares calculados), onde cada lote está, há quantos dias, UA/ha
   e descanso de cada piquete (ocupado / descansando / pronto). Mudança de piquete pelo
   celular: toca no lote e no destino (ou segura e arrasta), separa animais num lote novo,
-  junta lotes — tudo com **Desfazer** e funcionando sem sinal.
+  junta lotes — tudo com **Desfazer** e funcionando sem sinal. Cada lote tem cor e ícone
+  próprios (pino no mapa com a ficha rápida do lote), e o mapa pode mostrar a divisa da
+  fazenda e as áreas de outros usos (soja, madeira, reserva) só como referência.
 - **Painel**: total, ativos, vendidos, GMD médio do rebanho e total de pesagens.
 - **Login com perfis**: dono/dona tem acesso completo; o peão só lança peso e
   mexe em lotes durante a pesagem — não edita/remove pesagens antigas, não

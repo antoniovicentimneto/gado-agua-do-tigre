@@ -126,9 +126,22 @@ function ptRender() {
 
 function ptBotaoLote(l, piqueteId) {
   const sel = pt.sel && pt.sel.lote.id === l.id ? " selecionado" : "";
-  return `<button type="button" class="pt-lote${sel}" data-lote-id="${l.id}" data-piquete-id="${piqueteId ?? ""}">
-    <b>${esc(l.nome)}</b><small>${ptLoteDescricao(l)}${l.dias != null ? ` · ${l.dias}d aqui` : ""}</small>
+  return `<button type="button" class="pt-lote${sel}" data-lote-id="${l.id}" data-piquete-id="${piqueteId ?? ""}"
+      style="--cor-lote:${esc(l.cor || "#2e7d32")}">
+    <b>${ptMarcaLote(l)} ${esc(l.nome)}</b><small>${ptLoteDescricao(l)}${l.dias != null ? ` · ${l.dias}d aqui` : ""}</small>
   </button>`;
+}
+
+// Bolinha na cor do lote com o ícone dentro — a mesma do mapa.
+function ptMarcaLote(l, grande) {
+  return `<span class="pt-marca${grande ? " grande" : ""}" style="background:${esc(l.cor || "#2e7d32")};color:${ptCorTexto(l.cor)}">${esc(l.icone || "")}</span>`;
+}
+
+// Texto escuro sobre cor clara (amarelo, branco), claro sobre cor escura.
+function ptCorTexto(cor) {
+  const c = (cor || "#2e7d32").replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.substr(i, 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? "#1f2937" : "#fff";
 }
 
 function ptRenderSemPiquete() {
@@ -234,10 +247,12 @@ function ptRenderBarra() {
     <div class="pt-barra-dica">Está em: ${esc(ptNomePiquete(pt.sel.piqueteId))}. ${pt.modo === "mapa"
       ? "Toque no piquete de destino no mapa." : "Toque em <b>➜ Levar para cá</b> no piquete de destino."}</div>
     <div class="pt-barra-botoes">
+      <button type="button" id="pt-b-ficha" class="secundario">ℹ Ficha / cor</button>
       <button type="button" id="pt-b-separar" class="secundario">✂ Separar animais</button>
       <button type="button" id="pt-b-juntar" class="secundario">🔗 Juntar lotes</button>
       <button type="button" id="pt-b-cancelar" class="secundario">✖ Cancelar</button>
     </div>`;
+  ptEl("pt-b-ficha").onclick = () => ptFichaLote(pt.sel.lote.id);
   ptEl("pt-b-separar").onclick = ptFormSeparar;
   ptEl("pt-b-juntar").onclick = ptFormJuntar;
   ptEl("pt-b-cancelar").onclick = ptCancelarSelecao;
@@ -716,7 +731,13 @@ function ptIniciarMapa() {
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxZoom: 19, attribution: "Imagens © Esri" },
   ).addTo(pt.mapa);
+  // Ordem de baixo pra cima: outras áreas, divisa, piquetes, pinos dos lotes.
+  pt.camadaUsos = L.featureGroup().addTo(pt.mapa);
+  pt.camadaDivisa = L.featureGroup().addTo(pt.mapa);
   pt.camadaPiquetes = L.featureGroup().addTo(pt.mapa);
+  pt.camadaPinos = L.featureGroup().addTo(pt.mapa);
+  pt.pinos = {};
+  pt.mapa.on("zoomend", ptAtualizarZoom);
   pt.mapa.setView([-23.5, -51], 5);
   pt.mapa.on("click", ptCliqueMapa);
 
@@ -743,22 +764,57 @@ function ptIniciarMapa() {
   pt.mapa.on("locationerror", () => alert("Não consegui pegar sua localização (GPS desligado ou sem permissão)."));
 }
 
+const PT_ZOOM_PERTO = 16;   // a partir daqui mostra nomes; antes, só os pinos coloridos
+const PT_USOS = {
+  lavoura: { nome: "Lavoura (soja, milho…)", cor: "#c9a227" },
+  madeira: { nome: "Madeira / eucalipto", cor: "#4e342e" },
+  reserva: { nome: "Reserva / mata", cor: "#1b5e20" },
+  sede: { nome: "Sede / construções", cor: "#78909c" },
+  outro: { nome: "Outro uso", cor: "#9e9e9e" },
+};
+const ptCamadasVisiveis = { lotes: true, piquetes: true, divisa: true, usos: true };
+
+// Centro de um polígono (centroide do maior anel) — onde fica o pino do lote.
+function ptCentro(geometria) {
+  const aneis = geometria.type === "Polygon" ? [geometria.coordinates[0]]
+    : geometria.coordinates.map((p) => p[0]);
+  let melhor = null;
+  for (const anel of aneis) {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < anel.length - 1; i++) {
+      const [x1, y1] = anel[i], [x2, y2] = anel[i + 1];
+      const f = x1 * y2 - x2 * y1;
+      a += f; cx += (x1 + x2) * f; cy += (y1 + y2) * f;
+    }
+    if (!a) continue;
+    const c = { area: Math.abs(a), lat: cy / (3 * a), lng: cx / (3 * a) };
+    if (!melhor || c.area > melhor.area) melhor = c;
+  }
+  if (melhor) return L.latLng(melhor.lat, melhor.lng);
+  return L.geoJSON(geometria).getBounds().getCenter();
+}
+
 function ptRenderMapa() {
   ptIniciarMapa();
   if (!pt.mapa) return;
   setTimeout(() => pt.mapa.invalidateSize(), 50);
+  ptDesenharCamadas();
   pt.camadaPiquetes.clearLayers();
+  pt.camadaPinos.clearLayers();
+  pt.pinos = {};
   for (const p of pt.dados.piquetes) {
     if (!p.geometria) continue;
     const camada = L.geoJSON(p.geometria, {
       style: {
         color: "#fff", weight: 2, fillColor: PT_CORES[p.status] || PT_CORES.sem_registro,
-        fillOpacity: pt.sel && pt.sel.piqueteId !== p.id ? 0.55 : 0.4,
+        fillOpacity: pt.sel && pt.sel.piqueteId !== p.id ? 0.5 : 0.3,
       },
     });
-    const lotes = p.lotes.map((l) => `${esc(l.nome)} (${l.cabecas})`).join("<br>");
-    camada.bindTooltip(`${esc(p.nome)}${lotes ? "<br>" + lotes : ""}`,
-      { permanent: true, direction: "center", className: "pt-rotulo" });
+    // Com lote dentro, o nome do piquete sobe pra não ficar em cima do pino.
+    camada.bindTooltip(esc(p.nome), {
+      permanent: true, direction: "center", className: "pt-rotulo pt-rotulo-piquete",
+      offset: p.lotes.length ? [0, -38] : [0, 0],
+    });
     camada.on("click", (e) => {
       L.DomEvent.stop(e);
       if (pt.desenho) { ptCliqueMapa(e); return; }
@@ -766,14 +822,177 @@ function ptRenderMapa() {
       else ptFichaPiquete(p);
     });
     camada.addTo(pt.camadaPiquetes);
+
+    // Um pino por lote, lado a lado quando há mais de um no mesmo piquete.
+    const centro = ptCentro(p.geometria);
+    p.lotes.forEach((l, i) => {
+      const dx = (i - (p.lotes.length - 1) / 2) * 46;
+      const sel = pt.sel && pt.sel.lote.id === l.id ? " selecionado" : "";
+      const icone = L.divIcon({
+        className: "pt-pino-box",
+        html: `<div class="pt-pino${sel}" style="background:${esc(l.cor)};color:${ptCorTexto(l.cor)}">
+                 <span class="pt-pino-icone">${esc(l.icone || "")}</span><span class="pt-pino-cab">${l.cabecas}</span>
+               </div><div class="pt-pino-nome">${esc(l.nome)}</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20 - dx, 20],
+      });
+      const pino = L.marker(centro, { icon: icone, riseOnHover: true, zIndexOffset: sel ? 1000 : 0 });
+      pino.on("click", (e) => {
+        L.DomEvent.stop(e);
+        if (pt.desenho) return;
+        ptFichaLote(l.id);
+      });
+      pino.addTo(pt.camadaPinos);
+      pt.pinos[l.id] = pino;
+    });
   }
-  if (!pt.mapaEnquadrado && pt.camadaPiquetes.getLayers().length) {
-    pt.mapa.fitBounds(pt.camadaPiquetes.getBounds(), { padding: [20, 20] });
-    pt.mapaEnquadrado = true;
+  ptAplicarVisibilidade();
+  if (!pt.mapaEnquadrado) {
+    const limites = L.featureGroup([...pt.camadaPiquetes.getLayers(), ...pt.camadaDivisa.getLayers()]);
+    if (limites.getLayers().length) {
+      pt.mapa.fitBounds(limites.getBounds(), { padding: [20, 20] });
+      pt.mapaEnquadrado = true;
+    }
   }
+  ptAtualizarZoom();
+  ptRenderLegendaLotes();
   const semMapa = pt.dados.piquetes.filter((p) => !p.geometria).length;
   ptEl("pt-lista").innerHTML = semMapa
     ? `<div class="info">${semMapa} piquete(s) sem contorno no mapa — veja na Lista.</div>` : "";
+}
+
+// Divisa da fazenda e áreas de outros usos (soja, madeira…): só contexto, por baixo.
+function ptDesenharCamadas() {
+  pt.camadaDivisa.clearLayers();
+  pt.camadaUsos.clearLayers();
+  for (const c of pt.dados.camadas || []) {
+    if (c.tipo === "divisa") {
+      L.geoJSON(c.geometria, {
+        style: { color: "#ffeb3b", weight: 4, dashArray: "10 6", fill: false },
+        interactive: false,
+      }).addTo(pt.camadaDivisa);
+    } else {
+      const uso = PT_USOS[c.uso] || PT_USOS.outro;
+      const camada = L.geoJSON(c.geometria, {
+        style: { color: uso.cor, weight: 1.5, fillColor: uso.cor, fillOpacity: 0.35 },
+      });
+      camada.bindTooltip(esc(c.nome), { permanent: true, direction: "center", className: "pt-rotulo pt-rotulo-uso" });
+      camada.on("click", (e) => {
+        L.DomEvent.stop(e);
+        if (pt.desenho) { ptCliqueMapa(e); return; }
+        ptFichaCamada(c);
+      });
+      camada.addTo(pt.camadaUsos);
+    }
+  }
+}
+
+function ptAplicarVisibilidade() {
+  const pares = { lotes: pt.camadaPinos, piquetes: pt.camadaPiquetes, divisa: pt.camadaDivisa, usos: pt.camadaUsos };
+  for (const [k, camada] of Object.entries(pares)) {
+    if (ptCamadasVisiveis[k] && !pt.mapa.hasLayer(camada)) camada.addTo(pt.mapa);
+    if (!ptCamadasVisiveis[k] && pt.mapa.hasLayer(camada)) pt.mapa.removeLayer(camada);
+  }
+}
+
+// De longe: só pinos coloridos (sem texto). De perto: nomes de lotes e piquetes.
+function ptAtualizarZoom() {
+  if (!pt.mapa) return;
+  ptEl("pt-mapa").classList.toggle("pt-zoom-perto", pt.mapa.getZoom() >= PT_ZOOM_PERTO);
+}
+
+function ptRenderLegendaLotes() {
+  const lotes = ptTodosLotes();
+  ptEl("pt-legenda-lotes").innerHTML = lotes.length ? lotes.map((l) => `
+    <button type="button" class="pt-legenda-lote" data-lote="${l.id}">
+      ${ptMarcaLote(l)} <b>${esc(l.nome)}</b> · ${l.cabecas} cab.
+      <small>${esc(ptNomePiquete(l.piqueteId))}${l.piqueteId != null && !pt.pinos[l.id] ? " (sem contorno)" : ""}</small>
+    </button>`).join("") : '<p class="info">Nenhum lote com gado.</p>';
+  ptEl("pt-legenda-lotes").querySelectorAll("[data-lote]").forEach((b) => {
+    b.onclick = () => {
+      const id = Number(b.dataset.lote);
+      const pino = pt.pinos[id];
+      if (pino) {
+        pt.mapa.flyTo(pino.getLatLng(), Math.max(pt.mapa.getZoom(), PT_ZOOM_PERTO), { duration: 0.8 });
+        ptEl("pt-mapa").scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      ptFichaLote(id);
+    };
+  });
+}
+
+// Ficha rápida do lote: números básicos, ações e a cor/ícone.
+function ptFichaLote(loteId) {
+  const l = ptTodosLotes().find((x) => x.id === loteId);
+  if (!l) return;
+  const p = l.piqueteId != null ? ptPiquete(l.piqueteId) : null;
+  const icones = ["", "🐂", "🐄", "🐮", "⭐", "▲", "◆", "●", "A", "B", "C", "1", "2", "3"];
+  ptModal(`
+    <h2>${ptMarcaLote(l, true)} ${esc(l.nome)}</h2>
+    <div class="pt-ficha-grade">
+      <div><b>${l.cabecas}</b><span>cabeças</span></div>
+      <div><b>${ptNum(l.peso_medio, 0)}</b><span>kg médio</span></div>
+      <div><b>${ptNum(l.ua)}</b><span>UA</span></div>
+      <div><b>${l.ugmd_medio != null ? ptNum(l.ugmd_medio, 3) : "—"}</b><span>GMD médio (último)</span></div>
+    </div>
+    <p>${p ? `📍 <b>${esc(ptNomePiquete(p.id))}</b>${p.hectares ? ` · ${ptNum(p.hectares, 2)} ha` : ""}${p.ua_ha ? ` · ${ptNum(p.ua_ha, 2)} UA/ha` : ""}<br>
+       Entrou em ${ptDataBR(l.data_entrada)} · há ${l.dias} dia${l.dias === 1 ? "" : "s"} nesse piquete` : "📍 Sem piquete"}</p>
+    <div class="pt-ficha-acoes">
+      <button type="button" id="pt-fl-mover">➜ Mover</button>
+      <button type="button" class="secundario" id="pt-fl-separar">✂ Separar</button>
+      <button type="button" class="secundario" id="pt-fl-juntar">🔗 Juntar</button>
+      <button type="button" class="secundario" id="pt-fl-animais">🐄 Ver animais</button>
+    </div>
+    <label>Cor do lote</label>
+    <div class="pt-paleta">${(pt.dados.paleta || []).map((c) => `
+      <button type="button" class="pt-cor-opcao${c === l.cor ? " ativa" : ""}" data-cor="${c}" style="background:${c}" aria-label="cor ${c}"></button>`).join("")}</div>
+    <label>Ícone</label>
+    <div class="pt-icones">${icones.map((ic) => `
+      <button type="button" class="pt-icone-opcao${(l.icone || "") === ic ? " ativa" : ""}" data-icone="${esc(ic)}">${ic ? esc(ic) : "∅"}</button>`).join("")}</div>`);
+
+  const selecionarEFechar = () => {
+    ptFecharModal();
+    pt.sel = { lote: l, piqueteId: l.piqueteId };
+    ptRender();
+  };
+  ptEl("pt-fl-mover").onclick = () => {
+    selecionarEFechar();
+    ptToast(pt.modo === "mapa" ? "Toque no piquete de destino no mapa." : "Toque em ➜ Levar para cá no piquete de destino.");
+  };
+  ptEl("pt-fl-separar").onclick = () => { selecionarEFechar(); ptFormSeparar(); };
+  ptEl("pt-fl-juntar").onclick = () => { selecionarEFechar(); ptFormJuntar(); };
+  ptEl("pt-fl-animais").onclick = () => { ptFecharModal(); abrirLote(l.id, l.nome); };
+  const salvar = async (corpo) => {
+    try {
+      await api.put(`/api/pastos/lotes/${l.id}/visual`, corpo, PRAZO_LANCAMENTO_MS);
+      await ptCarregar();
+      ptFichaLote(l.id);
+    } catch (e) {
+      alert(e instanceof TypeError ? "Trocar a cor precisa de sinal." : e.message);
+    }
+  };
+  document.querySelectorAll(".pt-cor-opcao").forEach((b) => { b.onclick = () => salvar({ cor: b.dataset.cor }); });
+  document.querySelectorAll(".pt-icone-opcao").forEach((b) => { b.onclick = () => salvar({ icone: b.dataset.icone }); });
+}
+
+// Toque numa área de outro uso (soja, madeira…).
+function ptFichaCamada(c) {
+  const uso = PT_USOS[c.uso] || PT_USOS.outro;
+  ptModal(`
+    <h2>${esc(c.nome)}</h2>
+    <p>${esc(uso.nome)}${c.hectares ? ` · ${ptNum(c.hectares, 2)} ha` : ""}</p>
+    <p class="info">Área de outro uso — aparece no mapa só como referência (não recebe gado).</p>
+    ${ptEhDono() ? '<button type="button" class="perigo" id="pt-c-remover" style="width:100%">Remover do mapa</button>' : ""}`);
+  if (ptEl("pt-c-remover")) ptEl("pt-c-remover").onclick = async () => {
+    if (!confirm(`Remover "${c.nome}" do mapa?`)) return;
+    try {
+      await api.delete(`/api/pastos/camadas/${c.id}`);
+      ptFecharModal();
+      await ptCarregar();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
 }
 
 // Ficha do piquete ao tocar no mapa (sem lote selecionado).
@@ -993,22 +1212,45 @@ function ptMostrarPrevia(areas) {
         <td>${ptNum(a.hectares, 2)}${a.hectares_arquivo && Math.abs(a.hectares_arquivo - a.hectares_calculado) >= 0.01
           ? `<br><small class="info" title="Área calculada pelo contorno">contorno: ${ptNum(a.hectares_calculado, 2)}</small>` : ""}</td></tr>`).join("")}
     </table></div>
-    <label>Área para os que não têm pasta</label>
-    <input id="pt-i-area" value="Sede" />
-    <label>Tipo das áreas novas</label>
-    <select id="pt-i-tipo">
-      <option value="propria">Própria</option>
-      <option value="arrendada">Arrendada de terceiros</option>
-      <option value="azevem">Azevém de inverno (área de lavoura)</option>
-      <option value="outra">Outra</option>
-    </select>
-    <p class="info">Piquete com o mesmo nome na mesma área é atualizado (não duplica).
+    <label>O que é este arquivo?</label>
+    <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="piquetes" checked>
+      Piquetes do gado (recebem lote e entram nos indicadores)</label>
+    <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="divisa">
+      Divisa da fazenda (o contorno inteiro, sem divisões)</label>
+    <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="uso">
+      Outras áreas da fazenda (soja, madeira, reserva…)</label>
+    <div id="pt-i-bloco-piquetes">
+      <label>Área para os que não têm pasta</label>
+      <input id="pt-i-area" value="Sede" />
+      <label>Tipo das áreas novas</label>
+      <select id="pt-i-tipo">
+        <option value="propria">Própria</option>
+        <option value="arrendada">Arrendada de terceiros</option>
+        <option value="azevem">Azevém de inverno (área de lavoura)</option>
+        <option value="outra">Outra</option>
+      </select>
+    </div>
+    <div id="pt-i-bloco-uso" class="escondido">
+      <label>Uso dessas áreas</label>
+      <select id="pt-i-uso">${Object.entries(PT_USOS).map(([k, u]) => `<option value="${k}">${esc(u.nome)}</option>`).join("")}</select>
+    </div>
+    <p class="info" id="pt-i-nota">Piquete com o mesmo nome na mesma área é atualizado (não duplica).
       Quando o arquivo informa a área, vale a área do arquivo (medida pelo técnico); o
       "contorno" é só a conferência calculada pelo app.</p>
     <div class="pt-linha-botoes">
       <button type="button" class="secundario" id="pt-i-cancelar">Cancelar</button>
       <button type="button" id="pt-i-ok">✔ Importar marcados</button>
     </div>`;
+  const destino = () => document.querySelector('input[name="pt-i-destino"]:checked').value;
+  document.querySelectorAll('input[name="pt-i-destino"]').forEach((r) => {
+    r.onchange = () => {
+      ptEl("pt-i-bloco-piquetes").classList.toggle("escondido", destino() !== "piquetes");
+      ptEl("pt-i-bloco-uso").classList.toggle("escondido", destino() !== "uso");
+      ptEl("pt-i-nota").textContent = destino() === "piquetes"
+        ? "Piquete com o mesmo nome na mesma área é atualizado (não duplica)."
+        : "Fica só no mapa, como referência: não recebe gado nem entra na lotação. Mesmo nome atualiza o contorno.";
+    };
+  });
   ptEl("pt-i-cancelar").onclick = ptFecharModal;
   ptEl("pt-i-ok").onclick = async () => {
     const editadas = areas.map((a, i) => ({
@@ -1023,12 +1265,15 @@ function ptMostrarPrevia(areas) {
         areas: editadas, selecionados,
         area_padrao: ptEl("pt-i-area").value.trim() || null,
         tipo_area: ptEl("pt-i-tipo").value,
+        destino: destino(),
+        uso: destino() === "uso" ? ptEl("pt-i-uso").value : null,
       });
       ptFecharModal();
       pt.mapaEnquadrado = false;
       await ptCarregar();
       ptMudarModo("mapa");
-      ptToast(`✔ ${r.criados} piquete(s) criado(s)${r.atualizados ? `, ${r.atualizados} atualizado(s)` : ""}.`);
+      const oQue = { piquetes: "piquete(s)", divisa: "divisa(s) da fazenda", uso: "área(s) de outro uso" }[destino()];
+      ptToast(`✔ ${r.criados} ${oQue} criada(s)${r.atualizados ? `, ${r.atualizados} atualizada(s)` : ""}.`);
     } catch (e) {
       alert(e instanceof TypeError ? "Importar precisa de sinal." : e.message);
     }
@@ -1049,6 +1294,12 @@ document.querySelectorAll("[data-ptmodo]").forEach((b) => {
   b.onclick = () => ptMudarModo(b.dataset.ptmodo);
 });
 ptEl("pt-btn-importar").onclick = ptFormImportar;
+document.querySelectorAll("[data-camada]").forEach((c) => {
+  c.onchange = () => {
+    ptCamadasVisiveis[c.dataset.camada] = c.checked;
+    if (pt.mapa) ptAplicarVisibilidade();
+  };
+});
 ptEl("pt-btn-desenhar").onclick = () => ptIniciarDesenho(null);
 
 // A barra do lote selecionado só aparece dentro da aba Pastos.

@@ -77,6 +77,12 @@ def separar(dados: schemas.PastoSeparar, db: Session = Depends(get_db),
     )
 
 
+@router.put("/lotes/{lote_id}/visual")
+def visual_lote(lote_id: int, dados: schemas.LoteVisual, db: Session = Depends(get_db)):
+    """Cor e ícone do lote no mapa (qualquer usuário: ajuda o peão a reconhecer o lote)."""
+    return _executar(svc.salvar_visual_lote, db, lote_id, dados.cor, dados.icone)
+
+
 @router.post("/movimentacoes/{mov_id}/desfazer")
 def desfazer(mov_id: int, db: Session = Depends(get_db)):
     return _executar(svc.desfazer, db, mov_id)
@@ -130,10 +136,13 @@ def importar_confirmar(
     selecionados: list[int] | None = Body(None),
     area_padrao: str | None = Body(None),
     tipo_area: str | None = Body(None),
+    destino: str = Body("piquetes"),  # piquetes / divisa / uso
+    uso: str | None = Body(None),     # com destino "uso": lavoura, madeira, reserva...
     db: Session = Depends(get_db),
     _dono=Depends(requer_dono),
 ):
-    """2º passo: grava os piquetes que o dono marcou na prévia."""
+    """2º passo: grava o que o dono marcou na prévia — como piquetes do gado, como a
+    divisa da fazenda ou como áreas de outros usos (só aparecem no mapa)."""
     limpos = []
     for a in areas:
         g = _executar(geo.validar_geometria, a.get("geometria"))
@@ -144,4 +153,17 @@ def importar_confirmar(
             # Área informada no arquivo (prévia) vale mais que a calculada.
             "hectares": geo.numero_br(a.get("hectares_arquivo")) or geo.hectares(g),
         })
+    if destino in ("divisa", "uso"):
+        return _executar(svc.importar_camadas, db, limpos, selecionados, destino, uso)
     return _executar(svc.importar, db, limpos, selecionados, area_padrao, _tipo_area(tipo_area))
+
+
+@router.put("/camadas/{camada_id}")
+def editar_camada(camada_id: int, dados: schemas.CamadaEditar, db: Session = Depends(get_db),
+                  _dono=Depends(requer_dono)):
+    return _executar(svc.editar_camada, db, camada_id, dados.nome, dados.uso)
+
+
+@router.delete("/camadas/{camada_id}")
+def remover_camada(camada_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    return _executar(svc.remover_camada, db, camada_id)

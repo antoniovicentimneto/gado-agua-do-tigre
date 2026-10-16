@@ -12,9 +12,11 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import (
+    PALETA_LOTES,
     Animal,
     AnimalLote,
     AreaPasto,
+    CamadaMapa,
     LotePiquete,
     Lote,
     MovimentacaoPasto,
@@ -22,6 +24,7 @@ from ..models import (
     Piquete,
     StatusAnimal,
     TipoArea,
+    cor_do_lote,
     sessao_origem,
     sessao_sublote,
 )
@@ -37,8 +40,8 @@ class ErroPasto(ValueError):
 # ---------------------------------------------------------------- Consultas de apoio
 
 def _rebanho_por_lote(db: Session) -> dict[int, dict]:
-    """Cabeças ativas e soma do último peso de cada lote — em 2 consultas, não 1 por animal
-    (o banco fica longe do servidor; consulta por animal deixa a tela lenta)."""
+    """Cabeças ativas, soma do último peso e uGMD de cada lote — em 2 consultas, não 1 por
+    animal (o banco fica longe do servidor; consulta por animal deixa a tela lenta)."""
     vinculos = db.execute(
         select(AnimalLote.lote_id, AnimalLote.animal_id)
         .join(Animal, Animal.id == AnimalLote.animal_id)
@@ -47,19 +50,28 @@ def _rebanho_por_lote(db: Session) -> dict[int, dict]:
     if not vinculos:
         return {}
 
-    ultima = (
-        select(Pesagem.animal_id, func.max(Pesagem.data).label("d"))
-        .group_by(Pesagem.animal_id)
-        .subquery()
-    )
-    pesos: dict[int, float] = {}
-    for animal_id, peso in db.execute(
-        select(Pesagem.animal_id, Pesagem.peso).join(
-            ultima, and_(Pesagem.animal_id == ultima.c.animal_id, Pesagem.data == ultima.c.d)
-        )
+    # Todas as pesagens dos animais ativos, de uma vez: dá o último peso e o uGMD
+    # (ganho entre as duas últimas pesagens, a mesma regra do resto do app).
+    por_animal: dict[int, dict] = {}
+    for animal_id, data_p, peso in db.execute(
+        select(Pesagem.animal_id, Pesagem.data, Pesagem.peso)
+        .join(Animal, Animal.id == Pesagem.animal_id)
+        .where(Animal.status == StatusAnimal.ATIVO)
     ):
-        # Duas pesagens no mesmo dia: fica a maior (evita somar o animal duas vezes).
-        pesos[animal_id] = max(peso, pesos.get(animal_id, 0))
+        dias = por_animal.setdefault(animal_id, {})
+        # Duas pesagens no mesmo dia: fica a maior (evita contar o animal duas vezes).
+        dias[data_p] = max(peso, dias.get(data_p, 0))
+
+    def _ultimo_e_ugmd(animal_id: int) -> tuple[float | None, float | None]:
+        dias = por_animal.get(animal_id)
+        if not dias:
+            return None, None
+        datas = sorted(dias)
+        ultimo = dias[datas[-1]]
+        if len(datas) < 2:
+            return ultimo, None
+        d1, d2 = datas[-2], datas[-1]
+        return ultimo, (dias[d2] - dias[d1]) / (d2 - d1).days
 
     por_lote: dict[int, dict] = {}
     vistos: set[int] = set()
@@ -67,22 +79,30 @@ def _rebanho_por_lote(db: Session) -> dict[int, dict]:
         if animal_id in vistos:  # vínculo aberto duplicado: conta o animal uma vez só
             continue
         vistos.add(animal_id)
-        r = por_lote.setdefault(lote_id, {"cabecas": 0, "peso": 0.0, "com_peso": 0})
+        r = por_lote.setdefault(lote_id, {"cabecas": 0, "peso": 0.0, "com_peso": 0, "ugmds": []})
         r["cabecas"] += 1
-        if animal_id in pesos:
-            r["peso"] += pesos[animal_id]
+        ultimo, ugmd = _ultimo_e_ugmd(animal_id)
+        if ultimo is not None:
+            r["peso"] += ultimo
             r["com_peso"] += 1
+        if ugmd is not None:
+            r["ugmds"].append(ugmd)
     return por_lote
 
 
 def _resumo_lote(lote: Lote, reb: dict | None) -> dict:
-    reb = reb or {"cabecas": 0, "peso": 0.0, "com_peso": 0}
+    reb = reb or {"cabecas": 0, "peso": 0.0, "com_peso": 0, "ugmds": []}
+    ugmds = reb.get("ugmds") or []
     return {
         "id": lote.id,
         "nome": lote.nome,
+        "cor": cor_do_lote(lote),
+        "icone": lote.icone,
         "cabecas": reb["cabecas"],
         "ua": round(reb["peso"] / KG_POR_UA, 1) if reb["peso"] else 0,
         "peso_medio": round(reb["peso"] / reb["com_peso"], 1) if reb["com_peso"] else None,
+        # Média simples dos uGMD individuais (mesma regra da aba "Por lote").
+        "ugmd_medio": round(sum(ugmds) / len(ugmds), 3) if ugmds else None,
     }
 
 
@@ -191,8 +211,15 @@ def painel(db: Session, hoje: date | None = None) -> dict:
         {"id": a.id, "nome": a.nome, "tipo": a.tipo.value, "observacao": a.observacao}
         for a in db.query(AreaPasto).order_by(AreaPasto.nome).all()
     ]
+    camadas = [
+        {"id": c.id, "tipo": c.tipo, "uso": c.uso, "nome": c.nome, "hectares": c.hectares,
+         "geometria": json.loads(c.geometria)}
+        for c in db.query(CamadaMapa).order_by(CamadaMapa.tipo, CamadaMapa.nome).all()
+    ]
     return {
         "hoje": hoje.isoformat(),
+        "paleta": PALETA_LOTES,
+        "camadas": camadas,
         "areas": areas,
         "piquetes": lista,
         "sem_piquete": sem_piquete,
@@ -650,3 +677,79 @@ def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
         p.hectares = a["hectares"]
     db.commit()
     return {"ok": True, "criados": criados, "atualizados": atualizados}
+
+
+# ---------------------------------------------------------------- Identidade visual do lote
+
+def salvar_visual_lote(db: Session, lote_id: int, cor: str | None, icone: str | None) -> dict:
+    """Troca a cor e/ou o ícone do lote (aparece no mapa e nas listas)."""
+    lote = _lote(db, lote_id)
+    if cor is not None:
+        cor = cor.strip().lower()
+        if not (len(cor) == 7 and cor.startswith("#")
+                and all(c in "0123456789abcdef" for c in cor[1:])):
+            raise ErroPasto("Cor inválida.")
+        lote.cor = cor
+    if icone is not None:
+        icone = icone.strip()
+        if len(icone) > 8:
+            raise ErroPasto("Ícone grande demais — use um emoji ou até 2 letras.")
+        lote.icone = icone or None
+    db.commit()
+    return {"id": lote.id, "cor": cor_do_lote(lote), "icone": lote.icone}
+
+
+# ---------------------------------------------------------------- Camadas (divisa / outros usos)
+
+USOS_CAMADA = {"lavoura", "madeira", "reserva", "sede", "outro"}
+
+
+def importar_camadas(db: Session, achados: list[dict], selecionados: list[int] | None,
+                     tipo: str, uso: str | None) -> dict:
+    """Grava a divisa da fazenda ou áreas de outros usos (só aparecem no mapa).
+    Mesmo nome e mesmo tipo atualiza em vez de duplicar."""
+    if tipo not in ("divisa", "uso"):
+        raise ErroPasto("Tipo de camada inválido.")
+    if tipo == "uso" and uso not in USOS_CAMADA:
+        raise ErroPasto("Escolha o uso da área (lavoura, madeira, reserva, sede ou outro).")
+    criados = atualizados = 0
+    for i, a in enumerate(achados):
+        if selecionados is not None and i not in selecionados:
+            continue
+        existente = db.query(CamadaMapa).filter(
+            CamadaMapa.tipo == tipo, CamadaMapa.nome == a["nome"]
+        ).first()
+        c = existente or CamadaMapa(tipo=tipo, nome=a["nome"])
+        if existente is None:
+            db.add(c)
+            criados += 1
+        else:
+            atualizados += 1
+        c.uso = uso if tipo == "uso" else None
+        c.geometria = json.dumps(a["geometria"])
+        c.hectares = a["hectares"]
+    db.commit()
+    return {"ok": True, "criados": criados, "atualizados": atualizados}
+
+
+def editar_camada(db: Session, camada_id: int, nome: str | None, uso: str | None) -> dict:
+    c = db.get(CamadaMapa, camada_id)
+    if c is None:
+        raise ErroPasto("Área do mapa não encontrada.")
+    if nome is not None and nome.strip():
+        c.nome = nome.strip()[:80]
+    if uso is not None and c.tipo == "uso":
+        if uso not in USOS_CAMADA:
+            raise ErroPasto("Uso inválido.")
+        c.uso = uso
+    db.commit()
+    return {"ok": True}
+
+
+def remover_camada(db: Session, camada_id: int) -> dict:
+    c = db.get(CamadaMapa, camada_id)
+    if c is None:
+        raise ErroPasto("Área do mapa não encontrada.")
+    db.delete(c)
+    db.commit()
+    return {"ok": True}

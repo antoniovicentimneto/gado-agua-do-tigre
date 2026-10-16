@@ -17,7 +17,9 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    event,
     func,
+    select,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -199,6 +201,9 @@ class Lote(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    # Identidade visual no mapa e nas listas (ver services/pastos.PALETA_LOTES).
+    cor: Mapped[str | None] = mapped_column(String(9))
+    icone: Mapped[str | None] = mapped_column(String(8))
 
     animais: Mapped[list[AnimalLote]] = relationship(back_populates="lote")
 
@@ -403,3 +408,43 @@ class MovimentacaoPasto(Base):
     chave_cliente: Mapped[str | None] = mapped_column(String(40), index=True)
     desfeita: Mapped[bool] = mapped_column(Boolean, default=False)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class CamadaMapa(Base):
+    """Área do mapa que NÃO é piquete do gado: a divisa da fazenda inteira e as áreas de
+    outros usos (soja, madeira, reserva...). Só aparece no mapa, pra dar contexto."""
+    __tablename__ = "camadas_mapa"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(10))  # divisa / uso
+    uso: Mapped[str | None] = mapped_column(String(20))  # lavoura, madeira, reserva, sede, outro
+    nome: Mapped[str] = mapped_column(String(80))
+    hectares: Mapped[float | None] = mapped_column(Float)
+    geometria: Mapped[str] = mapped_column(Text)  # GeoJSON (Polygon/MultiPolygon), lon/lat
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# Cores dos lotes: fortes e com contraste sobre imagem de satélite (sem verde/marrom,
+# que somem no pasto). Lote novo pega a cor menos usada; o usuário pode trocar.
+PALETA_LOTES = [
+    "#e53935", "#1e88e5", "#8e24aa", "#fb8c00", "#00acc1", "#d81b60",
+    "#fdd835", "#3949ab", "#f4511e", "#00897b", "#ec407a", "#ffffff",
+]
+
+
+def cor_do_lote(lote: Lote) -> str:
+    """Cor gravada, ou uma fixa pelo id (lotes antigos, criados antes das cores)."""
+    if lote.cor:
+        return lote.cor
+    return PALETA_LOTES[(lote.id or 0) % len(PALETA_LOTES)]
+
+
+@event.listens_for(Lote, "before_insert")
+def _cor_automatica(mapper, connection, lote: Lote) -> None:
+    """Todo lote novo (mangueira, separar, mover...) já nasce com uma cor própria."""
+    if lote.cor:
+        return
+    uso = dict(connection.execute(
+        select(Lote.cor, func.count()).where(Lote.cor.is_not(None)).group_by(Lote.cor)
+    ).all())
+    lote.cor = min(PALETA_LOTES, key=lambda c: (uso.get(c, 0), PALETA_LOTES.index(c)))

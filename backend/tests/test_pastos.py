@@ -321,3 +321,55 @@ def test_salvar_piquete_desenhado_calcula_hectares(db):
     assert r["hectares"] == pytest.approx(1.0, abs=0.02)
     with pytest.raises(svc.ErroPasto):
         svc.salvar_piquete(db, {"nome": "Desenhado", "area_nome": "Sede"})
+
+
+# ---------------------------------------------------------------- Cores, ícones e camadas
+
+def test_lote_novo_ganha_cor_diferente(db):
+    a = Lote(nome="NOVO1")
+    b = Lote(nome="NOVO2")
+    db.add(a)
+    db.flush()
+    db.add(b)
+    db.flush()
+    assert a.cor and b.cor and a.cor != b.cor
+
+
+def test_lote_antigo_sem_cor_tem_cor_no_painel(db):
+    p1, = _piquetes(db, "P1")
+    a = _lote(db, "LOTEA")
+    a.cor = None
+    db.commit()
+    svc.mover(db, a.id, p1.id)
+    assert _no_painel(db, p1.id)["lotes"][0]["cor"].startswith("#")
+
+
+def test_trocar_cor_e_icone(db):
+    a = _lote(db, "LOTEA")
+    r = svc.salvar_visual_lote(db, a.id, "#1E88E5", "🐂")
+    assert r == {"id": a.id, "cor": "#1e88e5", "icone": "🐂"}
+    with pytest.raises(svc.ErroPasto):
+        svc.salvar_visual_lote(db, a.id, "azul", None)
+
+
+def test_painel_traz_ugmd_medio_do_lote(db):
+    p1, = _piquetes(db, "P1")
+    svc.mover(db, _lote(db, "LOTEA").id, p1.id)
+    lote = _no_painel(db, p1.id)["lotes"][0]
+    # 101: (400-300)/120 dias; 102 só tem uma pesagem (não entra na média).
+    assert lote["ugmd_medio"] == pytest.approx(100 / 120, abs=0.001)
+
+
+def test_importar_divisa_e_outros_usos(db):
+    achados = geo.ler_arquivo_areas("fazenda.kml", KML)
+    r = svc.importar_camadas(db, achados[:1], None, "divisa", None)
+    assert r["criados"] == 1
+    svc.importar_camadas(db, achados[1:], None, "uso", "madeira")
+    camadas = svc.painel(db)["camadas"]
+    assert {(c["tipo"], c["uso"]) for c in camadas} == {("divisa", None), ("uso", "madeira")}
+    # Camada não vira piquete.
+    assert svc.painel(db)["piquetes"] == []
+    with pytest.raises(svc.ErroPasto):
+        svc.importar_camadas(db, achados, None, "uso", "plantacao-de-banana")
+    svc.remover_camada(db, camadas[0]["id"])
+    assert len(svc.painel(db)["camadas"]) == 1

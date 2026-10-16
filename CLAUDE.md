@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=57 / cache v49.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=58 / cache v50.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -213,6 +213,16 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - **Frontend:** `static/pastos.js`. Toque no lote → "Levar para cá" (ou segurar e arrastar)
   → confirma; separar/juntar pela barra fixa do rodapé. Sem rede: vai pra fila offline com
   `chave` (servidor não duplica) e a tela é atualizada de forma otimista.
+- **Cor e ícone do lote** (`Lote.cor`/`Lote.icone`): todo lote novo ganha cor automática
+  (listener `before_insert` em models.py, cor menos usada de `PALETA_LOTES`); lote antigo sem
+  cor usa `cor_do_lote()` (fixa pelo id). Mapa: um pino por lote no centro do piquete; de
+  longe só os pinos, a partir do zoom 16 aparecem os nomes (`.pt-zoom-perto`). Toque no
+  pino = ficha rápida (cabeças, kg médio, UA, uGMD médio, piquete, ações, cor/ícone).
+- **Camadas do mapa** (`CamadaMapa`): divisa da fazenda (`tipo=divisa`) e áreas de outros
+  usos (`tipo=uso`: lavoura, madeira, reserva, sede, outro). Só contexto visual — não recebem
+  gado nem entram na lotação. Importadas pelo mesmo "Importar arquivo", escolhendo o destino.
+- `#pt-mapa` tem `isolation: isolate`: sem isso as camadas do Leaflet (z-index 400+) ficam
+  por cima da ficha/barra.
 - **Datas:** usar `hojeLocal()` (app.js) — `toISOString()` é UTC e depois das 21h já é o dia
   seguinte. O painel recebe `?hoje=` do aparelho porque o servidor (Render) roda em UTC.
 

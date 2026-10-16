@@ -309,3 +309,13 @@ class PiqueteEntrada(BaseModel):
     descanso_meta_dias: int | None = None
     observacao: str | None = None
     geometria: dict | None = None  # GeoJSON Polygon/MultiPolygon
+
+
+class LoteVisual(BaseModel):
+    cor: str | None = None    # "#rrggbb"
+    icone: str | None = None  # emoji ou até 2 letras ("" apaga)
+
+
+class CamadaEditar(BaseModel):
+    nome: str | None = None
+    uso: str | None = None

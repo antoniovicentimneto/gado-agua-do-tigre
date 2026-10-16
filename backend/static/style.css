@@ -697,3 +697,63 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
 #pt-modal label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 0.9rem; }
 #pt-modal input:not([type=checkbox]):not([type=radio]), #pt-modal select { width: 100%; }
 #pt-modal h2 { margin-top: 0; padding-right: 40px; }
+
+/* ---- Identidade visual dos lotes (cor + ícone), igual na lista e no mapa */
+.pt-lote { border-color: var(--cor-lote, var(--verde)); border-left-width: 8px; }
+.pt-marca {
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px;
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35); font-size: 0.7rem; line-height: 1;
+}
+.pt-marca.grande { width: 34px; height: 34px; font-size: 1.1rem; vertical-align: -8px; }
+
+/* Pino do lote no mapa */
+.pt-pino-box { background: none; border: none; }
+.pt-pino {
+  width: 40px; height: 40px; border-radius: 50%; border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; line-height: 1; font-weight: 700;
+}
+.pt-pino.selecionado { outline: 4px solid #ffeb3b; transform: scale(1.15); }
+.pt-pino-icone { font-size: 0.85rem; }
+.pt-pino-icone:empty { display: none; }
+.pt-pino-cab { font-size: 0.8rem; }
+.pt-pino-nome {
+  position: absolute; top: 42px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  background: rgba(255,255,255,0.92); border-radius: 6px; padding: 1px 6px;
+  font-size: 0.75rem; font-weight: 700; color: #1f2937;
+}
+/* De longe: só os pinos coloridos; os nomes aparecem ao aproximar. */
+#pt-mapa:not(.pt-zoom-perto) .pt-pino-nome,
+#pt-mapa:not(.pt-zoom-perto) .pt-rotulo-piquete,
+#pt-mapa:not(.pt-zoom-perto) .pt-rotulo-uso { display: none; }
+.pt-rotulo-uso { background: rgba(0,0,0,0.55); color: #fff; }
+
+.pt-camadas-toggle { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 8px; }
+.pt-camadas-toggle label { display: flex !important; align-items: center; gap: 6px; margin: 0 !important; font-weight: 400 !important; }
+.pt-camadas-toggle input { width: 20px; height: 20px; }
+.pt-legenda-lotes { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; }
+.pt-legenda-lotes summary { font-weight: 700; cursor: pointer; padding: 4px 0; }
+.pt-legenda-lote {
+  display: block; width: 100%; text-align: left; background: none; color: var(--texto);
+  border: none; border-bottom: 1px solid var(--borda); border-radius: 0; padding: 10px 4px; min-height: 48px;
+}
+.pt-legenda-lote small { display: block; color: var(--cinza); margin-left: 26px; }
+
+/* Ficha rápida do lote */
+.pt-ficha-grade { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.pt-ficha-grade div { background: var(--verde-claro); border-radius: 10px; padding: 10px 6px; text-align: center; }
+.pt-ficha-grade b { display: block; font-size: 1.2rem; color: var(--verde); }
+.pt-ficha-grade span { font-size: 0.75rem; color: var(--cinza); }
+.pt-ficha-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.pt-ficha-acoes button { min-height: 50px; }
+.pt-paleta, .pt-icones { display: flex; flex-wrap: wrap; gap: 8px; }
+.pt-cor-opcao { width: 42px; height: 42px; padding: 0; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px #9e9e9e; }
+.pt-cor-opcao.ativa { box-shadow: 0 0 0 3px var(--texto); }
+.pt-icone-opcao { width: 46px; height: 46px; padding: 0; font-size: 1.2rem; background: #fff; color: var(--texto); border: 1px solid var(--borda); }
+.pt-icone-opcao.ativa { border: 3px solid var(--verde); background: var(--verde-claro); }
+@media (max-width: 420px) { .pt-ficha-grade { grid-template-columns: 1fr 1fr; } }
+.pt-barra-botoes { grid-template-columns: 1fr 1fr; }
+/* O Leaflet usa z-index alto nas camadas internas: isola o mapa pra ficha, barra e
+   avisos ficarem por cima dele. */
+#pt-mapa { position: relative; z-index: 0; isolation: isolate; }

@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=57" />
+  <link rel="stylesheet" href="/static/style.css?v=58" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -232,6 +232,16 @@
         <span><i class="pt-cor pronto"></i>Pronto</span>
         <span><i class="pt-cor sem_registro"></i>Sem registro</span>
       </div>
+      <div class="pt-camadas-toggle">
+        <label><input type="checkbox" data-camada="lotes" checked> Lotes</label>
+        <label><input type="checkbox" data-camada="piquetes" checked> Piquetes</label>
+        <label><input type="checkbox" data-camada="divisa" checked> Divisa</label>
+        <label><input type="checkbox" data-camada="usos" checked> Outras áreas</label>
+      </div>
+      <details class="pt-legenda-lotes" open>
+        <summary>Lotes no mapa</summary>
+        <div id="pt-legenda-lotes"></div>
+      </details>
     </div>
 
     <div id="pt-movs"></div>
@@ -381,14 +391,14 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=57"></script>
-  <script src="/static/fila-offline.js?v=57"></script>
-  <script src="/static/mangueira.js?v=57"></script>
-  <script src="/static/planilha.js?v=57"></script>
-  <script src="/static/venda-gancho.js?v=57"></script>
-  <script src="/static/cria.js?v=57"></script>
+  <script src="/static/app.js?v=58"></script>
+  <script src="/static/fila-offline.js?v=58"></script>
+  <script src="/static/mangueira.js?v=58"></script>
+  <script src="/static/planilha.js?v=58"></script>
+  <script src="/static/venda-gancho.js?v=58"></script>
+  <script src="/static/cria.js?v=58"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/pastos.js?v=57"></script>
+  <script src="/static/pastos.js?v=58"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.
