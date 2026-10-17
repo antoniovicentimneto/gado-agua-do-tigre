@@ -174,6 +174,9 @@ async function finAbrirNota(id, alvoTela) {
         corpo.querySelectorAll(".nl-col-cat").forEach((el) => el.classList.toggle("escondido", !div.checked));
         $("#nl-geral").querySelectorAll("#nl-setor, #nl-grupo, #nl-categoria").forEach((el) => { el.closest("div").classList.toggle("escondido", div.checked); });
       };
+      // Produtos que já foram lançados em categorias diferentes: já abre dividido.
+      const cats = new Set((sug.itens || []).filter(Boolean).map((s) => `${s.setor}|${s.grupo}|${s.categoria}`));
+      if (cats.size > 1) { div.checked = true; div.onchange(); }
     }
     const ver = $("#nl-ver");
     if (ver) ver.onclick = () => finAbrirLancamento(n.lancamento_id);
@@ -350,7 +353,7 @@ async function finCadCpf(box) {
       <div>${c.tem_certificado
         ? `🔐 Certificado de <b>${esc(c.cert_titular || "")}</b>, válido até ${finData(c.cert_validade)}${diasVenc != null && diasVenc < 30 ? ` <span class="fin-pill vermelho">vence em ${diasVenc} dias</span>` : ""}`
         : `<span class="fin-sem-cat">Sem certificado digital — não dá pra buscar as notas ainda</span>`}</div>
-      <div class="info">Última busca: ${c.ultima_consulta ? finDataHora(c.ultima_consulta) : "nunca"}${c.ultimo_retorno ? ` · ${esc(c.ultimo_retorno)}` : ""}${c.pode_consultar_apos && new Date(c.pode_consultar_apos) > new Date() ? ` · próxima liberada às ${c.pode_consultar_apos.slice(11, 16)}` : ""}</div>
+      <div class="info">Última busca: ${c.ultima_consulta ? finDataHora(c.ultima_consulta) : "nunca"}${c.ultimo_retorno ? ` · ${esc(c.ultimo_retorno)}` : ""}${c.pode_consultar_apos && new Date(c.pode_consultar_apos) > new Date() ? ` · próxima liberada às ${finLocal(c.pode_consultar_apos).hora}` : ""}</div>
       <div class="fin-acoes">
         <label class="fin-botao-arquivo secundario">${c.tem_certificado ? "Trocar certificado" : "Enviar certificado (.pfx)"}<input type="file" accept=".pfx,.p12" data-cert hidden></label>
         <input type="password" data-senha placeholder="senha do certificado" autocomplete="new-password">

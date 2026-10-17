@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models_financeiro import FinContribuinte, FinLancamento, FinNota, FinRegra
 from . import fin_lancamentos as lanc_svc
 from . import fin_nfe_xml
-from .fin_plano import ErroFinanceiro
+from .fin_plano import ErroFinanceiro, iso_utc
 
 CAMPOS_CLASSE = ("tipo", "fazenda", "setor", "grupo", "categoria", "conta")
 
@@ -127,7 +127,7 @@ def dict_nota(db: Session, nota: FinNota, com_sugestao: bool = False) -> dict:
            "data_emissao": nota.data_emissao.isoformat() if nota.data_emissao else None,
            "valor": nota.valor, "completa": bool(nota.xml), "lancamento_id": nota.lancamento_id,
            "contribuinte_id": nota.contribuinte_id,
-           "recebida_em": nota.recebida_em.isoformat() if nota.recebida_em else None}
+           "recebida_em": iso_utc(nota.recebida_em)}
     if com_sugestao:
         dados = fin_nfe_xml.ler(nota.xml) if nota.xml else {"itens": [], "duplicatas": [], "pagamentos": []}
         out["itens"] = dados.get("itens", [])

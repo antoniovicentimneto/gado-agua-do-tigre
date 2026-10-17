@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -15,7 +15,7 @@ from ..models_financeiro import (
     FinParcela,
     FinRecorrente,
 )
-from .fin_plano import ErroFinanceiro, garantir_categoria
+from .fin_plano import ErroFinanceiro, agora_utc, garantir_categoria, iso_utc
 
 
 # ---------------------------------------------------------------- utilidades
@@ -255,7 +255,7 @@ def _aplicar(db: Session, lanc: FinLancamento, dados: dict, usuario: str) -> Non
 
 
 def criar(db: Session, dados: dict, usuario: str, origem: str = "manual", commit=True) -> FinLancamento:
-    lanc = FinLancamento(origem=origem, criado_por=usuario,
+    lanc = FinLancamento(origem=origem, criado_por=usuario, criado_em=agora_utc(),
                          data=_data(dados.get("data") or date.today()))
     db.add(lanc)
     _aplicar(db, lanc, dados, usuario)
@@ -267,7 +267,7 @@ def criar(db: Session, dados: dict, usuario: str, origem: str = "manual", commit
 def atualizar(db: Session, lanc_id: int, dados: dict, usuario: str) -> FinLancamento:
     lanc = _buscar(db, lanc_id)
     _aplicar(db, lanc, dados, usuario)
-    lanc.alterado_por, lanc.alterado_em = usuario, datetime.now()
+    lanc.alterado_por, lanc.alterado_em = usuario, agora_utc()
     db.commit()
     return lanc
 
@@ -276,14 +276,14 @@ def excluir(db: Session, lanc_id: int, motivo: str, usuario: str) -> None:
     """Não apaga: marca excluído (sai dos relatórios, fica no histórico)."""
     lanc = _buscar(db, lanc_id)
     lanc.excluido, lanc.excluido_motivo = True, (motivo or "Excluído").strip()[:200]
-    lanc.excluido_em, lanc.alterado_por = datetime.now(), usuario
+    lanc.excluido_em, lanc.alterado_por = agora_utc(), usuario
     db.commit()
 
 
 def restaurar(db: Session, lanc_id: int, usuario: str) -> None:
     lanc = _buscar(db, lanc_id)
     lanc.excluido, lanc.excluido_motivo, lanc.excluido_em = False, None, None
-    lanc.alterado_por, lanc.alterado_em = usuario, datetime.now()
+    lanc.alterado_por, lanc.alterado_em = usuario, agora_utc()
     db.commit()
 
 
@@ -316,8 +316,8 @@ def dict_lancamento(lc: FinLancamento, hoje: date | None = None) -> dict:
         "forma_pagamento": lc.forma_pagamento, "nf_numero": lc.nf_numero, "nf_chave": lc.nf_chave,
         "observacao": lc.observacao, "origem": lc.origem, "revisar": lc.revisar,
         "revisar_motivo": lc.revisar_motivo, "excluido": lc.excluido, "excluido_motivo": lc.excluido_motivo,
-        "criado_por": lc.criado_por, "criado_em": lc.criado_em.isoformat() if lc.criado_em else None,
-        "alterado_por": lc.alterado_por, "alterado_em": lc.alterado_em.isoformat() if lc.alterado_em else None,
+        "criado_por": lc.criado_por, "criado_em": iso_utc(lc.criado_em),
+        "alterado_por": lc.alterado_por, "alterado_em": iso_utc(lc.alterado_em),
         "recorrente_id": lc.recorrente_id,
         "parcelas": [{"id": p.id, "numero": p.numero, "vencimento": p.vencimento.isoformat(),
                       "valor": p.valor, "conta": p.conta, "pago": p.pago,
@@ -339,17 +339,19 @@ def detalhe(db: Session, lanc_id: int) -> dict:
 
 def possiveis_duplicados(db: Session) -> list[list[int]]:
     """Mesma chave de nota, ou mesmo fornecedor + mesmo valor com datas a até 3 dias."""
-    lancs = db.scalars(select(FinLancamento).where(FinLancamento.excluido.is_(False))
+    lancs = db.scalars(select(FinLancamento).where(FinLancamento.excluido.is_(False),
+                                                   FinLancamento.dup_ok.is_(False))
                        .order_by(FinLancamento.data)).all()
     grupos, vistos = [], set()
-    por_chave: dict[str, list[int]] = {}
+    por_chave: dict[str, list[FinLancamento]] = {}
     for lc in lancs:
         if lc.nf_chave:
-            por_chave.setdefault(lc.nf_chave, []).append(lc.id)
-    for ids in por_chave.values():
-        if len(ids) > 1:
-            grupos.append(ids)
-            vistos.update(ids)
+            por_chave.setdefault(lc.nf_chave, []).append(lc)
+    for lista in por_chave.values():
+        # Nota dividida por produto gera várias partes com a mesma chave (origem "nota"): não é duplicado.
+        if len(lista) > 1 and sum(lc.origem == "nota" for lc in lista) < len(lista):
+            grupos.append([lc.id for lc in lista])
+            vistos.update(lc.id for lc in lista)
     por_forn: dict[tuple, list[FinLancamento]] = {}
     for lc in lancs:
         if lc.fornecedor_id and lc.origem != "recorrente":
@@ -362,6 +364,12 @@ def possiveis_duplicados(db: Session) -> list[list[int]]:
                 grupos.append([a.id, b.id])
                 vistos.update((a.id, b.id))
     return grupos
+
+
+def marcar_nao_duplicado(db: Session, ids: list[int]) -> None:
+    for lc in db.scalars(select(FinLancamento).where(FinLancamento.id.in_(ids))):
+        lc.dup_ok = True
+    db.commit()
 
 
 # ---------------------------------------------------------------- recorrentes

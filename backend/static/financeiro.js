@@ -22,7 +22,14 @@ const FIN_MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set"
 const finBRL = (v) => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
 const finData = (s) => (s ? s.slice(0, 10).split("-").reverse().join("/") : "—");
 const finMes = (m) => `${FIN_MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
-const finDataHora = (s) => (s ? `${finData(s)} ${s.slice(11, 16)}` : "—");
+// Data/hora gravada pelo servidor vem em UTC (termina em Z): mostra na hora do aparelho.
+const finLocal = (s) => {
+  const d = new Date(s);
+  const p = (n) => String(n).padStart(2, "0");
+  return { data: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hora: `${p(d.getHours())}:${p(d.getMinutes())}` };
+};
+const finDataHora = (s) => (s ? `${finData(finLocal(s).data)} ${finLocal(s).hora}` : "—");
+const finDiaLocal = (s) => (s ? finLocal(s).data : "");
 
 function finMsg(texto, erro = false) {
   let el = document.getElementById("fin-toast");
@@ -453,9 +460,9 @@ async function finAbrirLancamento(id, depois) {
   try {
     const l = await api.get(`/api/fin/lancamentos/${id}`);
     finModal(finHtmlFormulario(l), (corpo) => finLigarFormulario(corpo, l, () => {
-      finFecharModal();
-      if (depois) depois();
-      else finRender();
+      finFecharTudo();
+      if (depois) return depois();
+      finRender();
     }));
   } catch (e) {
     finMsg("⚠ " + e.message, true);
@@ -481,7 +488,7 @@ async function finMostrarHoje() {
   if (!box) return;
   const lancs = await finCarregarLancamentos();
   const hoje = hojeLocal();
-  const meus = lancs.filter((l) => (l.criado_em || "").slice(0, 10) === hoje || (l.alterado_em || "").slice(0, 10) === hoje);
+  const meus = lancs.filter((l) => l.origem !== "consipa" && (finDiaLocal(l.criado_em) === hoje || finDiaLocal(l.alterado_em) === hoje));
   finTabela(box, "hoje", FIN_COLUNAS_LANC.filter((c) => ["data", "fornecedor", "descricao", "categoria", "valor", "por"].includes(c.id)),
     meus, { padrao: [{ col: "criado", dir: -1 }], aoClicar: (l) => finAbrirLancamento(l.id, () => finRender()),
       vazio: "Nada lançado hoje ainda. O que você salvar aparece aqui — assim dá pra conferir que gravou." });
@@ -503,7 +510,7 @@ const FIN_COLUNAS_LANC = [
   { id: "fazenda", rotulo: "Fazenda", valor: (l) => l.fazenda, html: (l) => esc(l.fazenda || "—") },
   { id: "conta", rotulo: "Conta", valor: (l) => l.conta, html: (l) => esc(l.conta || "—") },
   { id: "nf", rotulo: "NF", valor: (l) => l.nf_numero, html: (l) => esc(l.nf_numero || "") },
-  { id: "por", rotulo: "Lançado por", valor: (l) => l.criado_por, html: (l) => `${esc(l.criado_por || "—")} <span class="info">${finData(l.criado_em)}</span>` },
+  { id: "por", rotulo: "Lançado por", valor: (l) => l.criado_por, html: (l) => `${esc(l.criado_por || "—")} <span class="info">${finData(finDiaLocal(l.criado_em))}</span>` },
   { id: "criado", rotulo: "Lançado em", valor: (l) => l.criado_em, data: true, html: (l) => finDataHora(l.criado_em) },
   { id: "origem", rotulo: "Origem", valor: (l) => l.origem, html: (l) => esc(l.origem) },
 ];
@@ -686,10 +693,11 @@ async function finDetalheResultado(caminho, mes) {
       padrao: [{ col: "valor", dir: -1 }],
       classeLinha: (l) => (l.revisar ? "fin-linha-revisar" : ""),
       aoClicar: (l) => finAbrirLancamento(l.lancamento_id, async () => {
-        // volta pro detalhe atualizado
+        // corrigiu: atualiza a árvore e volta pra mesma lista, já atualizada
         fin.resultado = null;
         finFecharTudo();
-        finRender();
+        await finRender();
+        finDetalheResultado(caminho, mes);
       }),
     });
   });
@@ -740,7 +748,14 @@ async function finTelaRevisar(alvo) {
   boxD.innerHTML = conf.duplicados.length ? conf.duplicados.map((ids) => `<div class="fin-item fin-dup">${ids.map((id) => {
     const l = porId[id];
     return l ? `<a href="#" data-abrir="${id}">${finData(l.data)} · ${esc(l.fornecedor_nome || "—")} · ${finBRL(l.valor_total)} · ${esc(l.descricao || "")} <span class="info">(${esc(l.origem)})</span></a>` : "";
-  }).join("")}</div>`).join("") : `<div class="info">Nenhum duplicado encontrado.</div>`;
+  }).join("")}<button type="button" class="secundario" data-dupok="${ids.join(",")}">Não é duplicado (compra repetida mesmo)</button></div>`).join("") : `<div class="info">Nenhum duplicado encontrado.</div>`;
+  boxD.querySelectorAll("[data-dupok]").forEach((b) => {
+    b.onclick = () => finOcupado(b, "…", async () => {
+      await api.post("/api/fin/lancamentos/nao-duplicado", { ids: b.dataset.dupok.split(",").map(Number) });
+      finMsg("Ok, não aparece mais como duplicado");
+      finRender();
+    });
+  });
   boxD.querySelectorAll("[data-abrir]").forEach((a) => { a.onclick = (e) => { e.preventDefault(); finAbrirLancamento(Number(a.dataset.abrir)); }; });
   // a revisar
   finTabela(alvo.querySelector("#frr-lista"), "revisar",

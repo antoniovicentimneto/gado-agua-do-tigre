@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -31,6 +32,17 @@ SETORES_CONSIPA = {
 
 SIGLAS = {"itr": "ITR", "irpf": "IRPF", "ipva": "IPVA", "iof": "IOF", "13o": "13º", "inss": "INSS",
           "fgts": "FGTS", "cpf": "CPF", "cnpj": "CNPJ"}
+
+
+def agora_utc() -> datetime:
+    """Hora UTC sem fuso (o banco guarda tudo em UTC; a tela converte pra hora local).
+    O servidor (Render) roda em UTC e o PC em horário de Brasília: usar sempre isto."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def iso_utc(d: datetime | None) -> str | None:
+    """Data/hora UTC no formato que o navegador entende como UTC (termina em Z)."""
+    return d.isoformat() + "Z" if d else None
 
 
 class ErroFinanceiro(Exception):

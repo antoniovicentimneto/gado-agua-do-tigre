@@ -28,6 +28,7 @@ COLUNAS_NOVAS = [
     ("sessoes_pesagem", "chave_cliente", "VARCHAR(40)"),
     ("lotes", "cor", "VARCHAR(9)"),
     ("lotes", "icone", "VARCHAR(8)"),
+    ("fin_lancamentos", "dup_ok", "BOOLEAN DEFAULT FALSE"),
 ]
 
 

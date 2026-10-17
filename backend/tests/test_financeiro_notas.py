@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models_financeiro import FinContribuinte, FinLancamento, FinNota
+from app.services.fin_plano import agora_utc
 from app.services import fin_cripto, fin_extrato, fin_lancamentos, fin_nfe_xml, fin_notas, fin_plano, fin_sefaz
 
 CHAVE = "41261012345678000195550010000123451000123456"
@@ -115,6 +116,7 @@ def test_lancar_nota_dividida_e_aprender(fdb):
     assert [p.valor for p in lancs[0].parcelas] == [480, 320]  # 60%/40% das duplicatas
     assert lancs[0].nf_chave == CHAVE and lancs[0].fornecedor.documento == EMITENTE
     assert fdb.get(FinNota, nota.id).situacao == "lancada"
+    assert fin_lancamentos.possiveis_duplicados(fdb) == []  # partes da mesma nota não são duplicado
 
     # Próxima nota do mesmo fornecedor: cada produto já vem classificado.
     outra = fin_notas.guardar_nota(fdb, nfe_xml(chave=CHAVE[:-1] + "7"))
@@ -226,7 +228,7 @@ def test_sincronizar_com_sefaz_simulada(fdb, monkeypatch):
     assert r["ok"] and r["novas"] == 1 and r["ciencias"] == 1 and r["completas"] == 1
     nota = fdb.scalar(select(FinNota).where(FinNota.chave == CHAVE))
     assert nota.situacao == "completa" and nota.ciencia_em and nota.contribuinte_id == c.id
-    assert c.ult_nsu == "000000000000001" and c.pode_consultar_apos > datetime.now()
+    assert c.ult_nsu == "000000000000001" and c.pode_consultar_apos > agora_utc()
     # Respeita a espera de 1 h da SEFAZ (não consulta de novo).
     antes = len(chamadas)
     r2 = fin_sefaz.sincronizar(fdb, c)
@@ -239,7 +241,7 @@ def test_sefaz_consumo_indevido_vira_erro_e_espera(fdb, monkeypatch):
     monkeypatch.setattr(fin_sefaz, "transporte", lambda *a: _ret_dist("656", "0", "0"))
     with pytest.raises(fin_sefaz.ErroSefaz):
         fin_sefaz.sincronizar(fdb, c)
-    assert c.pode_consultar_apos > datetime.now()
+    assert c.pode_consultar_apos > agora_utc()
 
 
 # ---------------------------------------------------------------- extrato OFX

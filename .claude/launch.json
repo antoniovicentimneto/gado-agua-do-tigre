@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "gado-teste",
-      "runtimeExecutable": "C:\\Users\\User\\Documents\\CLAUDE CODE\\PROJETOS\\gado_app\\backend\\.venv\\Scripts\\python.exe",
-      "runtimeArgs": ["C:\\Users\\User\\Documents\\CLAUDE CODE\\PROJETOS\\gado_app\\backend\\run_teste.py"],
+      "runtimeExecutable": "C:/Users/User/AppData/Local/Programs/Python/Python311/python.exe",
+      "runtimeArgs": ["C:/Users/User/OneDrive/Documentos/CLAUDE CODE/PROJETOS/gado_app/backend/run_teste.py"],
       "port": 8078
     }
   ]

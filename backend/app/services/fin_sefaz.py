@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from ..models_financeiro import FinContribuinte, FinNota
 from . import fin_cripto, fin_notas
+from .fin_plano import agora_utc
 
 NS_NFE = "http://www.portalfiscal.inf.br/nfe"
 NS_DS = "http://www.w3.org/2000/09/xmldsig#"
@@ -217,13 +218,13 @@ def ler_dist(texto: str) -> dict:
 # ---------------------------------------------------------------- sincronizar
 
 def pode_consultar(c: FinContribuinte, agora: datetime | None = None) -> bool:
-    agora = agora or datetime.now()
+    agora = agora or agora_utc()
     return c.pode_consultar_apos is None or agora >= c.pode_consultar_apos
 
 
 def sincronizar(db: Session, c: FinContribuinte, forcar_espera: bool = True) -> dict:
     """Uma rodada completa: baixa documentos novos, dá ciência e busca os XML completos."""
-    agora = datetime.now()
+    agora = agora_utc()
     if forcar_espera and not pode_consultar(c, agora):
         falta = int((c.pode_consultar_apos - agora).total_seconds() // 60) + 1
         return {"ok": False, "mensagem": f"A SEFAZ só deixa consultar de novo daqui a {falta} min", "novas": 0}
@@ -287,7 +288,7 @@ def _dar_ciencia(db: Session, c: FinContribuinte, chave_priv, cert, pem_cert, pe
     for r in ret.iter(f"{{{NS_NFE}}}infEvento"):
         # 135/136 = registrado; 573 = já tinha ciência (duplicidade)
         if _txt(r, "cStat") in ("135", "136", "573") and _txt(r, "chNFe") in por_chave:
-            por_chave[_txt(r, "chNFe")].ciencia_em = datetime.now()
+            por_chave[_txt(r, "chNFe")].ciencia_em = agora_utc()
             ok += 1
     return ok
 
@@ -308,7 +309,7 @@ def _buscar_completas(db: Session, c: FinContribuinte, pem_cert, pem_chave) -> i
                 fin_notas.guardar_nota(db, d["xml"], origem="sefaz", contribuinte_id=c.id)
                 ok += 1
         if ret["cStat"] == "656":
-            c.pode_consultar_apos = datetime.now() + ESPERA
+            c.pode_consultar_apos = agora_utc() + ESPERA
             break
     return ok
 

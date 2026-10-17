@@ -108,6 +108,8 @@ class FinLancamento(Base):
     # Fila de revisão: aparece em vermelho até alguém conferir.
     revisar: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     revisar_motivo: Mapped[str | None] = mapped_column(String(200))
+    # Conferido "não é duplicado" (compra repetida de verdade): sai do alerta de duplicados.
+    dup_ok: Mapped[bool] = mapped_column(Boolean, default=False)
     # Excluir = inativar (fica no histórico, sai dos relatórios).
     excluido: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     excluido_motivo: Mapped[str | None] = mapped_column(String(200))

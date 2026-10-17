@@ -129,6 +129,8 @@ def test_duplicado_mesmo_fornecedor_valor_e_data_proxima(fdb):
     b = _lanc(fdb, data="2026-03-07")
     _lanc(fdb, data="2026-04-20")
     assert svc.possiveis_duplicados(fdb) == [[a.id, b.id]]
+    svc.marcar_nao_duplicado(fdb, [a.id, b.id])
+    assert svc.possiveis_duplicados(fdb) == []
 
 
 # ---------------------------------------------------------------- resultado por mês

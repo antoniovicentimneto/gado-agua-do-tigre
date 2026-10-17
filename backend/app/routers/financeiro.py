@@ -144,6 +144,12 @@ def parcela_marcar(pid: int, dados: dict = Body(...), db: Session = Depends(get_
     return {"ok": True}
 
 
+@router.post("/lancamentos/nao-duplicado")
+def nao_duplicado(dados: dict = Body(...), db: Session = Depends(get_db)):
+    fin_lancamentos.marcar_nao_duplicado(db, [int(i) for i in dados.get("ids", [])])
+    return {"ok": True}
+
+
 @router.get("/conferencia")
 def conferencia(db: Session = Depends(get_db)):
     """Alertas da tela Revisar: duplicados possíveis e recorrentes a confirmar."""
@@ -229,8 +235,8 @@ def _dict_contribuinte(c: FinContribuinte) -> dict:
             "cert_titular": c.cert_titular,
             "cert_validade": c.cert_validade.isoformat() if c.cert_validade else None,
             "ult_nsu": c.ult_nsu, "max_nsu": c.max_nsu,
-            "ultima_consulta": c.ultima_consulta.isoformat() if c.ultima_consulta else None,
-            "pode_consultar_apos": c.pode_consultar_apos.isoformat() if c.pode_consultar_apos else None,
+            "ultima_consulta": fin_plano.iso_utc(c.ultima_consulta),
+            "pode_consultar_apos": fin_plano.iso_utc(c.pode_consultar_apos),
             "ultimo_retorno": c.ultimo_retorno}
 
 
