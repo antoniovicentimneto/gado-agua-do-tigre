@@ -68,9 +68,17 @@ def importar(db: Session, conta: str, conteudo: bytes) -> dict:
     return {"movimentos": len(movs), "novos": novos, "conciliados_agora": conciliados}
 
 
+def _perto(p: FinParcela, d: date, dias: int) -> bool:
+    """Pelo vencimento (conta corrente) ou pela data da compra (extrato do cartão mostra
+    a compra no dia em que foi feita, não no vencimento da fatura)."""
+    return abs((p.vencimento - d).days) <= dias or abs((p.lancamento.data - d).days) <= dias
+
+
 def _parcelas_da_conta(db: Session, conta: str, inicio: date, fim: date) -> list[FinParcela]:
     q = (select(FinParcela).join(FinLancamento).options(selectinload(FinParcela.lancamento))
-         .where(FinLancamento.excluido.is_(False), FinParcela.vencimento >= inicio, FinParcela.vencimento <= fim))
+         .where(FinLancamento.excluido.is_(False),
+                ((FinParcela.vencimento >= inicio) & (FinParcela.vencimento <= fim))
+                | ((FinLancamento.data >= inicio) & (FinLancamento.data <= fim))))
     return [p for p in db.scalars(q) if (p.conta or p.lancamento.conta) == conta]
 
 
@@ -90,9 +98,10 @@ def conciliar(db: Session, conta: str) -> int:
         candidatas = [p for p in parcelas
                       if p.id not in usadas and abs(p.valor - abs(m.valor)) < 0.01
                       and (sinal < 0) == (p.lancamento.tipo == "despesa")
-                      and abs((p.vencimento - m.data).days) <= TOLERANCIA_DIAS]
+                      and _perto(p, m.data, TOLERANCIA_DIAS)]
         if candidatas:
-            p = min(candidatas, key=lambda x: abs((x.vencimento - m.data).days))
+            p = min(candidatas, key=lambda x: min(abs((x.vencimento - m.data).days),
+                                                  abs((x.lancamento.data - m.data).days)))
             m.parcela_id = p.id
             p.pago = True
             usadas.add(p.id)
@@ -145,7 +154,8 @@ def candidatas(db: Session, mov_id: int) -> list[dict]:
     usadas = set(db.scalars(select(FinMovimento.parcela_id).where(FinMovimento.parcela_id.is_not(None))))
     q = (select(FinParcela).join(FinLancamento).options(selectinload(FinParcela.lancamento))
          .where(FinLancamento.excluido.is_(False),
-                FinParcela.vencimento.between(m.data - timedelta(days=15), m.data + timedelta(days=15))))
+                FinParcela.vencimento.between(m.data - timedelta(days=15), m.data + timedelta(days=15))
+                | FinLancamento.data.between(m.data - timedelta(days=15), m.data + timedelta(days=15))))
     out = []
     for p in db.scalars(q):
         if p.id in usadas or abs(p.valor - abs(m.valor)) > abs(m.valor) * 0.10 + 0.01:

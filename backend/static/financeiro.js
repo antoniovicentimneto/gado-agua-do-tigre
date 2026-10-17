@@ -521,8 +521,9 @@ async function finTelaLancamentos(alvo) {
   const cad = fin.cad;
   const uniq = (fn) => [...new Set(lancs.map(fn).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   alvo.innerHTML = `
-    <div class="fin-filtros">
-      <input id="ff-busca" placeholder="Buscar fornecedor, descrição, nota, valor…" value="${esc(f.busca)}">
+    <div class="fin-filtros ${fin.filtrosAbertos ? "" : "recolhido"}">
+      <input id="ff-busca" class="fin-sempre" placeholder="Buscar fornecedor, descrição, nota, valor…" value="${esc(f.busca)}">
+      <button type="button" class="secundario fin-sempre fin-so-celular" id="ff-mais">⚙ ${fin.filtrosAbertos ? "menos" : "mais"} filtros</button>
       <select id="ff-tipo">${finOpcoes(["despesa", "receita"], f.tipo, "Despesa e receita")}</select>
       <select id="ff-fazenda">${finOpcoes(cad.fazendas.map((x) => x.nome), f.fazenda, "Todas as fazendas")}</select>
       <select id="ff-setor">${finOpcoes(uniq((l) => l.setor), f.setor, "Todos os setores")}</select>
@@ -561,6 +562,7 @@ async function finTelaLancamentos(alvo) {
       desenhar();
     };
   };
+  alvo.querySelector("#ff-mais").onclick = () => { fin.filtrosAbertos = !fin.filtrosAbertos; finRender(); };
   ligar("#ff-busca", "busca", "oninput");
   ["tipo", "fazenda", "setor", "categoria", "por", "origem", "de", "ate"].forEach((c) => ligar(`#ff-${c}`, c));
   ligar("#ff-revisar", "revisar", "onchange", "checked");

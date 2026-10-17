@@ -854,3 +854,8 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
 .fin-toast.visivel { transform: translate(-50%, 0); }
 .fin-toast.erro { background: var(--vermelho); }
 #aba-financeiro button:disabled, #fin-modal button:disabled { opacity: 0.55; }
+.fin-so-celular { display: none; }
+@media (max-width: 700px) {
+  .fin-so-celular { display: inline-block; flex: 0 0 auto !important; }
+  .fin-filtros.recolhido > :not(.fin-sempre) { display: none !important; }
+}

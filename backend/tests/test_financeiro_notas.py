@@ -272,6 +272,13 @@ def test_ofx_importa_concilia_e_nao_duplica(fdb):
     assert next(m for m in fin_extrato.listar(fdb)["movimentos"] if m["id"] == tarifa["id"])["ignorado"]
 
 
+def test_ofx_cartao_casa_pela_data_da_compra(fdb):
+    fin_lancamentos.criar(fdb, {"tipo": "despesa", "data": "2026-10-12", "setor": "Sede", "grupo": "G",
+                                "categoria": "C", "valor_total": 600, "conta": "Cartão Sicoob",
+                                "parcelas": [{"vencimento": "2026-11-10", "valor": 600}]}, "Letícia")
+    assert fin_extrato.importar(fdb, "Cartão Sicoob", OFX)["conciliados_agora"] == 1
+
+
 def test_ofx_invalido(fdb):
     with pytest.raises(fin_plano.ErroFinanceiro):
         fin_extrato.importar(fdb, "Sicoob", b"nada a ver")
