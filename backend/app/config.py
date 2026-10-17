@@ -21,6 +21,10 @@ class Configuracoes(BaseSettings):
     # Validade do login em dias (longo: o app fica logado no celular).
     token_dias: int = 60
 
+    # Chave pra criptografar os certificados digitais do Financeiro (FIN_CHAVE no .env).
+    # Vazia = usa o auth_secret. Trocar depois obriga a reenviar os certificados.
+    fin_chave: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

@@ -54,7 +54,9 @@ def registrar(request: Request, corpo_bytes: bytes, status_code: int) -> None:
             usuario_nome=payload.get("nome") if payload else "desconhecido",
             metodo=request.method,
             rota=request.url.path,
-            corpo=_texto_corpo(corpo_bytes),
+            # Upload (certificado, planilha, XML) não vai pro log: tem binário e senha.
+            corpo=("(arquivo enviado)" if "multipart" in request.headers.get("content-type", "")
+                   else _texto_corpo(corpo_bytes)),
             status_code=status_code,
         ))
         db.commit()

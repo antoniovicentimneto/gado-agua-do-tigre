@@ -448,3 +448,7 @@ def _cor_automatica(mapper, connection, lote: Lote) -> None:
         select(Lote.cor, func.count()).where(Lote.cor.is_not(None)).group_by(Lote.cor)
     ).all())
     lote.cor = min(PALETA_LOTES, key=lambda c: (uso.get(c, 0), PALETA_LOTES.index(c)))
+
+
+# Modelos do Financeiro (arquivo próprio; importado aqui pra entrar no create_all).
+from . import models_financeiro  # noqa: E402,F401
