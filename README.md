@@ -30,6 +30,15 @@ digitado.
   próprios (pino no mapa com a ficha rápida do lote), e o mapa pode mostrar a divisa da
   fazenda e as áreas de outros usos (soja, madeira, reserva) só como referência.
 - **Painel**: total, ativos, vendidos, GMD médio do rebanho e total de pesagens.
+- **Financeiro** (só dono — substitui a planilha CONSIPA): lançamento rápido de despesas e
+  receitas (fornecedor já preenche a categoria da última vez, parcelas, conta, fazenda
+  Água do Tigre/Castro); **Resultado por mês** em árvore (setor › grupo › categoria) onde
+  tocar em qualquer número abre os lançamentos que formam ele; fila **Revisar** (sem
+  categoria em vermelho, recorrentes a confirmar, possíveis duplicados); **Notas**: envia o
+  XML da NF-e (ou busca sozinho na SEFAZ pelo CPF/CNPJ com certificado digital A1) e a nota
+  vem com fornecedor, produtos, vencimentos e forma de pagamento, já com a categoria
+  sugerida; **Extrato** OFX do banco/cartão pra achar o que saiu e não foi lançado;
+  importação da planilha CONSIPA. Detalhes em `docs/financeiro_consipa_engenharia_reversa.md`.
 - **Login com perfis**: dono/dona tem acesso completo; o peão só lança peso e
   mexe em lotes durante a pesagem — não edita/remove pesagens antigas, não
   exporta a planilha e não acessa compra/venda. O dono cadastra e remove

@@ -859,3 +859,4 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
   .fin-so-celular { display: inline-block; flex: 0 0 auto !important; }
   .fin-filtros.recolhido > :not(.fin-sempre) { display: none !important; }
 }
+.fin-tabela td button { padding: 4px 8px; font-size: 0.78rem; margin: 1px 0; }

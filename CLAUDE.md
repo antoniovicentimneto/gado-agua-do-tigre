@@ -226,6 +226,35 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - **Datas:** usar `hojeLocal()` (app.js) — `toISOString()` é UTC e depois das 21h já é o dia
   seguinte. O painel recebe `?hoje=` do aparelho porque o servidor (Render) roda em UTC.
 
+## Financeiro (aba Financeiro, só DONO) — substitui a planilha CONSIPA
+
+- Análise da CONSIPA e decisões do Antonio: `docs/financeiro_consipa_engenharia_reversa.md`
+  (§5). Progresso/retomada: `docs/financeiro_progresso.md` (tarefa agendada
+  "continuar-financeiro-gado" lê esse arquivo; desativar quando tudo estiver [x]).
+- **Modelos** em `app/models_financeiro.py` (importado no fim de models.py): FinLancamento
+  (1 compra) + FinParcela (vencimentos), FinPlano (tipo › setor › grupo › categoria — só 3
+  níveis, sem item/subitem), FinFornecedor (CNPJ/CPF + apelidos + classificação aprendida),
+  FinRecorrente, FinRegra (aprendizado fornecedor/NCM → categoria), FinContribuinte (CPF/CNPJ
+  digitado na tela + certificado A1 CRIPTOGRAFADO), FinNota (caixa de entrada de NF-e),
+  FinMovimento (extrato OFX). Campo **fazenda** (Água do Tigre / Castro) em todo lançamento.
+- **Serviços** `services/fin_*.py`; rotas `/api/fin/*` (`routers/financeiro.py`, router inteiro
+  com `requer_dono`). Frontend `static/financeiro.js` (lançar, resultado, lançamentos, revisar,
+  recorrentes) e `static/financeiro-notas.js` (notas, extrato, cadastros).
+- Regras: sem categoria = `revisar=True` (vermelho, aba Revisar); excluir = `excluido=True`
+  com motivo (nunca apaga); parcela `pago=None` = automático (venceu = realizado), `False` = a
+  confirmar (recorrentes). Resultado: visão **caixa** (vencimento) ou **competência** (compra).
+- **Horários** do Financeiro gravados em UTC (`agora_utc()`, saída com `Z` via `iso_utc()`); a
+  tela converte pra hora local (`finLocal`). Não usar `datetime.now()` aqui.
+- **SEFAZ** (`fin_sefaz.py`): NFeDistribuicaoDFe (distNSU/consChNFe) + evento Ciência da
+  Operação 210210 assinado (XMLDSig RSA-SHA1/C14N com lxml). Exige e-CPF/e-CNPJ A1 do próprio
+  documento. Limite da SEFAZ: 1 consulta/hora (cStat 137/656 → `pode_consultar_apos`). Só NF-e
+  modelo 55; NFC-e e NFS-e não vêm. Testado só com SEFAZ simulada (`transporte` trocado nos
+  testes) — o primeiro uso real precisa ser acompanhado. Chave de criptografia: `FIN_CHAVE` no
+  .env (sem ela usa o AUTH_SECRET; trocar obriga a reenviar os certificados).
+- Upload (certificado, planilha, XML, OFX) não vai pro log de auditoria (`(arquivo enviado)`).
+- Importar CONSIPA: Cadastros › Importar CONSIPA (idempotente por `chave_origem`). Totais de
+  2025 batem centavo a centavo com a planilha (despesa R$ 3.555.070,06 / receita R$ 4.266.963,84).
+
 ## Estado atual (jul/2026)
 
 Tudo no ar e funcionando: login+perfis, offline/PWA, deploy Render+Supabase, config
