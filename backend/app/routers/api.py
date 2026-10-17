@@ -319,6 +319,7 @@ def animais_cache(db: Session = Depends(get_db)):
         saida.append({
             "id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "lote": r["lote_atual"], "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
+            "data_ultimo": r["data_ultimo"],
             "observacao": r["observacao"],
             "dentes": r["dentes"], "data_dentes": r["data_dentes"],
         })

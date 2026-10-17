@@ -508,7 +508,7 @@ el("mg-brinco").oninput = () => {
   const fora = !nomesOrig.has(a.lote);
   // Dentição da última avaliação (lançada em "mais opções" numa pesagem anterior).
   const dentes = a.dentes != null ? ` · ${a.dentes} dentes (${fmt.data(a.data_dentes)})` : "";
-  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}${dentes}`;
+  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}${dentes}`;
   box.textContent = dados + (fora ? " · ⚠ fora do lote" : "");
   box.className = fora ? "mg-info-animal fora" : "mg-info-animal";
 };
@@ -557,6 +557,7 @@ async function mgSucesso(r) {
     cacheUpsertAnimal({
       id: r.animal_id, brinco: r.brinco, tipo: r.tipo, raca: r.raca,
       lote: r.destino || r.lote_atual, ultimo_peso: r.peso, gmd: r.gmd,
+      data_ultimo: (mg.estado && mg.estado.sessao && mg.estado.sessao.data) || hojeLocal(),
       ...(r.dentes != null ? { dentes: r.dentes, data_dentes: r.data_dentes } : {}),
     });
   }

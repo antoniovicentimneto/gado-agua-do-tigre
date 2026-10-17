@@ -419,6 +419,19 @@ const fmt = {
   real: (v) => (v == null ? "—" : "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })),
 };
 
+// "último 405 kg em 12/09/2026 (há 35 dias)" — mostrado ao digitar o brinco, pra saber
+// se o animal passou na balança agora há pouco ou faz tempo.
+function textoUltimaPesagem(a) {
+  if (a.ultimo_peso == null) return "nunca pesado";
+  let quando = "";
+  if (a.data_ultimo) {
+    const dias = Math.round((new Date(hojeLocal() + "T00:00") - new Date(a.data_ultimo + "T00:00")) / 86400000);
+    const ha = dias <= 0 ? "hoje" : dias === 1 ? "ontem" : `há ${dias} dias`;
+    quando = ` em ${fmt.data(a.data_ultimo)} (${ha})`;
+  }
+  return `último ${a.ultimo_peso} kg${quando}`;
+}
+
 // Escapa texto pra usar com segurança dentro de HTML/atributos.
 // Data de hoje no fuso do aparelho, em AAAA-MM-DD. (toISOString() é UTC: depois das
 // 21h no Brasil já devolve o dia seguinte e a pesagem saía com a data errada.)
@@ -1634,7 +1647,7 @@ document.getElementById("pesar-brinco").oninput = () => {
   }
   const a = cands[0];
   const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
-  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · último ${a.ultimo_peso ?? "—"} kg · GMD ${gmd}`;
+  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}`;
   box.className = "mg-info-animal";
 };
 
@@ -1659,6 +1672,7 @@ async function salvarPesagemRapida(animalId) {
       cacheUpsertAnimal({
         id: r.animal.id, brinco: r.animal.brinco, tipo: r.animal.tipo, raca: r.animal.raca,
         lote: r.animal.lote_atual, ultimo_peso: r.animal.ultimo_peso, gmd: r.animal.gmd,
+        data_ultimo: r.animal.data_ultimo,
       });
     }
     const li = document.createElement("li");
