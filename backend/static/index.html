@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=58" />
+  <link rel="stylesheet" href="/static/style.css?v=59" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -59,6 +59,7 @@
     <button data-aba="rebanho">Rebanho</button>
     <button data-aba="pesar">Pesar</button>
     <button data-aba="painel">Painel</button>
+    <button data-aba="financeiro" id="aba-btn-financeiro" class="escondido">Financeiro</button>
     <button data-aba="config" id="aba-btn-config" class="escondido">Config</button>
     <button data-aba="usuarios" id="aba-btn-usuarios" class="escondido">Usuários</button>
   </nav>
@@ -308,6 +309,21 @@
   </section>
 
   <!-- ABA CONFIG (só dono) -->
+  <!-- ABA FINANCEIRO (só dono): despesas e receitas, notas fiscais, extrato -->
+  <section id="aba-financeiro" class="aba">
+    <div class="modo-toggle fin-modos" id="fin-modos">
+      <button data-fin="lancar" class="ativa">Lançar</button>
+      <button data-fin="notas">Notas</button>
+      <button data-fin="resultado">Resultado</button>
+      <button data-fin="lancamentos">Lançamentos</button>
+      <button data-fin="revisar">Revisar</button>
+      <button data-fin="recorrentes">Recorrentes</button>
+      <button data-fin="extrato">Extrato</button>
+      <button data-fin="cadastros">Cadastros</button>
+    </div>
+    <div id="fin-corpo"></div>
+  </section>
+
   <section id="aba-config" class="aba">
     <h2>Configurações</h2>
     <p class="info">Listas que aparecem pra escolher ao cadastrar/pesar um animal.</p>
@@ -382,6 +398,14 @@
     </div>
   </div>
 
+  <!-- MODAL DO FINANCEIRO (fechar volta pra tela anterior) -->
+  <div id="fin-modal" class="modal escondido">
+    <div class="modal-conteudo fin-modal-conteudo">
+      <button class="fechar" id="fin-modal-fechar">×</button>
+      <div id="fin-modal-corpo"></div>
+    </div>
+  </div>
+
   <!-- MODAL FICHA DO ANIMAL -->
   <div id="modal" class="modal escondido">
     <div class="modal-conteudo">
@@ -391,14 +415,16 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=58"></script>
-  <script src="/static/fila-offline.js?v=58"></script>
-  <script src="/static/mangueira.js?v=58"></script>
-  <script src="/static/planilha.js?v=58"></script>
-  <script src="/static/venda-gancho.js?v=58"></script>
-  <script src="/static/cria.js?v=58"></script>
+  <script src="/static/app.js?v=59"></script>
+  <script src="/static/fila-offline.js?v=59"></script>
+  <script src="/static/mangueira.js?v=59"></script>
+  <script src="/static/planilha.js?v=59"></script>
+  <script src="/static/venda-gancho.js?v=59"></script>
+  <script src="/static/cria.js?v=59"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/pastos.js?v=58"></script>
+  <script src="/static/pastos.js?v=59"></script>
+  <script src="/static/financeiro.js?v=59"></script>
+  <script src="/static/financeiro-notas.js?v=59"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

@@ -124,6 +124,7 @@ function aplicarPermissoes() {
   const ehDono = usuarioAtual && usuarioAtual.papel === "dono";
   document.getElementById("aba-btn-usuarios").classList.toggle("escondido", !ehDono);
   document.getElementById("aba-btn-config").classList.toggle("escondido", !ehDono);
+  document.getElementById("aba-btn-financeiro").classList.toggle("escondido", !ehDono);
   document.getElementById("btn-exportar").classList.toggle("escondido", !ehDono);
   // Tipos de sessão de compra/venda na mangueira são só do dono.
   document.querySelectorAll("#mg-tipo option[value=compra], #mg-tipo option[value=venda_fazenda], #mg-tipo option[value=venda_morto]")
@@ -621,6 +622,7 @@ document.querySelectorAll(".abas button").forEach((b) => {
     if (b.dataset.aba === "usuarios") carregarUsuarios();
     if (b.dataset.aba === "config") carregarConfig();
     if (b.dataset.aba === "pastos" && window.ptAbrir) window.ptAbrir();
+    if (b.dataset.aba === "financeiro" && window.finAbrir) window.finAbrir();
   };
 });
 

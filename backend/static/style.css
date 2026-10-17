@@ -757,3 +757,100 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
 /* O Leaflet usa z-index alto nas camadas internas: isola o mapa pra ficha, barra e
    avisos ficarem por cima dele. */
 #pt-mapa { position: relative; z-index: 0; isolation: isolate; }
+
+/* ---------------------------------------------------- Financeiro */
+:root {
+  --fin-amarelo: #b26a00;
+  --fin-amarelo-claro: #fff4df;
+  --fin-vermelho-claro: #fdecea;
+}
+.fin-modos button { flex: 1 1 22%; }
+.fin-modal-conteudo { max-width: 1100px; }
+.fin-form { display: block; }
+.fin-form-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.fin-form-topo h3 { margin: 0; font-size: 1.05rem; }
+.fin-form-topo input { flex: 1 1 200px; }
+.fin-acoes, .fin-acoes-topo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fin-acoes-topo { margin-bottom: 8px; }
+.fin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 10px; }
+.fin-grid > div { min-width: 0; }
+.fin-grid input, .fin-grid select { width: 100%; }
+.fin-largo { grid-column: span 2; }
+@media (max-width: 420px) { .fin-largo { grid-column: auto; } }
+.fin-form .fin-tipo { margin: 8px 0 0; }
+#aba-financeiro label.fin-de, .fin-filtros label.fin-de { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-weight: 400; }
+.fin-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; align-items: center; }
+.fin-filtros > input, .fin-filtros > select { flex: 1 1 160px; min-width: 0; }
+.fin-filtros label.check { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-weight: 400; }
+.fin-resumo { margin: 4px 0 8px; font-size: 0.9rem; }
+.fin-tabela { overflow-x: auto; background: #fff; border: 1px solid var(--borda); border-radius: 10px; }
+.fin-tabela table { font-size: 0.86rem; }
+.fin-tabela th { position: sticky; top: 0; background: #fafafa; cursor: pointer; user-select: none; white-space: nowrap; }
+.fin-tabela th:hover { color: var(--verde); }
+.fin-tabela tbody tr { cursor: pointer; }
+.fin-tabela tbody tr:hover { background: #f6faf6; }
+.fin-tabela td { vertical-align: top; }
+.fin-tabela .num, .fin-arvore .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fin-tabela .info { display: inline; font-size: 0.78rem; }
+.fin-seta { color: var(--verde); font-size: 0.75rem; margin-left: 2px; }
+.fin-mais { width: 100%; margin-top: 6px; }
+.fin-linha-revisar td { background: var(--fin-vermelho-claro); }
+.fin-linha-excluida td { color: var(--cinza); text-decoration: line-through; }
+.fin-sem-cat { color: var(--vermelho); font-weight: 600; }
+.fin-receita { color: var(--verde); }
+.fin-negativo { color: var(--vermelho); }
+.fin-alerta { background: var(--fin-amarelo-claro); color: var(--fin-amarelo); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 0.88rem; }
+.fin-sugestao { background: var(--verde-claro); color: var(--verde); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 0.9rem; }
+.fin-explica { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 12px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 10px; }
+.fin-secao { margin: 16px 0; }
+.fin-secao h3 { margin: 0 0 6px; font-size: 1rem; }
+.fin-parcelas { display: grid; gap: 6px; }
+.fin-parcela { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fin-parcela span:first-child { width: 28px; color: var(--cinza); font-size: 0.85rem; }
+.fin-parcela input { flex: 1 1 130px; min-width: 0; }
+.fin-preencher { border-color: var(--fin-amarelo) !important; background: var(--fin-amarelo-claro) !important; }
+.fin-pill { display: inline-block; border-radius: 20px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700; background: #eee; color: var(--cinza); white-space: nowrap; }
+.fin-pill.verde { background: var(--verde-claro); color: var(--verde); }
+.fin-pill.amarelo { background: var(--fin-amarelo-claro); color: var(--fin-amarelo); }
+.fin-pill.vermelho { background: var(--fin-vermelho-claro); color: var(--vermelho); }
+.fin-badge { background: var(--vermelho); color: #fff; border-radius: 20px; padding: 0 6px; font-size: 0.72rem; margin-left: 2px; }
+.fin-perigo { display: flex; gap: 6px; margin-top: 14px; padding: 10px; border: 1px solid #f5c6c6; background: #fff5f5; border-radius: 10px; flex-wrap: wrap; }
+.fin-perigo input { flex: 1 1 200px; }
+.fin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.fin-card { display: block; background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 12px; color: var(--texto); text-decoration: none; font-size: 0.85rem; }
+.fin-card span { display: block; font-size: 1.6rem; font-weight: 700; }
+.fin-card.vermelho span { color: var(--vermelho); }
+.fin-card.amarelo span { color: var(--fin-amarelo); }
+.fin-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+.fin-item.inativo { opacity: 0.6; }
+.fin-item > div { min-width: 0; }
+.fin-item-acoes { display: flex; gap: 6px; align-items: center; }
+.fin-item-acoes input { width: 110px; }
+.fin-item input[required] { flex: 1 1 160px; }
+.fin-dup { flex-direction: column; align-items: stretch; }
+.fin-dup a { color: var(--texto); }
+.fin-botao-arquivo { display: inline-block !important; margin: 0 !important; background: var(--verde); color: #fff; border-radius: 8px; padding: 11px 14px; font-weight: 600 !important; cursor: pointer; }
+.fin-botao-arquivo.secundario { background: #fff; color: var(--verde); border: 1px solid var(--verde); }
+.fin-contrib { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 12px; margin-bottom: 8px; display: grid; gap: 6px; }
+.fin-contrib.inativo { opacity: 0.6; }
+.fin-contrib-topo { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.fin-contrib input[type=password] { flex: 1 1 160px; }
+/* Árvore do Resultado: 1ª coluna fixa ao rolar os meses de lado */
+.fin-arvore table { font-size: 0.84rem; }
+.fin-arvore th, .fin-arvore td { padding: 6px 8px; }
+.fin-col-nome { position: sticky; left: 0; background: #fff; min-width: 220px; max-width: 320px; white-space: normal; z-index: 1; }
+.fin-arvore thead .fin-col-nome { background: #fafafa; z-index: 2; }
+.fin-nivel-0 td { font-weight: 600; background: #f3f6f3; }
+.fin-nivel-0 .fin-col-nome { background: #f3f6f3; }
+.fin-nivel-1 td { font-weight: 600; }
+.fin-cel { cursor: pointer; }
+.fin-cel:hover { background: var(--verde-claro) !important; color: var(--verde); text-decoration: underline; }
+.fin-zero { color: #c7c7c7; }
+.fin-total { font-weight: 700; }
+.fin-saldo td { border-top: 2px solid var(--texto); font-weight: 700; background: #fff; }
+.fin-abre { background: none; color: var(--cinza); padding: 0 4px; font-size: 0.9rem; border: none; }
+.fin-abre-vazio { display: inline-block; width: 18px; }
+.fin-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 120px); background: var(--texto); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 50; transition: transform 0.25s; max-width: calc(100% - 32px); font-size: 0.92rem; }
+.fin-toast.visivel { transform: translate(-50%, 0); }
+.fin-toast.erro { background: var(--vermelho); }
+#aba-financeiro button:disabled, #fin-modal button:disabled { opacity: 0.55; }
