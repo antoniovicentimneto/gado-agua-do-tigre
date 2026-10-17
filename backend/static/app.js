@@ -248,6 +248,9 @@ document.getElementById("nu-criar").onclick = async () => {
 async function carregarConfig() {
   await renderConfigLista("tipo", "cfg-tipos");
   await renderConfigLista("raca", "cfg-racas");
+  await renderConfigLista("sal", "cfg-sais");
+  await renderConfigLista("medicamento", "cfg-medicamentos");
+  await renderConfigLista("problema", "cfg-problemas");
   await carregarLogUsuarios();
   await carregarLogs(true);
 }
@@ -287,6 +290,9 @@ async function adicionarOpcao(categoria, inputId, boxId) {
 
 document.getElementById("cfg-tipo-add").onclick = () => adicionarOpcao("tipo", "cfg-tipo-nome", "cfg-tipos");
 document.getElementById("cfg-raca-add").onclick = () => adicionarOpcao("raca", "cfg-raca-nome", "cfg-racas");
+document.getElementById("cfg-sal-add").onclick = () => adicionarOpcao("sal", "cfg-sal-nome", "cfg-sais");
+document.getElementById("cfg-medicamento-add").onclick = () => adicionarOpcao("medicamento", "cfg-medicamento-nome", "cfg-medicamentos");
+document.getElementById("cfg-problema-add").onclick = () => adicionarOpcao("problema", "cfg-problema-nome", "cfg-problemas");
 
 // ----------------------------------------------------------- Log de alterações (auditoria)
 // Traduz "MÉTODO rota" pra um texto amigável. Cai no bruto (chave) se não achar
@@ -430,6 +436,14 @@ function textoUltimaPesagem(a) {
     quando = ` em ${fmt.data(a.data_ultimo)} (${ha})`;
   }
   return `último ${a.ultimo_peso} kg${quando}`;
+}
+
+// Animal tratado com remédio que ainda está na carência (não pode ir pro abate).
+function emCarencia(a) {
+  return !!(a && a.carencia_ate && a.carencia_ate >= hojeLocal());
+}
+function textoCarencia(a) {
+  return emCarencia(a) ? ` · ⚠ EM CARÊNCIA até ${fmt.data(a.carencia_ate)}` : "";
 }
 
 // Escapa texto pra usar com segurança dentro de HTML/atributos.
@@ -635,6 +649,7 @@ document.querySelectorAll(".abas button").forEach((b) => {
     if (b.dataset.aba === "usuarios") carregarUsuarios();
     if (b.dataset.aba === "config") carregarConfig();
     if (b.dataset.aba === "pastos" && window.ptAbrir) window.ptAbrir();
+    if (b.dataset.aba === "sanidade" && window.snAbrir) window.snAbrir();
     if (b.dataset.aba === "financeiro" && window.finAbrir) window.finAbrir();
   };
 });
@@ -1647,8 +1662,8 @@ document.getElementById("pesar-brinco").oninput = () => {
   }
   const a = cands[0];
   const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
-  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}`;
-  box.className = "mg-info-animal";
+  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}${textoCarencia(a)}`;
+  box.className = emCarencia(a) ? "mg-info-animal fora" : "mg-info-animal";
 };
 
 async function salvarPesagemRapida(animalId) {

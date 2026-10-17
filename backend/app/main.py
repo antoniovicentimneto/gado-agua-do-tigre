@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, migrar_colunas
-from .routers import api, auth, cria, financeiro, pastos, sessoes
+from .routers import api, auth, campo, cria, financeiro, pastos, sessoes
 from .services import auditoria
 
 # Cria as tabelas no primeiro start (idempotente).
@@ -19,6 +19,7 @@ app.include_router(api.router)
 app.include_router(sessoes.router)
 app.include_router(cria.router)
 app.include_router(pastos.router)
+app.include_router(campo.router)
 app.include_router(financeiro.router)
 
 # Rotas que não passam pelo log de auditoria (não são escrita de dado de negócio).

@@ -23,6 +23,7 @@ from ..models import (
     Venda,
 )
 from .. import schemas
+from ..services import campo as svc_campo
 from ..services import manejos as svc_manejos
 from ..services import opcoes as svc_opcoes
 from ..services.auth import requer_dono, usuario_atual
@@ -313,10 +314,12 @@ def animais_cache(db: Session = Depends(get_db)):
         )
         .all()
     )
+    carencias = svc_campo.carencias_ativas(db)
     saida = []
     for a in animais:
         r = montar_resumo(a)
         saida.append({
+            "carencia_ate": carencias[a.id].isoformat() if a.id in carencias else None,
             "id": a.id, "brinco": a.brinco, "tipo": a.tipo, "raca": a.raca,
             "lote": r["lote_atual"], "ultimo_peso": r["ultimo_peso"], "gmd": r["gmd"],
             "data_ultimo": r["data_ultimo"],
@@ -364,9 +367,12 @@ def listar_opcoes(categoria: str, db: Session = Depends(get_db)):
 
 @router.post("/opcoes/{categoria}", status_code=201, response_model=schemas.OpcaoSaida)
 def criar_opcao(categoria: str, dados: schemas.OpcaoCriar,
-                db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+                db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_atual)):
     if categoria not in svc_opcoes.CATEGORIAS:
         raise HTTPException(status_code=404, detail="Categoria inválida")
+    # Tipo/raça são do dono; sal, remédio e problema o peão cria no campo.
+    if categoria not in svc_opcoes.CATEGORIAS_CAMPO and usuario.papel != PapelUsuario.DONO:
+        raise HTTPException(status_code=403, detail="Ação permitida só para o dono")
     try:
         return svc_opcoes.criar(db, categoria, dados.nome)
     except ValueError as e:

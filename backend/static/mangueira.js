@@ -508,9 +508,9 @@ el("mg-brinco").oninput = () => {
   const fora = !nomesOrig.has(a.lote);
   // Dentição da última avaliação (lançada em "mais opções" numa pesagem anterior).
   const dentes = a.dentes != null ? ` · ${a.dentes} dentes (${fmt.data(a.data_dentes)})` : "";
-  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}${dentes}`;
+  const dados = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}${dentes}${textoCarencia(a)}`;
   box.textContent = dados + (fora ? " · ⚠ fora do lote" : "");
-  box.className = fora ? "mg-info-animal fora" : "mg-info-animal";
+  box.className = fora || emCarencia(a) ? "mg-info-animal fora" : "mg-info-animal";
 };
 
 // ----------------------------------------------------------- Enviar pesagem

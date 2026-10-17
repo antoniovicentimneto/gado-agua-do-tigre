@@ -860,3 +860,36 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
   .fin-filtros.recolhido > :not(.fin-sempre) { display: none !important; }
 }
 .fin-tabela td button { padding: 4px 8px; font-size: 0.78rem; margin: 1px 0; }
+
+/* ---- Sal no cocho (aba Pastos) */
+.pt-salgar {
+  width: 100%; min-height: 56px; margin: 6px 0 10px; font-size: 1.05rem; font-weight: 700;
+  background: #6d4c41; color: #fff;
+}
+.pt-salgar small { font-weight: 400; opacity: 0.9; }
+.pt-barra .pt-salgar { margin: 0 0 8px; min-height: 52px; }
+body.pt-com-barra { padding-bottom: 240px; }
+body.pt-com-barra .pt-toast { bottom: 250px; }
+.sal-rapidos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sal-rapidos button { width: auto; flex: 1 1 60px; min-height: 46px; padding: 6px; }
+.sal-resumo { background: #efebe9; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; color: var(--texto); }
+
+/* ---- Aba Sanidade */
+.sn-form input, .sn-form select { width: 100%; }
+.sn-salvar { width: 100%; min-height: 56px; margin-top: 14px; font-size: 1.05rem; }
+.sn-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.sn-card {
+  background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 10px 8px;
+  text-align: center; color: var(--texto); font-weight: 400; min-height: 72px;
+}
+.sn-card b { display: block; font-size: 1.3rem; color: var(--verde); }
+.sn-card span { font-size: 0.78rem; color: var(--cinza); }
+.sn-card.ativo { border: 2px solid var(--vermelho); }
+#sn-card-carencia b { color: var(--vermelho); }
+.sn-tabela-box { overflow-x: auto; background: #fff; border-radius: 10px; border: 1px solid var(--borda); }
+.sn-tabela th { cursor: pointer; white-space: nowrap; user-select: none; background: #fafafa; }
+.sn-tabela td, .sn-tabela th { padding: 8px 6px; vertical-align: top; }
+.sn-tabela tr.sn-em-carencia td { background: #fff3f3; }
+.sn-apagar { width: auto; background: none; color: var(--vermelho); padding: 4px 8px; }
+#sn-escolha .pt-lote-escolha { margin: 4px 0; }
+@media (max-width: 420px) { .sn-cards { grid-template-columns: 1fr 1fr; } }

@@ -29,6 +29,7 @@ from ..models import (
     sessao_sublote,
 )
 from . import geo
+from .campo import ultimas_salgas_por_lote
 
 KG_POR_UA = 450  # 1 UA = 450 kg de peso vivo (mesma regra do resto do app)
 
@@ -216,6 +217,13 @@ def painel(db: Session, hoje: date | None = None) -> dict:
          "geometria": json.loads(c.geometria)}
         for c in db.query(CamadaMapa).order_by(CamadaMapa.tipo, CamadaMapa.nome).all()
     ]
+    # Última salga de cada lote (botão "Salgar cocho" mostra há quantos dias foi).
+    salgas = ultimas_salgas_por_lote(db)
+    for p in lista:
+        for l in p["lotes"]:
+            l["ultima_salga"] = salgas.get(l["id"])
+    for l in sem_piquete:
+        l["ultima_salga"] = salgas.get(l["id"])
     return {
         "hoje": hoje.isoformat(),
         "paleta": PALETA_LOTES,

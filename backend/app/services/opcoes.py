@@ -10,13 +10,30 @@ from sqlalchemy.orm import Session
 
 from ..models import Animal, OpcaoCadastro
 
-CATEGORIAS = {"tipo", "raca"}
+CATEGORIAS = {"tipo", "raca", "sal", "medicamento", "problema"}
+
+# Listas do campo: o peão pode acrescentar opção nova na hora (está lançando no pasto).
+CATEGORIAS_CAMPO = {"sal", "medicamento", "problema"}
+
+# Valores iniciais das listas do campo (o dono edita na aba Config).
+PADROES = {
+    "sal": ["Sal mineral", "Proteinado", "Ureado", "Sal branco"],
+    "problema": ["Bicheira", "Pneumonia", "Casco / manqueira", "Diarreia", "Olho (ceratite)",
+                 "Umbigo", "Carrapato", "Berne", "Machucado / ferida", "Outro"],
+    "medicamento": [],
+}
 
 
 def _semear_se_vazio(db: Session, categoria: str) -> None:
     """Popula a categoria com os valores já usados nos animais, se ainda vazia."""
     tem = db.query(OpcaoCadastro).filter(OpcaoCadastro.categoria == categoria).first()
     if tem is not None:
+        return
+    if categoria in PADROES:
+        for nome in PADROES[categoria]:
+            db.add(OpcaoCadastro(categoria=categoria, nome=nome))
+        if PADROES[categoria]:
+            db.commit()
         return
     campo = Animal.tipo if categoria == "tipo" else Animal.raca
     distintos = {

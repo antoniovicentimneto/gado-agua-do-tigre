@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=60 / cache v52.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=61 / cache v53.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -225,6 +225,24 @@ de cada animal. Serviço: `app/services/manejos.py`.
   por cima da ficha/barra.
 - **Datas:** usar `hojeLocal()` (app.js) — `toISOString()` é UTC e depois das 21h já é o dia
   seguinte. O painel recebe `?hoje=` do aparelho porque o servidor (Render) roda em UTC.
+
+## Campo: sal no cocho e sanidade
+
+- **Modelos** em `app/models_campo.py` (importado no fim de models.py): `SalgaCocho` (lote,
+  piquete e cabeças do momento, sal, kg, data/hora local do aparelho, quem) e
+  `OcorrenciaSanitaria` (animal, lote do momento, problema, remédio, dose, carência →
+  `carencia_ate`). Serviço `services/campo.py`, rotas `/api/sal` e `/api/sanidade`
+  (`routers/campo.py`). Peão e dono lançam; apagar = dono, ou o próprio autor no mesmo dia.
+- **Consumo de sal** = kg ÷ (cabeças × dias até a salga seguinte); média dos últimos 60 dias.
+  A última salga ainda está no cocho e não entra.
+- **Carência**: `/api/animais-cache` traz `carencia_ate`; mangueira, pesagem rápida e Sanidade
+  mostram "⚠ EM CARÊNCIA até dd/mm" em vermelho (`emCarencia`/`textoCarencia` em app.js).
+- Listas do campo em `OpcaoCadastro` (categorias `sal`, `medicamento`, `problema`, com
+  valores iniciais em `opcoes.PADROES`); o peão pode criar opção nova na hora.
+- Frontend `static/campo.js`: "🧂 Salgar cocho" na barra do lote e na ficha do lote (Pastos)
+  e a aba Sanidade. Sem rede vai pra fila com `chave` (não duplica).
+- Contexto: a fazenda trata só quem precisa (método SICOPA) — por isso sanidade é por animal,
+  não calendário de vacinação do rebanho.
 
 ## Financeiro (aba Financeiro, só DONO) — substitui a planilha CONSIPA
 

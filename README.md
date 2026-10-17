@@ -29,6 +29,11 @@ digitado.
   junta lotes — tudo com **Desfazer** e funcionando sem sinal. Cada lote tem cor e ícone
   próprios (pino no mapa com a ficha rápida do lote), e o mapa pode mostrar a divisa da
   fazenda e as áreas de outros usos (soja, madeira, reserva) só como referência.
+- **Sal no cocho**: no lote (aba Pastos) o botão **🧂 Salgar cocho** registra qual sal,
+  quantos kg e a hora; o app calcula o consumo em g/cabeça/dia e mostra há quantos dias foi
+  a última salga.
+- **Sanidade**: aba para registrar o animal tratado no campo (problema, remédio, dose,
+  carência). Animal em carência aparece em vermelho ao digitar o brinco na pesagem.
 - **Painel**: total, ativos, vendidos, GMD médio do rebanho e total de pesagens.
 - **Financeiro** (só dono — substitui a planilha CONSIPA): lançamento rápido de despesas e
   receitas (fornecedor já preenche a categoria da última vez, parcelas, conta, fazenda

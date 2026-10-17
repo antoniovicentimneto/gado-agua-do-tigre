@@ -1,7 +1,7 @@
 """Schemas Pydantic (validação de entrada/saída da API)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -319,3 +319,25 @@ class LoteVisual(BaseModel):
 class CamadaEditar(BaseModel):
     nome: str | None = None
     uso: str | None = None
+
+
+# ---------------------------------------------------------------- Campo (sal e sanidade)
+
+class SalgaEntrada(BaseModel):
+    lote_id: int
+    produto: str
+    quantidade_kg: float
+    data_hora: datetime | None = None  # hora local do aparelho
+    observacao: str | None = None
+    chave: str | None = None
+
+
+class OcorrenciaEntrada(BaseModel):
+    animal_id: int
+    problema: str
+    produto: str | None = None
+    dose: str | None = None
+    carencia_dias: int | None = None
+    data_hora: datetime | None = None
+    observacao: str | None = None
+    chave: str | None = None

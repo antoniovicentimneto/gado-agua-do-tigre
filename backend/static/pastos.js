@@ -128,7 +128,7 @@ function ptBotaoLote(l, piqueteId) {
   const sel = pt.sel && pt.sel.lote.id === l.id ? " selecionado" : "";
   return `<button type="button" class="pt-lote${sel}" data-lote-id="${l.id}" data-piquete-id="${piqueteId ?? ""}"
       style="--cor-lote:${esc(l.cor || "#2e7d32")}">
-    <b>${ptMarcaLote(l)} ${esc(l.nome)}</b><small>${ptLoteDescricao(l)}${l.dias != null ? ` · ${l.dias}d aqui` : ""}</small>
+    <b>${ptMarcaLote(l)} ${esc(l.nome)}</b><small>${ptLoteDescricao(l)}${l.dias != null ? ` · ${l.dias}d aqui` : ""}${l.ultima_salga ? ` · 🧂 ${textoDiasSalga(l.ultima_salga)}` : ""}</small>
   </button>`;
 }
 
@@ -246,6 +246,7 @@ function ptRenderBarra() {
     <div class="pt-barra-titulo">${esc(l.nome)} · ${ptLoteDescricao(l)}</div>
     <div class="pt-barra-dica">Está em: ${esc(ptNomePiquete(pt.sel.piqueteId))}. ${pt.modo === "mapa"
       ? "Toque no piquete de destino no mapa." : "Toque em <b>➜ Levar para cá</b> no piquete de destino."}</div>
+    <button type="button" id="pt-b-salgar" class="pt-salgar">🧂 Salgar cocho${l.ultima_salga ? ` <small>· última ${textoDiasSalga(l.ultima_salga)}</small>` : ""}</button>
     <div class="pt-barra-botoes">
       <button type="button" id="pt-b-ficha" class="secundario">ℹ Ficha / cor</button>
       <button type="button" id="pt-b-separar" class="secundario">✂ Separar animais</button>
@@ -253,6 +254,7 @@ function ptRenderBarra() {
       <button type="button" id="pt-b-cancelar" class="secundario">✖ Cancelar</button>
     </div>`;
   ptEl("pt-b-ficha").onclick = () => ptFichaLote(pt.sel.lote.id);
+  ptEl("pt-b-salgar").onclick = () => salFormulario(pt.sel.lote);
   ptEl("pt-b-separar").onclick = ptFormSeparar;
   ptEl("pt-b-juntar").onclick = ptFormJuntar;
   ptEl("pt-b-cancelar").onclick = ptCancelarSelecao;
@@ -937,6 +939,8 @@ function ptFichaLote(loteId) {
     </div>
     <p>${p ? `📍 <b>${esc(ptNomePiquete(p.id))}</b>${p.hectares ? ` · ${ptNum(p.hectares, 2)} ha` : ""}${p.ua_ha ? ` · ${ptNum(p.ua_ha, 2)} UA/ha` : ""}<br>
        Entrou em ${ptDataBR(l.data_entrada)} · há ${l.dias} dia${l.dias === 1 ? "" : "s"} nesse piquete` : "📍 Sem piquete"}</p>
+    <button type="button" class="pt-salgar" id="pt-fl-salgar">🧂 Salgar cocho</button>
+    <div id="pt-fl-sal" class="sal-resumo info">Carregando o sal…</div>
     <div class="pt-ficha-acoes">
       <button type="button" id="pt-fl-mover">➜ Mover</button>
       <button type="button" class="secundario" id="pt-fl-separar">✂ Separar</button>
@@ -962,6 +966,8 @@ function ptFichaLote(loteId) {
   ptEl("pt-fl-separar").onclick = () => { selecionarEFechar(); ptFormSeparar(); };
   ptEl("pt-fl-juntar").onclick = () => { selecionarEFechar(); ptFormJuntar(); };
   ptEl("pt-fl-animais").onclick = () => { ptFecharModal(); abrirLote(l.id, l.nome); };
+  ptEl("pt-fl-salgar").onclick = () => salFormulario(l);
+  salResumoNaFicha(l, "pt-fl-sal");
   const salvar = async (corpo) => {
     try {
       await api.put(`/api/pastos/lotes/${l.id}/visual`, corpo, PRAZO_LANCAMENTO_MS);

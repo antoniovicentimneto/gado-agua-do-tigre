@@ -452,3 +452,6 @@ def _cor_automatica(mapper, connection, lote: Lote) -> None:
 
 # Modelos do Financeiro (arquivo próprio; importado aqui pra entrar no create_all).
 from . import models_financeiro  # noqa: E402,F401
+
+# Modelos do manejo de campo (sal no cocho e sanidade).
+from . import models_campo  # noqa: E402,F401

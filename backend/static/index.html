@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=60" />
+  <link rel="stylesheet" href="/static/style.css?v=61" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -56,6 +56,7 @@
   <nav class="abas">
     <button data-aba="mangueira" class="ativa">Mangueira</button>
     <button data-aba="pastos">Pastos</button>
+    <button data-aba="sanidade">Sanidade</button>
     <button data-aba="rebanho">Rebanho</button>
     <button data-aba="pesar">Pesar</button>
     <button data-aba="painel">Painel</button>
@@ -248,6 +249,45 @@
     <div id="pt-movs"></div>
   </section>
 
+  <!-- ABA SANIDADE (tratamento de animal no campo) -->
+  <section id="aba-sanidade" class="aba">
+    <h2>Registrar tratamento</h2>
+    <div class="sn-form">
+      <label>Brinco</label>
+      <input id="sn-brinco" placeholder="Brinco do animal" inputmode="numeric" autocomplete="off" />
+      <div id="sn-info" class="mg-info-animal"></div>
+      <div id="sn-escolha" class="escondido"></div>
+      <label>Problema</label>
+      <div id="sn-problema-box"></div>
+      <label>Remédio / produto <span class="info">(opcional)</span></label>
+      <div id="sn-produto-box"></div>
+      <div class="grid-2">
+        <div><label>Dose</label><input id="sn-dose" placeholder="Ex.: 10 ml" /></div>
+        <div><label>Carência (dias)</label><input id="sn-carencia" inputmode="numeric" placeholder="0" /></div>
+      </div>
+      <label>Data e hora</label>
+      <input type="datetime-local" id="sn-data" />
+      <label>Observação</label>
+      <input id="sn-obs" placeholder="Opcional" />
+      <button type="button" id="sn-salvar" class="sn-salvar">✔ Salvar tratamento</button>
+      <div id="sn-msg" class="info"></div>
+    </div>
+
+    <h2 style="margin-top:22px">Tratamentos</h2>
+    <div id="sn-cards" class="sn-cards"></div>
+    <div class="filtros">
+      <input id="sn-busca" placeholder="Buscar brinco, problema, remédio, lote…" />
+      <select id="sn-periodo">
+        <option value="30">Últimos 30 dias</option>
+        <option value="90" selected>Últimos 90 dias</option>
+        <option value="365">Último ano</option>
+        <option value="">Tudo</option>
+      </select>
+    </div>
+    <div class="info" id="sn-contador"></div>
+    <div class="sn-tabela-box"><table class="sn-tabela" id="sn-tabela"></table></div>
+  </section>
+
   <!-- ABA REBANHO -->
   <section id="aba-rebanho" class="aba">
     <div class="modo-toggle">
@@ -345,6 +385,32 @@
         <button id="cfg-raca-add">Adicionar</button>
       </div>
     </div>
+    <div class="ficha-secao">
+      <h3>Tipos de sal / suplemento</h3>
+      <div id="cfg-sais" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-sal-nome" placeholder="Ex.: Sal mineral, Proteinado, Ureado" />
+        <button id="cfg-sal-add">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Remédios / produtos</h3>
+      <div id="cfg-medicamentos" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-medicamento-nome" placeholder="Ex.: Ivermectina 1%, Oxitetraciclina" />
+        <button id="cfg-medicamento-add">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="ficha-secao">
+      <h3>Problemas (sanidade)</h3>
+      <div id="cfg-problemas" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-problema-nome" placeholder="Ex.: Bicheira, Pneumonia" />
+        <button id="cfg-problema-add">Adicionar</button>
+      </div>
+    </div>
     <div id="cfg-msg" class="info"></div>
 
     <div class="ficha-secao">
@@ -415,16 +481,17 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=60"></script>
-  <script src="/static/fila-offline.js?v=60"></script>
-  <script src="/static/mangueira.js?v=60"></script>
-  <script src="/static/planilha.js?v=60"></script>
-  <script src="/static/venda-gancho.js?v=60"></script>
-  <script src="/static/cria.js?v=60"></script>
+  <script src="/static/app.js?v=61"></script>
+  <script src="/static/fila-offline.js?v=61"></script>
+  <script src="/static/mangueira.js?v=61"></script>
+  <script src="/static/planilha.js?v=61"></script>
+  <script src="/static/venda-gancho.js?v=61"></script>
+  <script src="/static/cria.js?v=61"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/pastos.js?v=60"></script>
-  <script src="/static/financeiro.js?v=60"></script>
-  <script src="/static/financeiro-notas.js?v=60"></script>
+  <script src="/static/campo.js?v=61"></script>
+  <script src="/static/pastos.js?v=61"></script>
+  <script src="/static/financeiro.js?v=61"></script>
+  <script src="/static/financeiro-notas.js?v=61"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.
