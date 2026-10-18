@@ -45,7 +45,7 @@ async function ptCarregar() {
     salvarOffline(CHAVE_PASTOS_OFFLINE, { ...dados, salvoEm: Date.now() });
   } catch (e) {
     const salvo = lerOffline(CHAVE_PASTOS_OFFLINE);
-    if (!(e instanceof TypeError) || !salvo) {
+    if (!semSinal(e) || !salvo) {
       ptEl("pt-aviso").textContent = "Não foi possível carregar os pastos: " + e.message;
       return;
     }
@@ -454,7 +454,7 @@ async function ptAnimaisDoLote(lote) {
   try {
     return await api.get(`/api/pastos/lotes/${lote.id}/animais`, 15000);
   } catch (e) {
-    if (!(e instanceof TypeError)) throw e;
+    if (!semSinal(e)) throw e;
     // Sem sinal: usa os animais salvos no aparelho (cache da mangueira).
     hidratarCacheAnimaisOfflineSeVazio();
     return [...cacheAnimais.porBrinco.values()].flat()
@@ -593,7 +593,7 @@ async function ptExecutar(url, corpo, rotulo, otimista) {
       ptToast("✔ " + r.movimentacao.resumo, () => ptDesfazer(r.movimentacao.id));
       return;
     } catch (e) {
-      if (!(e instanceof TypeError)) {
+      if (!semSinal(e)) {
         alert(e.message);
         ptRender();
         return;
@@ -984,7 +984,7 @@ function ptFichaLote(loteId) {
       await ptCarregar();
       ptFichaLote(l.id);
     } catch (e) {
-      alert(e instanceof TypeError ? "Trocar a cor precisa de sinal." : e.message);
+      alert(semSinal(e) ? "Trocar a cor precisa de sinal." : e.message);
     }
   };
   document.querySelectorAll(".pt-cor-opcao").forEach((b) => { b.onclick = () => salvar({ cor: b.dataset.cor }); });
@@ -1197,7 +1197,7 @@ function ptFormPiquete(p, geometriaNova) {
       pt.mapaEnquadrado = !!p;
       await ptCarregar();
     } catch (e) {
-      alert(e instanceof TypeError ? "Cadastrar piquete precisa de sinal." : e.message);
+      alert(semSinal(e) ? "Cadastrar piquete precisa de sinal." : e.message);
     }
   };
   if (p) {
@@ -1245,7 +1245,7 @@ function ptFormImportar() {
     try {
       res = await _resposta(await fetch("/api/pastos/importar/ler", { method: "POST", headers: cabecalhos(), body: form }));
     } catch (e) {
-      ptEl("pt-i-previa").innerHTML = `<p style="color:var(--vermelho)">${esc(e instanceof TypeError ? "Importar precisa de sinal." : e.message)}</p>`;
+      ptEl("pt-i-previa").innerHTML = `<p style="color:var(--vermelho)">${esc(semSinal(e) ? "Importar precisa de sinal." : e.message)}</p>`;
       return;
     }
     ptMostrarPrevia(res.areas);
@@ -1258,7 +1258,8 @@ async function ptMostrarPrevia(areas) {
   let pastos = [];
   try { pastos = await opcoes("pasto"); } catch { /* sem lista: só "não informar" */ }
   const opcoesPasto = (sel) => `<option value="">— não informar —</option>` +
-    pastos.map((n) => `<option ${n === sel ? "selected" : ""}>${esc(n)}</option>`).join("");
+    pastos.map((n) => `<option ${n === sel ? "selected" : ""}>${esc(n)}</option>`).join("") +
+    `<option value="__nova__">+ nova pastagem…</option>`;
   const grupos = (pt.dados.areas || []).map((a) => a.nome);
   const temPastaNoArquivo = areas.some((a) => a.area);
 
@@ -1338,11 +1339,40 @@ async function ptMostrarPrevia(areas) {
         : "Fica só no mapa, como referência: não recebe gado nem entra na lotação. Mesmo nome atualiza o contorno.";
     };
   });
+  // "+ nova pastagem…": pede o nome, cadastra na lista da Config e já deixa escolhida.
+  const novaPastagem = async (select) => {
+    const nome = (prompt("Nome da pastagem nova (ex.: Tifton 85, Braquiária Marandu):") || "").trim();
+    if (!nome) { select.value = ""; return null; }
+    try {
+      await api.post("/api/opcoes/pasto", { nome });
+      cache.pasto = null;
+    } catch (e) {
+      alert(semSinal(e) ? "Cadastrar pastagem precisa de sinal." : e.message);
+      select.value = "";
+      return null;
+    }
+    document.querySelectorAll("#pt-i-pasto-todos, [data-pasto]").forEach((s) => {
+      if (![...s.options].some((o) => o.value === nome)) {
+        const o = document.createElement("option");
+        o.value = o.textContent = nome;
+        s.insertBefore(o, s.querySelector('option[value="__nova__"]'));
+      }
+    });
+    select.value = nome;
+    return nome;
+  };
   ptEl("pt-i-aplicar").onclick = () => {
     const v = ptEl("pt-i-pasto-todos").value;
+    if (v === "__nova__") return;
     document.querySelectorAll("[data-pasto]").forEach((s) => { s.value = v; });
   };
-  ptEl("pt-i-pasto-todos").onchange = ptEl("pt-i-aplicar").onclick;
+  ptEl("pt-i-pasto-todos").onchange = async () => {
+    if (ptEl("pt-i-pasto-todos").value === "__nova__" && !(await novaPastagem(ptEl("pt-i-pasto-todos")))) return;
+    ptEl("pt-i-aplicar").onclick();
+  };
+  document.querySelectorAll("[data-pasto]").forEach((s) => {
+    s.onchange = () => { if (s.value === "__nova__") novaPastagem(s); };
+  });
   ptEl("pt-i-grupo").onchange = () => {
     ptEl("pt-i-grupo-novo").classList.toggle("escondido", ptEl("pt-i-grupo").value !== "__novo__");
   };
@@ -1364,24 +1394,26 @@ async function ptMostrarPrevia(areas) {
     const btn = ev.currentTarget;
     btn.disabled = true;
     btn.textContent = "Importando…";
+    const oQueFoi = destino();   // a janela fecha depois de importar: lê antes
     try {
       const r = await api.post("/api/pastos/importar/confirmar", {
         areas: editadas, selecionados,
         area_padrao: grupo || null,
         tipo_area: ptEl("pt-i-tipo").value,
-        destino: destino(),
-        uso: destino() === "uso" ? ptEl("pt-i-uso").value : null,
-        uso_piquete: destino() === "piquetes" ? ptEl("pt-i-usopiq").value : null,
+        destino: oQueFoi,
+        uso: oQueFoi === "uso" ? ptEl("pt-i-uso").value : null,
+        uso_piquete: oQueFoi === "piquetes" ? ptEl("pt-i-usopiq").value : null,
       });
       ptFecharModal();
       pt.mapaEnquadrado = false;
       await ptCarregar();
       ptMudarModo("mapa");
-      const oQue = { piquetes: "piquete(s)", divisa: "divisa(s) da fazenda", uso: "área(s) de outro uso" }[destino()];
+      const oQue = { piquetes: "piquete(s)", divisa: "divisa(s) da fazenda", uso: "área(s) de outro uso" }[oQueFoi];
       ptToast(`✔ ${r.criados} ${oQue} criada(s)${r.atualizados ? `, ${r.atualizados} atualizada(s)` : ""}.` +
         (r.protegidos && r.protegidos.length ? ` ${r.protegidos.length} não mudou(aram) porque já teve gado (use Dividir): ${r.protegidos.join(", ")}.` : ""));
     } catch (e) {
-      alert(e instanceof TypeError ? "Importar precisa de sinal." : e.message);
+      console.error(e);
+      alert(semSinal(e) ? "Importar precisa de sinal." : "Erro ao importar: " + e.message);
       btn.disabled = false;
       btn.textContent = "✔ Importar marcados";
     }

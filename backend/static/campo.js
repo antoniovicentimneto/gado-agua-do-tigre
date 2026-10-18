@@ -79,7 +79,7 @@ async function campoEnviar(url, corpo, rotulo) {
     try {
       return await api.post(url, corpo, PRAZO_LANCAMENTO_MS);
     } catch (e) {
-      if (!(e instanceof TypeError)) throw e;
+      if (!semSinal(e)) throw e;
       marcarRedeRuim();
     }
   }
@@ -172,7 +172,7 @@ async function salResumoNaFicha(lote, boxId) {
   } catch (e) {
     box.textContent = lote.ultima_salga
       ? `Última salga ${textoDiasSalga(lote.ultima_salga)}: ${ptNum(lote.ultima_salga.quantidade_kg)} kg de ${lote.ultima_salga.produto}`
-      : (e instanceof TypeError ? "Sem sinal para carregar o histórico de sal." : e.message);
+      : (semSinal(e) ? "Sem sinal para carregar o histórico de sal." : e.message);
   }
 }
 
@@ -182,7 +182,7 @@ async function salHistorico(lote) {
   try {
     h = await api.get(`/api/sal?lote_id=${lote.id}`, 15000);
   } catch (e) {
-    ptModal(`<h2>🧂 Sal — ${esc(lote.nome)}</h2><p>${esc(e instanceof TypeError ? "Precisa de sinal para ver o histórico." : e.message)}</p>`);
+    ptModal(`<h2>🧂 Sal — ${esc(lote.nome)}</h2><p>${esc(semSinal(e) ? "Precisa de sinal para ver o histórico." : e.message)}</p>`);
     return;
   }
   ptModal(`
@@ -205,7 +205,7 @@ async function salHistorico(lote) {
         await api.delete(`/api/sal/${b.dataset.sal}`);
         await ptCarregar();
         salHistorico(lote);
-      } catch (e) { alert(e instanceof TypeError ? "Apagar precisa de sinal." : e.message); }
+      } catch (e) { alert(semSinal(e) ? "Apagar precisa de sinal." : e.message); }
     };
   });
 }
@@ -333,7 +333,7 @@ async function snCarregarLista() {
     salvarOffline(CHAVE_SANIDADE_OFFLINE, sn.lista);
   } catch (e) {
     sn.lista = lerOffline(CHAVE_SANIDADE_OFFLINE) || [];
-    document.getElementById("sn-contador").textContent = e instanceof TypeError
+    document.getElementById("sn-contador").textContent = semSinal(e)
       ? "📡 Sem sinal — mostrando a última lista salva no aparelho." : e.message;
   }
   snRenderLista();
@@ -403,7 +403,7 @@ function snRenderLista() {
         await api.delete(`/api/sanidade/${b.dataset.oc}`);
         snCarregarLista();
         carregarCacheAnimais().catch(() => {});
-      } catch (e) { alert(e instanceof TypeError ? "Apagar precisa de sinal." : e.message); }
+      } catch (e) { alert(semSinal(e) ? "Apagar precisa de sinal." : e.message); }
     };
   });
 }

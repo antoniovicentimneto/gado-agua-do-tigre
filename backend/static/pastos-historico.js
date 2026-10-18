@@ -14,7 +14,7 @@ async function ptHistoricoPiquete(piqueteId) {
   try {
     h = await api.get(`/api/pastos/piquetes/${piqueteId}/historico?hoje=${ptHoje()}`, 15000);
   } catch (e) {
-    ptModal(`<h2>📜 Histórico</h2><p>${esc(e instanceof TypeError ? "Precisa de sinal para ver o histórico." : e.message)}</p>`);
+    ptModal(`<h2>📜 Histórico</h2><p>${esc(semSinal(e) ? "Precisa de sinal para ver o histórico." : e.message)}</p>`);
     return;
   }
   ptRenderHistorico(h);
@@ -111,7 +111,7 @@ async function ptSecaoPasto(p, boxId) {
       });
       await ptCarregar();
       recarregar();
-    } catch (e) { alert(e instanceof TypeError ? "Precisa de sinal." : e.message); }
+    } catch (e) { alert(semSinal(e) ? "Precisa de sinal." : e.message); }
   };
   box.querySelectorAll("[data-encerrar]").forEach((b) => {
     b.onclick = async () => {
@@ -216,7 +216,7 @@ function ptFormDivisao() {
       await ptCarregar();
       ptToast("✔ " + r.resumo);
     } catch (e) {
-      alert(e instanceof TypeError ? "Dividir precisa de sinal." : e.message);
+      alert(semSinal(e) ? "Dividir precisa de sinal." : e.message);
       btn.disabled = false;
       btn.textContent = "✔ Dividir";
     }

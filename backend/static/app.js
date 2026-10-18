@@ -55,6 +55,13 @@ async function fetchComPrazo(url, opcoes = {}, prazo = 0) {
   }
 }
 
+// Erro de REDE (sem sinal, sem resposta no prazo) — diferente de um erro do próprio app.
+// Antes, qualquer TypeError virava "precisa de sinal", inclusive defeito de programação.
+function semSinal(e) {
+  if (!(e instanceof TypeError)) return false;
+  return !navigator.onLine || /fetch|network|load failed|prazo|conex/i.test(e.message || "");
+}
+
 // Identificador único de um lançamento (o servidor usa pra não gravar duas vezes).
 function novaChave() {
   return (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
