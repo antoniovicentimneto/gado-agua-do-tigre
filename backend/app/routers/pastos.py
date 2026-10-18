@@ -140,6 +140,8 @@ def importar_confirmar(
     tipo_area: str | None = Body(None),
     destino: str = Body("piquetes"),  # piquetes / divisa / uso
     uso: str | None = Body(None),     # com destino "uso": lavoura, madeira, reserva...
+    pasto: str | None = Body(None),   # piquetes: pastagem padrão (cada linha pode ter a sua)
+    uso_piquete: str | None = Body(None),  # piquetes: perene / inverno / verao
     db: Session = Depends(get_db),
     _dono=Depends(requer_dono),
 ):
@@ -154,10 +156,13 @@ def importar_confirmar(
             "geometria": g,
             # Área informada no arquivo (prévia) vale mais que a calculada.
             "hectares": geo.numero_br(a.get("hectares_arquivo")) or geo.hectares(g),
+            "pasto": (str(a.get("pasto") or "").strip()[:60] or None),
+            "uso": (str(a.get("uso") or "").strip() or None),
         })
     if destino in ("divisa", "uso"):
         return _executar(svc.importar_camadas, db, limpos, selecionados, destino, uso)
-    return _executar(svc.importar, db, limpos, selecionados, area_padrao, _tipo_area(tipo_area))
+    return _executar(svc.importar, db, limpos, selecionados, area_padrao, _tipo_area(tipo_area),
+                     pasto, uso_piquete)
 
 
 @router.put("/camadas/{camada_id}")

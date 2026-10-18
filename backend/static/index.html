@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=62" />
+  <link rel="stylesheet" href="/static/style.css?v=63" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -386,6 +386,15 @@
       </div>
     </div>
     <div class="ficha-secao">
+      <h3>Pastagens (forrageiras)</h3>
+      <div id="cfg-pastos" class="cfg-lista"></div>
+      <div class="linha-pesar">
+        <input id="cfg-pasto-nome" placeholder="Ex.: Tifton 85, Braquiária Marandu, Azevém" />
+        <button id="cfg-pasto-add">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="ficha-secao">
       <h3>Tipos de sal / suplemento</h3>
       <div id="cfg-sais" class="cfg-lista"></div>
       <div class="linha-pesar">
@@ -485,18 +494,18 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=62"></script>
-  <script src="/static/fila-offline.js?v=62"></script>
-  <script src="/static/mangueira.js?v=62"></script>
-  <script src="/static/planilha.js?v=62"></script>
-  <script src="/static/venda-gancho.js?v=62"></script>
-  <script src="/static/cria.js?v=62"></script>
+  <script src="/static/app.js?v=63"></script>
+  <script src="/static/fila-offline.js?v=63"></script>
+  <script src="/static/mangueira.js?v=63"></script>
+  <script src="/static/planilha.js?v=63"></script>
+  <script src="/static/venda-gancho.js?v=63"></script>
+  <script src="/static/cria.js?v=63"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=62"></script>
-  <script src="/static/pastos-historico.js?v=62"></script>
-  <script src="/static/pastos.js?v=62"></script>
-  <script src="/static/financeiro.js?v=62"></script>
-  <script src="/static/financeiro-notas.js?v=62"></script>
+  <script src="/static/campo.js?v=63"></script>
+  <script src="/static/pastos-historico.js?v=63"></script>
+  <script src="/static/pastos.js?v=63"></script>
+  <script src="/static/financeiro.js?v=63"></script>
+  <script src="/static/financeiro-notas.js?v=63"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

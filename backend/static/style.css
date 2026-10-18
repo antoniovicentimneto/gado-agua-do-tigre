@@ -910,3 +910,8 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .pt-gmd-cab span { font-size: 0.75rem; color: var(--cinza); }
 .pt-gmd-linha input, .pt-gmd-linha select { width: 100%; padding: 8px 6px; }
 #pt-h-tabela th { cursor: pointer; }
+
+.pt-i-todos { display: flex; gap: 8px; }
+.pt-i-todos select { flex: 1; }
+.pt-i-todos button { width: auto; }
+.pt-imp-tabela select { width: 100%; padding: 6px; }

@@ -31,6 +31,7 @@ COLUNAS_NOVAS = [
     ("fin_lancamentos", "dup_ok", "BOOLEAN DEFAULT FALSE"),
     ("piquetes", "origem_id", "INTEGER REFERENCES piquetes(id)"),
     ("piquetes", "encerrado_em", "DATE"),
+    ("piquetes", "uso", "VARCHAR(20)"),
     ("lote_piquete", "hectares", "FLOAT"),
     ("lote_piquete", "peso_entrada", "FLOAT"),
     ("lote_piquete", "entrada_estimada", "BOOLEAN"),

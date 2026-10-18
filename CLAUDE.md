@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=62 / cache v54.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=63 / cache v55.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -246,6 +246,10 @@ de cada animal. Serviço: `app/services/manejos.py`.
   original (`ativo=False`, `encerrado_em`, renomeado "Nome (até dd/mm/aaaa)") com a área antiga,
   cria as partes (`origem_id`) herdando pasto e descanso, e leva o gado pra parte escolhida.
   Divisão não tem Desfazer. Remover piquete com histórico também renomeia (libera o nome).
+- **Uso da área** (`Piquete.uso`): perene / inverno (lavoura no verão, gado no inverno) /
+  verao. Lavoura pura não é piquete (vai como "Outras áreas"). **Grupo** = `AreaPasto` (só
+  organiza a lista; guarda se a terra é própria ou arrendada). Na importação: 1) o que é o
+  arquivo, 2) uso, 3) pastagem (padrão + por linha, lista `pasto` da Config), grupo opcional.
 - Histórico do piquete: `GET /api/pastos/piquetes/{id}/historico` (ocupações com UA/ha da
   época, GMD do período, pasto da época, origem/partes) — botão 📜 na lista, mapa e edição.
 

@@ -35,6 +35,16 @@ from ..models_campo import PastoPeriodo
 
 KG_POR_UA = 450  # 1 UA = 450 kg de peso vivo (mesma regra do resto do app)
 
+# Uso da área do piquete (lavoura pura não é piquete: vai como "Outras áreas" no mapa).
+USOS_PIQUETE = {"perene", "inverno", "verao"}
+
+
+def _validar_uso(uso: str | None) -> str | None:
+    uso = (uso or "").strip() or None
+    if uso is not None and uso not in USOS_PIQUETE:
+        raise ErroPasto("Uso da área inválido (pasto perene, de inverno ou de verão).")
+    return uso
+
 
 class ErroPasto(ValueError):
     """Erro de regra de negócio — a mensagem é mostrada ao usuário como está."""
@@ -187,6 +197,7 @@ def painel(db: Session, hoje: date | None = None) -> dict:
             # Pasto atual pelos períodos (sobressemeadura aparece "Tifton 85 + Azevém").
             "capim": " + ".join(pastos_atuais.get(p.id, [])) or p.capim,
             "tem_historico": p.id in com_historico,
+            "uso": p.uso,
             "descanso_meta_dias": p.descanso_meta_dias,
             "observacao": p.observacao,
             "geometria": json.loads(p.geometria) if p.geometria else None,
@@ -611,6 +622,7 @@ def salvar_piquete(db: Session, dados: dict, piquete_id: int | None = None) -> d
     nome = (dados.get("nome") or "").strip()
     if not nome:
         raise ErroPasto("Dê um nome para o piquete.")
+    uso = _validar_uso(dados.get("uso")) if "uso" in dados else None  # antes de mexer em nada
     if piquete_id:
         p = db.get(Piquete, piquete_id)
         if p is None:
@@ -643,6 +655,8 @@ def salvar_piquete(db: Session, dados: dict, piquete_id: int | None = None) -> d
             setattr(p, campo, (dados[campo] or "").strip() or None)
     if "descanso_meta_dias" in dados:
         p.descanso_meta_dias = dados["descanso_meta_dias"] or None
+    if "uso" in dados:
+        p.uso = uso
     novo_ha = None
     if dados.get("geometria"):
         g = geo.validar_geometria(dados["geometria"])
@@ -697,9 +711,16 @@ def remover_piquete(db: Session, piquete_id: int) -> dict:
 
 
 def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
-             area_padrao: str | None, tipo_area: TipoArea) -> dict:
-    """Cria os piquetes lidos do arquivo. Nome repetido na mesma área atualiza o
-    contorno em vez de duplicar (dá pra reimportar o arquivo corrigido)."""
+             area_padrao: str | None, tipo_area: TipoArea, pasto_padrao: str | None = None,
+             uso_padrao: str | None = None) -> dict:
+    """Cria os piquetes lidos do arquivo. Nome repetido no mesmo grupo atualiza o
+    contorno em vez de duplicar (dá pra reimportar o arquivo corrigido).
+
+    Cada linha pode trazer a pastagem ("pasto") e o uso ("uso"); sem isso, vale o padrão.
+    A pastagem abre o histórico de pasto do piquete a partir de hoje.
+    """
+    from .pastos_historico import adicionar_pasto
+    uso_padrao = _validar_uso(uso_padrao)
     criados = atualizados = 0
     protegidos: list[str] = []
     for i, a in enumerate(achados):
@@ -724,6 +745,13 @@ def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
             atualizados += 1
         p.geometria = json.dumps(a["geometria"])
         p.hectares = a["hectares"]
+        uso = _validar_uso(a.get("uso")) or uso_padrao
+        if uso:
+            p.uso = uso
+        db.flush()
+        pasto = (a.get("pasto") or pasto_padrao or "").strip()
+        if pasto and pasto != (p.capim or ""):
+            adicionar_pasto(db, p.id, pasto, _hoje(), substitui=True, commit=False)
     db.commit()
     return {"ok": True, "criados": criados, "atualizados": atualizados, "protegidos": protegidos}
 

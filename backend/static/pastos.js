@@ -185,7 +185,7 @@ function ptRenderLista() {
           <div class="pt-piquete-topo">
             <div>
               <div class="pt-piquete-nome">${esc(p.nome)}</div>
-              <div class="pt-piquete-sub">${p.hectares ? ptNum(p.hectares, 2) + " ha" : "área não informada"}${p.capim ? " · " + esc(p.capim) : ""}${lotacao}</div>
+              <div class="pt-piquete-sub">${p.hectares ? ptNum(p.hectares, 2) + " ha" : "área não informada"}${p.capim ? " · 🌱 " + esc(p.capim) : ""}${p.uso === "inverno" ? " · ❄ inverno" : p.uso === "verao" ? " · ☀ verão" : ""}${lotacao}</div>
               <span class="pt-status ${p.status}">${ptTextoStatus(p)}</span>
             </div>
             <div class="pt-card-botoes">
@@ -1105,21 +1105,24 @@ function ptFormPiquete(p, geometriaNova) {
   ptModal(`
     <h2>${p ? "Editar piquete" : "Novo piquete"}</h2>
     <label>Nome</label><input id="pt-p-nome" value="${esc(p ? p.nome : "")}" />
-    <label>Área / retiro</label>
+    <label>Grupo <span class="info">(opcional — organiza a lista, ex.: Sede, Castro/Rosa)</span></label>
     <select id="pt-p-area">
-      <option value="">— sem área —</option>
+      <option value="">— sem grupo —</option>
       ${areas.map((a) => `<option value="${a.id}" ${p && p.area_id === a.id ? "selected" : ""}>${esc(a.nome)}</option>`).join("")}
-      <option value="__nova__">+ nova área…</option>
+      <option value="__nova__">+ novo grupo…</option>
     </select>
     <div id="pt-p-area-nova" class="escondido">
-      <input id="pt-p-area-nome" placeholder="Nome da área (ex.: Sede, Castro/Rosa)" />
+      <input id="pt-p-area-nome" placeholder="Nome do grupo (ex.: Castro/Rosa)" />
       <select id="pt-p-area-tipo">
-        <option value="propria">Própria</option>
-        <option value="arrendada">Arrendada de terceiros</option>
-        <option value="azevem">Azevém de inverno (área de lavoura)</option>
-        <option value="outra">Outra</option>
+        <option value="propria">Terra própria</option>
+        <option value="arrendada">Terra arrendada de terceiros</option>
       </select>
     </div>
+    <label>Uso da área</label>
+    <select id="pt-p-uso">
+      <option value="">— não informar —</option>
+      ${Object.entries(PT_USOS_PIQUETE).map(([k, t]) => `<option value="${k}" ${p && p.uso === k ? "selected" : ""}>${esc(t)}</option>`).join("")}
+    </select>
     <div class="grid-2">
       <div><label>Hectares</label><input id="pt-p-ha" inputmode="decimal" value="${ha ? ptNum(ha, 2) : ""}" /></div>
       <div><label>Descanso desejado (dias)</label><input id="pt-p-meta" inputmode="numeric" value="${p && p.descanso_meta_dias ? p.descanso_meta_dias : ""}" /></div>
@@ -1168,6 +1171,7 @@ function ptFormPiquete(p, geometriaNova) {
       hectares: num(ptEl("pt-p-ha").value),
       descanso_meta_dias: parseInt(ptEl("pt-p-meta").value, 10) || null,
       observacao: ptEl("pt-p-obs").value.trim() || null,
+      uso: ptEl("pt-p-uso").value || null,
     };
     if (!p && ptEl("pt-p-capim")) corpo.capim = (await valorCampoSelect("pasto", "pt-p-capim")) || null;
     if (geometriaNova) corpo.geometria = geometriaNova;
@@ -1181,7 +1185,7 @@ function ptFormPiquete(p, geometriaNova) {
       const area = ptEl("pt-p-area").value;
       if (area === "__nova__") {
         const nomeArea = ptEl("pt-p-area-nome").value.trim();
-        if (!nomeArea) { alert("Dê um nome para a área nova."); return; }
+        if (!nomeArea) { alert("Dê um nome para o grupo novo."); return; }
         const a = await api.post("/api/pastos/areas", { nome: nomeArea, tipo: ptEl("pt-p-area-tipo").value });
         corpo.area_id = a.id;
       } else {
@@ -1219,11 +1223,16 @@ function ptFormPiquete(p, geometriaNova) {
 
 // ---------------------------------------------------------------- Importar arquivo (dono)
 
+const PT_USOS_PIQUETE = {
+  perene: "Pasto perene (o ano todo)",
+  inverno: "Pasto de inverno (lavoura no verão)",
+  verao: "Pasto de verão (lavoura no inverno)",
+};
+
 function ptFormImportar() {
   ptModal(`
     <h2>Importar arquivo de áreas</h2>
-    <p class="info">Aceita KML ou KMZ (Google Earth, GPS, CAR), XML com conteúdo KML e GeoJSON.
-      Cada contorno vira um piquete; as pastas do arquivo viram áreas.</p>
+    <p class="info">Aceita KML ou KMZ (Google Earth, GPS, CAR), XML com conteúdo KML e GeoJSON.</p>
     <input type="file" id="pt-i-arquivo" accept=".kml,.kmz,.xml,.geojson,.json" />
     <div id="pt-i-previa"></div>`);
   ptEl("pt-i-arquivo").onchange = async () => {
@@ -1243,74 +1252,126 @@ function ptFormImportar() {
   };
 }
 
-function ptMostrarPrevia(areas) {
+// Prévia: primeiro "o que é", depois o que cada área é (pastagem, uso, grupo).
+async function ptMostrarPrevia(areas) {
   const totalHa = areas.reduce((s, a) => s + a.hectares, 0);
+  let pastos = [];
+  try { pastos = await opcoes("pasto"); } catch { /* sem lista: só "não informar" */ }
+  const opcoesPasto = (sel) => `<option value="">— não informar —</option>` +
+    pastos.map((n) => `<option ${n === sel ? "selected" : ""}>${esc(n)}</option>`).join("");
+  const grupos = (pt.dados.areas || []).map((a) => a.nome);
+  const temPastaNoArquivo = areas.some((a) => a.area);
+
   ptEl("pt-i-previa").innerHTML = `
-    <p><b>${areas.length}</b> área(s) encontrada(s) · ${ptNum(totalHa, 2)} ha no total. Confira os nomes:</p>
-    <div class="pt-animais"><table class="pt-imp-tabela">
-      <tr><th></th><th>Nome</th><th>Área (pasta)</th><th>ha</th></tr>
-      ${areas.map((a, i) => `<tr>
-        <td><input type="checkbox" data-i="${i}" checked style="width:22px;height:22px"></td>
-        <td><input data-nome="${i}" value="${esc(a.nome)}"></td>
-        <td><input data-area="${i}" value="${esc(a.area || "")}" placeholder="(padrão)"></td>
-        <td>${ptNum(a.hectares, 2)}${a.hectares_arquivo && Math.abs(a.hectares_arquivo - a.hectares_calculado) >= 0.01
-          ? `<br><small class="info" title="Área calculada pelo contorno">contorno: ${ptNum(a.hectares_calculado, 2)}</small>` : ""}</td></tr>`).join("")}
-    </table></div>
-    <label>O que é este arquivo?</label>
+    <p><b>${areas.length}</b> área(s) no arquivo · ${ptNum(totalHa, 2)} ha no total.</p>
+
+    <label>1. O que é este arquivo?</label>
     <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="piquetes" checked>
       Piquetes do gado (recebem lote e entram nos indicadores)</label>
     <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="divisa">
       Divisa da fazenda (o contorno inteiro, sem divisões)</label>
     <label class="pt-opcao"><input type="radio" name="pt-i-destino" value="uso">
-      Outras áreas da fazenda (soja, madeira, reserva…)</label>
+      Outras áreas da fazenda (lavoura, madeira, reserva…) — só aparecem no mapa</label>
+
     <div id="pt-i-bloco-piquetes">
-      <label>Área para os que não têm pasta</label>
-      <input id="pt-i-area" value="Sede" />
-      <label>Tipo das áreas novas</label>
-      <select id="pt-i-tipo">
-        <option value="propria">Própria</option>
-        <option value="arrendada">Arrendada de terceiros</option>
-        <option value="azevem">Azevém de inverno (área de lavoura)</option>
-        <option value="outra">Outra</option>
-      </select>
+      <label>2. Uso da área</label>
+      <select id="pt-i-usopiq">${Object.entries(PT_USOS_PIQUETE).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("")}</select>
+
+      <label>3. Pastagem <span class="info">(a lista vem da aba Config)</span></label>
+      <div class="pt-i-todos">
+        <select id="pt-i-pasto-todos">${opcoesPasto("")}</select>
+        <button type="button" class="secundario" id="pt-i-aplicar">Aplicar a todos</button>
+      </div>
     </div>
     <div id="pt-i-bloco-uso" class="escondido">
-      <label>Uso dessas áreas</label>
+      <label>2. Uso dessas áreas</label>
       <select id="pt-i-uso">${Object.entries(PT_USOS).map(([k, u]) => `<option value="${k}">${esc(u.nome)}</option>`).join("")}</select>
     </div>
-    <p class="info" id="pt-i-nota">Piquete com o mesmo nome na mesma área é atualizado (não duplica).
+
+    <label id="pt-i-titulo-tabela">Confira cada área</label>
+    <div class="pt-animais"><table class="pt-imp-tabela">
+      <tr><th></th><th>Nome</th><th class="pt-i-col-pasto">Pastagem</th>${temPastaNoArquivo ? '<th class="pt-i-col-grupo">Grupo</th>' : ""}<th>ha</th></tr>
+      ${areas.map((a, i) => `<tr>
+        <td><input type="checkbox" data-i="${i}" checked style="width:22px;height:22px"></td>
+        <td><input data-nome="${i}" value="${esc(a.nome)}"></td>
+        <td class="pt-i-col-pasto"><select data-pasto="${i}">${opcoesPasto("")}</select></td>
+        ${temPastaNoArquivo ? `<td class="pt-i-col-grupo"><input data-area="${i}" value="${esc(a.area || "")}"></td>` : ""}
+        <td>${ptNum(a.hectares, 2)}${a.hectares_arquivo && Math.abs(a.hectares_arquivo - a.hectares_calculado) >= 0.01
+          ? `<br><small class="info" title="Área calculada pelo contorno">contorno: ${ptNum(a.hectares_calculado, 2)}</small>` : ""}</td></tr>`).join("")}
+    </table></div>
+
+    <div id="pt-i-bloco-grupo">
+      <label>Grupo <span class="info">(opcional — só organiza a lista, ex.: Sede, Castro/Rosa)</span></label>
+      <select id="pt-i-grupo">
+        <option value="">— sem grupo —</option>
+        ${grupos.map((g) => `<option>${esc(g)}</option>`).join("")}
+        <option value="__novo__">+ novo grupo…</option>
+      </select>
+      <div id="pt-i-grupo-novo" class="escondido">
+        <input id="pt-i-grupo-nome" placeholder="Nome do grupo (ex.: Castro/Rosa)" />
+        <select id="pt-i-tipo">
+          <option value="propria">Terra própria</option>
+          <option value="arrendada">Terra arrendada de terceiros</option>
+        </select>
+      </div>
+      ${temPastaNoArquivo ? '<p class="info">As áreas que vieram numa pasta do arquivo usam o nome da pasta como grupo (coluna "Grupo").</p>' : ""}
+    </div>
+
+    <p class="info" id="pt-i-nota">Piquete com o mesmo nome no mesmo grupo é atualizado (não duplica).
       Quando o arquivo informa a área, vale a área do arquivo (medida pelo técnico); o
       "contorno" é só a conferência calculada pelo app.</p>
     <div class="pt-linha-botoes">
       <button type="button" class="secundario" id="pt-i-cancelar">Cancelar</button>
       <button type="button" id="pt-i-ok">✔ Importar marcados</button>
     </div>`;
+
   const destino = () => document.querySelector('input[name="pt-i-destino"]:checked').value;
   document.querySelectorAll('input[name="pt-i-destino"]').forEach((r) => {
     r.onchange = () => {
-      ptEl("pt-i-bloco-piquetes").classList.toggle("escondido", destino() !== "piquetes");
+      const piq = destino() === "piquetes";
+      ptEl("pt-i-bloco-piquetes").classList.toggle("escondido", !piq);
+      ptEl("pt-i-bloco-grupo").classList.toggle("escondido", !piq);
       ptEl("pt-i-bloco-uso").classList.toggle("escondido", destino() !== "uso");
-      ptEl("pt-i-nota").textContent = destino() === "piquetes"
-        ? "Piquete com o mesmo nome na mesma área é atualizado (não duplica)."
+      document.querySelectorAll(".pt-i-col-pasto, .pt-i-col-grupo").forEach((c) => c.classList.toggle("escondido", !piq));
+      ptEl("pt-i-nota").textContent = piq
+        ? "Piquete com o mesmo nome no mesmo grupo é atualizado (não duplica)."
         : "Fica só no mapa, como referência: não recebe gado nem entra na lotação. Mesmo nome atualiza o contorno.";
     };
   });
+  ptEl("pt-i-aplicar").onclick = () => {
+    const v = ptEl("pt-i-pasto-todos").value;
+    document.querySelectorAll("[data-pasto]").forEach((s) => { s.value = v; });
+  };
+  ptEl("pt-i-pasto-todos").onchange = ptEl("pt-i-aplicar").onclick;
+  ptEl("pt-i-grupo").onchange = () => {
+    ptEl("pt-i-grupo-novo").classList.toggle("escondido", ptEl("pt-i-grupo").value !== "__novo__");
+  };
   ptEl("pt-i-cancelar").onclick = ptFecharModal;
-  ptEl("pt-i-ok").onclick = async () => {
+  ptEl("pt-i-ok").onclick = async (ev) => {
     const editadas = areas.map((a, i) => ({
       ...a,
       nome: document.querySelector(`[data-nome="${i}"]`).value.trim() || a.nome,
-      area: document.querySelector(`[data-area="${i}"]`).value.trim() || null,
+      area: temPastaNoArquivo ? (document.querySelector(`[data-area="${i}"]`).value.trim() || null) : null,
+      pasto: document.querySelector(`[data-pasto="${i}"]`).value || null,
     }));
     const selecionados = [...document.querySelectorAll("#pt-i-previa [data-i]:checked")].map((c) => Number(c.dataset.i));
     if (!selecionados.length) { alert("Marque pelo menos uma área."); return; }
+    let grupo = ptEl("pt-i-grupo").value;
+    if (grupo === "__novo__") {
+      grupo = ptEl("pt-i-grupo-nome").value.trim();
+      if (!grupo) { alert("Dê um nome para o grupo novo (ou escolha \"sem grupo\")."); return; }
+    }
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Importando…";
     try {
       const r = await api.post("/api/pastos/importar/confirmar", {
         areas: editadas, selecionados,
-        area_padrao: ptEl("pt-i-area").value.trim() || null,
+        area_padrao: grupo || null,
         tipo_area: ptEl("pt-i-tipo").value,
         destino: destino(),
         uso: destino() === "uso" ? ptEl("pt-i-uso").value : null,
+        uso_piquete: destino() === "piquetes" ? ptEl("pt-i-usopiq").value : null,
       });
       ptFecharModal();
       pt.mapaEnquadrado = false;
@@ -1321,6 +1382,8 @@ function ptMostrarPrevia(areas) {
         (r.protegidos && r.protegidos.length ? ` ${r.protegidos.length} não mudou(aram) porque já teve gado (use Dividir): ${r.protegidos.join(", ")}.` : ""));
     } catch (e) {
       alert(e instanceof TypeError ? "Importar precisa de sinal." : e.message);
+      btn.disabled = false;
+      btn.textContent = "✔ Importar marcados";
     }
   };
 }

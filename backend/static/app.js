@@ -248,6 +248,7 @@ document.getElementById("nu-criar").onclick = async () => {
 async function carregarConfig() {
   await renderConfigLista("tipo", "cfg-tipos");
   await renderConfigLista("raca", "cfg-racas");
+  await renderConfigLista("pasto", "cfg-pastos");
   await renderConfigLista("sal", "cfg-sais");
   await renderConfigLista("medicamento", "cfg-medicamentos");
   await renderConfigLista("problema", "cfg-problemas");
@@ -291,6 +292,7 @@ async function adicionarOpcao(categoria, inputId, boxId) {
 
 document.getElementById("cfg-tipo-add").onclick = () => adicionarOpcao("tipo", "cfg-tipo-nome", "cfg-tipos");
 document.getElementById("cfg-raca-add").onclick = () => adicionarOpcao("raca", "cfg-raca-nome", "cfg-racas");
+document.getElementById("cfg-pasto-add").onclick = () => adicionarOpcao("pasto", "cfg-pasto-nome", "cfg-pastos");
 document.getElementById("cfg-sal-add").onclick = () => adicionarOpcao("sal", "cfg-sal-nome", "cfg-sais");
 document.getElementById("cfg-medicamento-add").onclick = () => adicionarOpcao("medicamento", "cfg-medicamento-nome", "cfg-medicamentos");
 document.getElementById("cfg-problema-add").onclick = () => adicionarOpcao("problema", "cfg-problema-nome", "cfg-problemas");

@@ -231,3 +231,25 @@ def test_divisao_nao_se_desfaz_pelo_botao(db):
     assert mov["tipo"] == "dividir"
     with pytest.raises(svc.ErroPasto):
         svc.desfazer(db, mov["id"])
+
+
+
+# ---------------------------------------------------------------- Uso da área e pastagem na importação
+
+def test_importar_com_pastagem_e_uso(db):
+    linhas = [{"nome": "T1", "area": None, "geometria": METADE_A, "hectares": 1.0, "pasto": "Azevém"},
+              {"nome": "T2", "area": None, "geometria": METADE_B, "hectares": 1.0}]
+    svc.importar(db, linhas, None, "Sede", svc.TipoArea.PROPRIA, pasto_padrao="Tifton 85",
+                 uso_padrao="inverno")
+    t1 = db.query(Piquete).filter(Piquete.nome == "T1").one()
+    t2 = db.query(Piquete).filter(Piquete.nome == "T2").one()
+    assert t1.capim == "Azevém" and t2.capim == "Tifton 85"   # linha vence o padrão
+    assert t1.uso == t2.uso == "inverno"
+    assert hist.periodos(db, t1.id)[0]["especie"] == "Azevém"
+
+
+def test_uso_invalido_da_erro(db):
+    with pytest.raises(svc.ErroPasto):
+        svc.salvar_piquete(db, {"nome": "X", "geometria": QUADRADO, "uso": "soja"})
+    r = svc.salvar_piquete(db, {"nome": "X", "geometria": QUADRADO, "uso": "perene"})
+    assert db.get(Piquete, r["id"]).uso == "perene"

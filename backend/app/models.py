@@ -369,6 +369,9 @@ class Piquete(Base):
     hectares: Mapped[float | None] = mapped_column(Float)
     geometria: Mapped[str | None] = mapped_column(Text)  # GeoJSON (Polygon/MultiPolygon), lon/lat
     capim: Mapped[str | None] = mapped_column(String(60))
+    # Uso da área: perene (pasto o ano todo), inverno (lavoura no verão, gado no inverno —
+    # integração) ou verao (pasto só no verão). Pesa no cálculo de área por ano.
+    uso: Mapped[str | None] = mapped_column(String(20))
     descanso_meta_dias: Mapped[int | None] = mapped_column(Integer)  # dias de descanso desejados
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     observacao: Mapped[str | None] = mapped_column(Text)
