@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Animal, OpcaoCadastro
 
-CATEGORIAS = {"tipo", "raca", "sal", "medicamento", "problema"}
+CATEGORIAS = {"tipo", "raca", "sal", "medicamento", "problema", "pasto"}
 
 # Listas do campo: o peão pode acrescentar opção nova na hora (está lançando no pasto).
 CATEGORIAS_CAMPO = {"sal", "medicamento", "problema"}
@@ -21,6 +21,9 @@ PADROES = {
     "problema": ["Bicheira", "Pneumonia", "Casco / manqueira", "Diarreia", "Olho (ceratite)",
                  "Umbigo", "Carrapato", "Berne", "Machucado / ferida", "Outro"],
     "medicamento": [],
+    "pasto": ["Braquiária Marandu", "Braquiária Piatã", "Braquiária Decumbens", "Humidícola",
+              "Mombaça", "Tifton 85", "Estrela-africana", "Jiggs", "Azevém", "Aveia",
+              "Milheto", "Sorgo", "Pasto nativo"],
 }
 
 

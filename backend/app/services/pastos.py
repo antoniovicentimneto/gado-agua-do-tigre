@@ -6,7 +6,7 @@ criadas e fechadas — é isso que permite o "Desfazer" exato, sem adivinhação
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
@@ -29,7 +29,9 @@ from ..models import (
     sessao_sublote,
 )
 from . import geo
+from . import peso_estimado as pe
 from .campo import ultimas_salgas_por_lote
+from ..models_campo import PastoPeriodo
 
 KG_POR_UA = 450  # 1 UA = 450 kg de peso vivo (mesma regra do resto do app)
 
@@ -40,9 +42,11 @@ class ErroPasto(ValueError):
 
 # ---------------------------------------------------------------- Consultas de apoio
 
-def _rebanho_por_lote(db: Session) -> dict[int, dict]:
-    """Cabeças ativas, soma do último peso e uGMD de cada lote — em 2 consultas, não 1 por
-    animal (o banco fica longe do servidor; consulta por animal deixa a tela lenta)."""
+def _rebanho_por_lote(db: Session, hoje: date | None = None,
+                      referencia: list[dict] | None = None) -> dict[int, dict]:
+    """Cabeças ativas, peso real e estimado (até hoje) e uGMD de cada lote — em poucas
+    consultas, não 1 por animal (o banco fica longe do servidor)."""
+    hoje = hoje or _hoje()
     vinculos = db.execute(
         select(AnimalLote.lote_id, AnimalLote.animal_id)
         .join(Animal, Animal.id == AnimalLote.animal_id)
@@ -50,61 +54,49 @@ def _rebanho_por_lote(db: Session) -> dict[int, dict]:
     ).all()
     if not vinculos:
         return {}
+    referencia = referencia if referencia is not None else pe.carregar_referencia(db)
+    pesos = pe.pesagens_por_animal(db)
 
-    # Todas as pesagens dos animais ativos, de uma vez: dá o último peso e o uGMD
-    # (ganho entre as duas últimas pesagens, a mesma regra do resto do app).
-    por_animal: dict[int, dict] = {}
-    for animal_id, data_p, peso in db.execute(
-        select(Pesagem.animal_id, Pesagem.data, Pesagem.peso)
-        .join(Animal, Animal.id == Pesagem.animal_id)
-        .where(Animal.status == StatusAnimal.ATIVO)
-    ):
-        dias = por_animal.setdefault(animal_id, {})
-        # Duas pesagens no mesmo dia: fica a maior (evita contar o animal duas vezes).
-        dias[data_p] = max(peso, dias.get(data_p, 0))
-
-    def _ultimo_e_ugmd(animal_id: int) -> tuple[float | None, float | None]:
-        dias = por_animal.get(animal_id)
-        if not dias:
-            return None, None
-        datas = sorted(dias)
-        ultimo = dias[datas[-1]]
-        if len(datas) < 2:
-            return ultimo, None
-        d1, d2 = datas[-2], datas[-1]
-        return ultimo, (dias[d2] - dias[d1]) / (d2 - d1).days
-
-    por_lote: dict[int, dict] = {}
+    animais_por_lote: dict[int, list[int]] = {}
     vistos: set[int] = set()
     for lote_id, animal_id in vinculos:
         if animal_id in vistos:  # vínculo aberto duplicado: conta o animal uma vez só
             continue
         vistos.add(animal_id)
-        r = por_lote.setdefault(lote_id, {"cabecas": 0, "peso": 0.0, "com_peso": 0, "ugmds": []})
-        r["cabecas"] += 1
-        ultimo, ugmd = _ultimo_e_ugmd(animal_id)
-        if ultimo is not None:
-            r["peso"] += ultimo
-            r["com_peso"] += 1
-        if ugmd is not None:
-            r["ugmds"].append(ugmd)
-    return por_lote
+        animais_por_lote.setdefault(lote_id, []).append(animal_id)
+    return {lote_id: pe.resumo_grupo(ids, pesos, hoje, referencia)
+            for lote_id, ids in animais_por_lote.items()}
 
 
 def _resumo_lote(lote: Lote, reb: dict | None) -> dict:
-    reb = reb or {"cabecas": 0, "peso": 0.0, "com_peso": 0, "ugmds": []}
-    ugmds = reb.get("ugmds") or []
+    reb = reb or {"cabecas": 0, "peso": 0.0, "peso_real": 0.0, "com_peso": 0}
+    com_peso = reb.get("com_peso") or 0
     return {
         "id": lote.id,
         "nome": lote.nome,
         "cor": cor_do_lote(lote),
         "icone": lote.icone,
         "cabecas": reb["cabecas"],
+        # UA e peso médio usam o peso ESTIMADO até hoje (último peso + GMD × dias).
         "ua": round(reb["peso"] / KG_POR_UA, 1) if reb["peso"] else 0,
-        "peso_medio": round(reb["peso"] / reb["com_peso"], 1) if reb["com_peso"] else None,
+        "peso_medio": round(reb["peso"] / com_peso, 1) if com_peso else None,
+        "peso_medio_real": round(reb["peso_real"] / com_peso, 1) if com_peso else None,
+        "estimado": bool(reb.get("n_estimados")),
+        "dias_sem_pesar": reb.get("dias_max") or 0,
+        "estimativa_velha": bool(reb.get("velha")),
+        "gmd_usado": reb.get("gmd_usado"),
+        "fonte_gmd": reb.get("fonte"),
         # Média simples dos uGMD individuais (mesma regra da aba "Por lote").
-        "ugmd_medio": round(sum(ugmds) / len(ugmds), 3) if ugmds else None,
+        "ugmd_medio": reb.get("gmd_lote"),
     }
+
+
+def _foto_lote(db: Session, lote_id: int, quando: date) -> dict:
+    """Cabeças e peso (real ou estimado na data) do lote agora — a "foto" da ocupação."""
+    ids = sorted({v.animal_id for v in _vinculos_abertos(db, lote_id)})
+    r = pe.resumo_grupo(ids, pe.pesagens_por_animal(db, ids), quando, pe.carregar_referencia(db))
+    return {"cabecas": r["cabecas"], "peso": round(r["peso"], 1) if r["com_peso"] else None,
+            "estimado": bool(r["n_estimados"])}
 
 
 def _ocupacao_aberta(db: Session, lote_id: int) -> LotePiquete | None:
@@ -126,7 +118,7 @@ def painel(db: Session, hoje: date | None = None) -> dict:
     """Tudo o que a aba Pastos precisa numa chamada só: áreas, piquetes com os lotes que
     estão em cada um, status de descanso, lotes sem piquete e as últimas mudanças."""
     hoje = hoje or _hoje()
-    reb = _rebanho_por_lote(db)
+    reb = _rebanho_por_lote(db, hoje)
 
     piquetes = (
         db.query(Piquete).filter(Piquete.ativo.is_(True))
@@ -137,6 +129,10 @@ def painel(db: Session, hoje: date | None = None) -> dict:
         db.query(LotePiquete).filter(LotePiquete.data_saida.is_(None))
         .options(selectinload(LotePiquete.lote)).all()
     )
+    com_historico = {pid for (pid,) in db.execute(select(LotePiquete.piquete_id).distinct())}
+    pastos_atuais: dict[int, list[str]] = {}
+    for per in db.query(PastoPeriodo).filter(PastoPeriodo.fim.is_(None)).order_by(PastoPeriodo.inicio):
+        pastos_atuais.setdefault(per.piquete_id, []).append(per.especie)
     ultima_saida = dict(db.execute(
         select(LotePiquete.piquete_id, func.max(LotePiquete.data_saida))
         .where(LotePiquete.data_saida.is_not(None))
@@ -188,7 +184,9 @@ def painel(db: Session, hoje: date | None = None) -> dict:
             "area_id": p.area_id,
             "area": p.area.nome if p.area else None,
             "hectares": p.hectares,
-            "capim": p.capim,
+            # Pasto atual pelos períodos (sobressemeadura aparece "Tifton 85 + Azevém").
+            "capim": " + ".join(pastos_atuais.get(p.id, [])) or p.capim,
+            "tem_historico": p.id in com_historico,
             "descanso_meta_dias": p.descanso_meta_dias,
             "observacao": p.observacao,
             "geometria": json.loads(p.geometria) if p.geometria else None,
@@ -330,13 +328,24 @@ def _fechar_ocupacao(db: Session, lote_id: int, quando: date, alt: dict) -> Lote
             f"({atual.data_entrada.strftime('%d/%m/%Y')})."
         )
     atual.data_saida = quando
+    foto = _foto_lote(db, lote_id, quando)
+    atual.cabecas_saida, atual.peso_saida, atual.saida_estimada = (
+        foto["cabecas"], foto["peso"], foto["estimado"])
     alt["lp_fechados"].append(atual.id)
     return atual
 
 
 def _abrir_ocupacao(db: Session, lote_id: int, piquete_id: int, quando: date,
                     cabecas: int, alt: dict) -> LotePiquete:
-    nova = LotePiquete(lote_id=lote_id, piquete_id=piquete_id, data_entrada=quando, cabecas=cabecas)
+    """Abre a ocupação guardando a foto: cabeças, peso (real/estimado) e a área do piquete
+    naquela data — o cálculo de densidade do período não muda se o piquete mudar depois."""
+    foto = _foto_lote(db, lote_id, quando)
+    piquete = db.get(Piquete, piquete_id)
+    nova = LotePiquete(
+        lote_id=lote_id, piquete_id=piquete_id, data_entrada=quando,
+        cabecas=foto["cabecas"] or cabecas, peso_entrada=foto["peso"],
+        entrada_estimada=foto["estimado"], hectares=piquete.hectares if piquete else None,
+    )
     db.add(nova)
     db.flush()
     alt["lp_criados"].append(nova.id)
@@ -465,15 +474,15 @@ def separar(db: Session, origem_id: int, animal_ids: list[int], *,
         alt["lotes_criados"].append(destino.id)
 
     total_origem = len(_vinculos_abertos(db, origem_id))
+    if len(vinculos) == total_origem:
+        # Saem todos: o lote de origem deixa o piquete (foto tirada com o gado dentro).
+        _fechar_ocupacao(db, origem_id, quando, alt)
     n = _trocar_lote(db, vinculos, destino.id, quando, alt)
 
     piquete = None
     if not lote_destino_id and piquete_id:
         piquete = _piquete_ativo(db, piquete_id)
         _abrir_ocupacao(db, destino.id, piquete.id, quando, n, alt)
-    if n == total_origem:
-        # Saíram todos: o lote de origem deixa o piquete.
-        _fechar_ocupacao(db, origem_id, quando, alt)
 
     if lote_destino_id:
         ocup = _ocupacao_aberta(db, destino.id)
@@ -492,6 +501,8 @@ def desfazer(db: Session, mov_id: int) -> dict:
         raise ErroPasto("Mudança não encontrada.")
     if mov.desfeita:
         raise ErroPasto("Essa mudança já foi desfeita.")
+    if mov.tipo == "dividir":
+        raise ErroPasto("A divisão de piquete não pode ser desfeita por aqui.")
     alt = json.loads(mov.alteracoes)
     conflito = ErroPasto(
         "Não dá pra desfazer: esses animais já tiveram outra mudança depois. "
@@ -535,6 +546,7 @@ def desfazer(db: Session, mov_id: int) -> dict:
     db.flush()
     for lp in lp_fechados:
         lp.data_saida = None
+        lp.cabecas_saida = lp.peso_saida = lp.saida_estimada = None
     for al in al_fechados:
         al.data_fim = None
 
@@ -626,20 +638,41 @@ def salvar_piquete(db: Session, dados: dict, piquete_id: int | None = None) -> d
         db.add(p)
     p.area_id = area_id
     p.nome = nome[:80]
-    for campo in ("capim", "observacao"):
+    for campo in ("observacao",) if piquete_id else ("capim", "observacao"):
         if campo in dados:
             setattr(p, campo, (dados[campo] or "").strip() or None)
     if "descanso_meta_dias" in dados:
         p.descanso_meta_dias = dados["descanso_meta_dias"] or None
+    novo_ha = None
     if dados.get("geometria"):
         g = geo.validar_geometria(dados["geometria"])
+        novo_ha = round(float(dados["hectares"]), 2) if dados.get("hectares") else geo.hectares(g)
+    elif dados.get("hectares"):
+        novo_ha = round(float(dados["hectares"]), 2)
+    mudou_area = dados.get("geometria") or (novo_ha is not None and novo_ha != p.hectares)
+    if mudou_area and p.id and _tem_historico(db, p.id) and not dados.get("corrigir"):
+        # Piquete que já teve gado: mudar a cerca é DIVIDIR (o passado fica com a área
+        # antiga). Só corrige direto quando o desenho estava errado desde o começo.
+        raise ErroPasto(
+            "Esse piquete já teve gado. Se a cerca mudou, use \"Dividir piquete\" "
+            "(o histórico fica com a área antiga). Se o desenho estava errado desde o "
+            "início, confirme a correção."
+        )
+    if dados.get("geometria"):
         p.geometria = json.dumps(g)
-        if not dados.get("hectares"):
-            p.hectares = geo.hectares(g)
-    if dados.get("hectares"):
-        p.hectares = round(float(dados["hectares"]), 2)
+    if novo_ha is not None:
+        p.hectares = novo_ha
+    db.flush()
+    if dados.get("capim") and not piquete_id:
+        # Piquete novo com o pasto informado: abre o histórico do pasto a partir de hoje.
+        from .pastos_historico import adicionar_pasto
+        adicionar_pasto(db, p.id, dados["capim"], _hoje(), substitui=True, commit=False)
     db.commit()
     return {"id": p.id, "nome": p.nome, "hectares": p.hectares}
+
+
+def _tem_historico(db: Session, piquete_id: int) -> bool:
+    return db.query(LotePiquete.id).filter(LotePiquete.piquete_id == piquete_id).first() is not None
 
 
 def remover_piquete(db: Session, piquete_id: int) -> dict:
@@ -652,7 +685,10 @@ def remover_piquete(db: Session, piquete_id: int) -> dict:
     ).first():
         raise ErroPasto("Tem lote nesse piquete agora. Tire o gado antes de remover.")
     if p.ocupacoes:
+        # Fica no passado com outro nome, liberando o nome pra um piquete novo.
         p.ativo = False
+        p.encerrado_em = _hoje()
+        p.nome = f"{p.nome} (até {p.encerrado_em.strftime('%d/%m/%Y')})"[:80]
         db.commit()
         return {"ok": True, "arquivado": True}
     db.delete(p)
@@ -665,6 +701,7 @@ def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
     """Cria os piquetes lidos do arquivo. Nome repetido na mesma área atualiza o
     contorno em vez de duplicar (dá pra reimportar o arquivo corrigido)."""
     criados = atualizados = 0
+    protegidos: list[str] = []
     for i, a in enumerate(achados):
         if selecionados is not None and i not in selecionados:
             continue
@@ -675,6 +712,10 @@ def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
             Piquete.area_id.is_(None) if area_id is None else Piquete.area_id == area_id,
             Piquete.ativo.is_(True),
         ).first()
+        if existente is not None and _tem_historico(db, existente.id):
+            # Já teve gado: reimportar não pode mudar a área do passado (use Dividir).
+            protegidos.append(existente.nome)
+            continue
         p = existente or Piquete(nome=a["nome"], area_id=area_id, ativo=True)
         if existente is None:
             db.add(p)
@@ -684,7 +725,7 @@ def importar(db: Session, achados: list[dict], selecionados: list[int] | None,
         p.geometria = json.dumps(a["geometria"])
         p.hectares = a["hectares"]
     db.commit()
-    return {"ok": True, "criados": criados, "atualizados": atualizados}
+    return {"ok": True, "criados": criados, "atualizados": atualizados, "protegidos": protegidos}
 
 
 # ---------------------------------------------------------------- Identidade visual do lote

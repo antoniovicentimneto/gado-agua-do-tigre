@@ -11,6 +11,8 @@ from ..models import TipoArea, Usuario
 from .. import schemas
 from ..services import geo
 from ..services import pastos as svc
+from ..services import pastos_historico as hist
+from ..services import peso_estimado as pe
 from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api/pastos", tags=["pastos"], dependencies=[Depends(usuario_atual)])
@@ -167,3 +169,52 @@ def editar_camada(camada_id: int, dados: schemas.CamadaEditar, db: Session = Dep
 @router.delete("/camadas/{camada_id}")
 def remover_camada(camada_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
     return _executar(svc.remover_camada, db, camada_id)
+
+
+
+# ---------------------------------------------------------------- Histórico do piquete
+
+@router.get("/piquetes/{piquete_id}/historico")
+def historico_piquete(piquete_id: int, hoje: date | None = None, db: Session = Depends(get_db)):
+    """Ocupações com a foto de cada uma (cabeças, UA, UA/ha), pastos e divisões."""
+    return _executar(hist.historico, db, piquete_id, hoje)
+
+
+@router.post("/piquetes/{piquete_id}/pasto", status_code=201)
+def adicionar_pasto(piquete_id: int, dados: schemas.PastoEntrada, db: Session = Depends(get_db),
+                    _dono=Depends(requer_dono)):
+    return _executar(hist.adicionar_pasto, db, piquete_id, dados.especie, dados.inicio,
+                     dados.substitui, dados.observacao)
+
+
+@router.put("/pasto/{periodo_id}/encerrar")
+def encerrar_pasto(periodo_id: int, dados: schemas.PastoEncerrar, db: Session = Depends(get_db),
+                   _dono=Depends(requer_dono)):
+    return _executar(hist.encerrar_pasto, db, periodo_id, dados.fim)
+
+
+@router.delete("/pasto/{periodo_id}")
+def apagar_pasto(periodo_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    return _executar(hist.apagar_pasto, db, periodo_id)
+
+
+@router.post("/piquetes/{piquete_id}/dividir")
+def dividir_piquete(piquete_id: int, dados: schemas.DividirPiquete, db: Session = Depends(get_db),
+                    dono: Usuario = Depends(requer_dono)):
+    return _executar(hist.dividir, db, piquete_id, dados.partes, dados.data, dados.destinos, dono.nome)
+
+
+# ---------------------------------------------------------------- GMD de referência por época
+
+@router.get("/config-gmd")
+def config_gmd(db: Session = Depends(get_db)):
+    return {"epocas": pe.carregar_referencia(db), "limite_dias": pe.LIMITE_DIAS}
+
+
+@router.put("/config-gmd")
+def salvar_config_gmd(epocas: list[dict] = Body(..., embed=True), db: Session = Depends(get_db),
+                      _dono=Depends(requer_dono)):
+    try:
+        return {"epocas": pe.salvar_referencia(db, epocas), "limite_dias": pe.LIMITE_DIAS}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -29,6 +29,11 @@ digitado.
   junta lotes — tudo com **Desfazer** e funcionando sem sinal. Cada lote tem cor e ícone
   próprios (pino no mapa com a ficha rápida do lote), e o mapa pode mostrar a divisa da
   fazenda e as áreas de outros usos (soja, madeira, reserva) só como referência.
+- **Histórico dos piquetes**: cada ocupação guarda cabeças, peso e a área do piquete naquela
+  data; o pasto de cada piquete tem histórico (troca, reforma, sobressemeadura de azevém);
+  piquete que mudou de cerca é **dividido** (o passado fica com a área antiga). Entre uma
+  pesagem e outra o app **estima o peso** pelo GMD do lote (ou pela referência da época,
+  configurável) e mostra com "~".
 - **Sal no cocho**: no lote (aba Pastos) o botão **🧂 Salgar cocho** registra qual sal,
   quantos kg e a hora; o app calcula o consumo em g/cabeça/dia e mostra há quantos dias foi
   a última salga.

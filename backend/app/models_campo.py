@@ -55,3 +55,25 @@ class OcorrenciaSanitaria(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     animal = relationship("Animal")
+
+
+class PastoPeriodo(Base):
+    """Qual pasto (forrageira) o piquete teve e quando. Períodos abertos (fim nulo) são o
+    pasto atual; dois abertos ao mesmo tempo = sobressemeadura (ex.: azevém no Tifton)."""
+    __tablename__ = "pasto_periodos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    piquete_id: Mapped[int] = mapped_column(ForeignKey("piquetes.id"), index=True)
+    especie: Mapped[str] = mapped_column(String(60))  # Marandu, Tifton 85, Azevém...
+    inicio: Mapped[date] = mapped_column(Date)
+    fim: Mapped[date | None] = mapped_column(Date)
+    observacao: Mapped[str | None] = mapped_column(Text)  # ex.: reforma, sobressemeadura
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ConfigValor(Base):
+    """Configurações simples do app guardadas como JSON (ex.: GMD de referência por época)."""
+    __tablename__ = "config_valores"
+
+    chave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[str] = mapped_column(Text)

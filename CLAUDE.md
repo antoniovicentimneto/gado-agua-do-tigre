@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=61 / cache v53.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=62 / cache v54.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -225,6 +225,29 @@ de cada animal. Serviço: `app/services/manejos.py`.
   por cima da ficha/barra.
 - **Datas:** usar `hojeLocal()` (app.js) — `toISOString()` é UTC e depois das 21h já é o dia
   seguinte. O painel recebe `?hoje=` do aparelho porque o servidor (Render) roda em UTC.
+
+## Histórico dos piquetes e peso estimado — "o passado não muda"
+
+- **Peso estimado** (`services/peso_estimado.py`): entre pesagens, peso = último peso + GMD ×
+  dias (máx. 120 dias; passou disso = "estimativa velha"). GMD = média do uGMD do LOTE; sem
+  GMD, GMD de referência por época (`ConfigValor` chave `gmd_referencia_epocas`, editável em
+  Config; padrão águas out–mar 0,5 / seca abr–set 0,2). NUNCA vira pesagem; só cálculo.
+  Pastos (UA, UA/ha, kg médio) usam o estimado e mostram "~"; `peso_medio_real` também vai.
+- **Foto da ocupação** (`LotePiquete`): na entrada guarda cabeças, peso (real/estimado),
+  `entrada_estimada` e os **hectares do piquete naquela data**; na saída, cabeças/peso/
+  `saida_estimada`. Desfazer limpa a foto da saída. Ocupações antigas (antes disso) não têm foto.
+- **Pasto por período** (`PastoPeriodo` em models_campo.py): substitui = troca/reforma (fecha o
+  atual na véspera); `substitui=False` = sobressemeadura (azevém no Tifton). `Piquete.capim` é
+  só o texto do pasto atual (sincronizado). Lista `pasto` nas opções. Migração do capim antigo
+  roda no start (`migrar_capim_para_periodos`, idempotente).
+- **Proteção do contorno**: mudar geometria/hectares de piquete que já teve gado exige
+  `corrigir=True` (só pra desenho errado desde o início); reimportar arquivo não mexe nele
+  (`protegidos`). Cerca nova = **Dividir** (`services/pastos_historico.dividir`): encerra o
+  original (`ativo=False`, `encerrado_em`, renomeado "Nome (até dd/mm/aaaa)") com a área antiga,
+  cria as partes (`origem_id`) herdando pasto e descanso, e leva o gado pra parte escolhida.
+  Divisão não tem Desfazer. Remover piquete com histórico também renomeia (libera o nome).
+- Histórico do piquete: `GET /api/pastos/piquetes/{id}/historico` (ocupações com UA/ha da
+  época, GMD do período, pasto da época, origem/partes) — botão 📜 na lista, mapa e edição.
 
 ## Campo: sal no cocho e sanidade
 

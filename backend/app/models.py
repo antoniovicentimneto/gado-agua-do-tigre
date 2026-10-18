@@ -373,6 +373,10 @@ class Piquete(Base):
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Divisão: o piquete original é encerrado (com a área que tinha) e as partes nascem
+    # com origem_id apontando pra ele — o histórico antigo fica com a área antiga.
+    origem_id: Mapped[int | None] = mapped_column(ForeignKey("piquetes.id"))
+    encerrado_em: Mapped[date | None] = mapped_column(Date)
 
     area: Mapped[AreaPasto | None] = relationship(back_populates="piquetes")
     ocupacoes: Mapped[list[LotePiquete]] = relationship(back_populates="piquete")
@@ -388,6 +392,14 @@ class LotePiquete(Base):
     data_entrada: Mapped[date] = mapped_column(Date)
     data_saida: Mapped[date | None] = mapped_column(Date)
     cabecas: Mapped[int | None] = mapped_column(Integer)  # quantas cabeças entraram
+    # "Foto" da ocupação, pra densidade e ganho do período saírem certos mesmo que o
+    # piquete seja dividido ou o lote mude depois. Peso = soma do lote (real ou estimado).
+    hectares: Mapped[float | None] = mapped_column(Float)
+    peso_entrada: Mapped[float | None] = mapped_column(Float)
+    entrada_estimada: Mapped[bool | None] = mapped_column(Boolean)
+    cabecas_saida: Mapped[int | None] = mapped_column(Integer)
+    peso_saida: Mapped[float | None] = mapped_column(Float)
+    saida_estimada: Mapped[bool | None] = mapped_column(Boolean)
 
     lote: Mapped[Lote] = relationship()
     piquete: Mapped[Piquete] = relationship(back_populates="ocupacoes")

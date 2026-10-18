@@ -251,6 +251,7 @@ async function carregarConfig() {
   await renderConfigLista("sal", "cfg-sais");
   await renderConfigLista("medicamento", "cfg-medicamentos");
   await renderConfigLista("problema", "cfg-problemas");
+  if (window.ptConfigGmd) await window.ptConfigGmd("cfg-gmd");
   await carregarLogUsuarios();
   await carregarLogs(true);
 }

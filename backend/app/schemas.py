@@ -309,6 +309,7 @@ class PiqueteEntrada(BaseModel):
     descanso_meta_dias: int | None = None
     observacao: str | None = None
     geometria: dict | None = None  # GeoJSON Polygon/MultiPolygon
+    corrigir: bool = False  # muda o contorno de piquete com histórico (desenho estava errado)
 
 
 class LoteVisual(BaseModel):
@@ -341,3 +342,20 @@ class OcorrenciaEntrada(BaseModel):
     data_hora: datetime | None = None
     observacao: str | None = None
     chave: str | None = None
+
+
+class PastoEntrada(BaseModel):
+    especie: str
+    inicio: date | None = None
+    substitui: bool = True  # False = sobressemeadura (convive com o pasto atual)
+    observacao: str | None = None
+
+
+class PastoEncerrar(BaseModel):
+    fim: date | None = None
+
+
+class DividirPiquete(BaseModel):
+    partes: list[dict]          # [{nome, geometria, hectares?}]
+    data: date | None = None
+    destinos: dict = {}         # {lote_id: índice da parte}

@@ -893,3 +893,20 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .sn-apagar { width: auto; background: none; color: var(--vermelho); padding: 4px 8px; }
 #sn-escolha .pt-lote-escolha { margin: 4px 0; }
 @media (max-width: 420px) { .sn-cards { grid-template-columns: 1fr 1fr; } }
+
+/* ---- Histórico do piquete, pasto e divisão */
+.pt-card-botoes { display: flex; gap: 6px; }
+.pt-pastos { padding-left: 18px; margin: 6px 0; }
+.pt-pastos li { margin: 4px 0; }
+.pt-mini { width: auto; padding: 4px 8px; font-size: 0.8rem; background: #fff; color: var(--cinza); border: 1px solid var(--borda); }
+.perigo-texto { color: var(--vermelho) !important; }
+.pt-div-parte { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.pt-div-parte input { flex: 1; }
+.pt-div-parte span { white-space: nowrap; color: var(--cinza); }
+.pt-div-lote { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+.pt-div-lote select { flex: 1; min-width: 140px; }
+.pt-aviso-velha { color: #b45309 !important; }
+.pt-gmd-cab, .pt-gmd-linha { display: grid; grid-template-columns: 1.3fr 0.8fr 16px 0.8fr 0.8fr 36px; gap: 6px; align-items: center; margin: 4px 0; }
+.pt-gmd-cab span { font-size: 0.75rem; color: var(--cinza); }
+.pt-gmd-linha input, .pt-gmd-linha select { width: 100%; padding: 8px 6px; }
+#pt-h-tabela th { cursor: pointer; }

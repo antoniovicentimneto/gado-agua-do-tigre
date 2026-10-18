@@ -126,7 +126,7 @@ def test_arquivo_sem_poligono_da_erro_amigavel():
 def test_importar_cria_e_reimportar_atualiza(db):
     achados = geo.ler_arquivo_areas("fazenda.kml", KML)
     r = svc.importar(db, achados, None, "Geral", svc.TipoArea.PROPRIA)
-    assert r == {"ok": True, "criados": 2, "atualizados": 0}
+    assert r == {"ok": True, "criados": 2, "atualizados": 0, "protegidos": []}
     r = svc.importar(db, achados, [0], "Geral", svc.TipoArea.PROPRIA)
     assert r["atualizados"] == 1 and r["criados"] == 0
     nomes_areas = {p["area"] for p in svc.painel(db)["piquetes"]}
@@ -147,7 +147,11 @@ def test_mover_lote_ocupa_piquete_e_calcula_ua(db):
     item = _no_painel(db, p1.id)
     assert item["status"] == "ocupado"
     assert item["cabecas"] == 2
-    assert item["ua"] == pytest.approx((400 + 320) / 450, abs=0.1)
+    # UA usa o peso ESTIMADO até hoje: último peso + GMD do lote (100 kg em 120 dias do
+    # 101 = 0,833) × dias, limitado a 120 dias → 101: 400+100, 102: 320+100.
+    assert item["ua"] == pytest.approx((500 + 420) / 450, abs=0.1)
+    lote = item["lotes"][0]
+    assert lote["estimado"] and lote["estimativa_velha"] and lote["peso_medio_real"] == 360
     assert item["dias"] == 1
     assert "LOTEA" not in {l["nome"] for l in svc.painel(db)["sem_piquete"]}
 

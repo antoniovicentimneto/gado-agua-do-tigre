@@ -13,6 +13,20 @@ from .services import auditoria
 Base.metadata.create_all(bind=engine)
 migrar_colunas()  # colunas novas em tabelas que já existiam
 
+
+def _migrar_capim() -> None:
+    """Piquetes antigos com 'capim' em texto ganham o histórico de pasto (idempotente)."""
+    from .database import SessaoLocal
+    from .services.pastos_historico import migrar_capim_para_periodos
+    db = SessaoLocal()
+    try:
+        migrar_capim_para_periodos(db)
+    finally:
+        db.close()
+
+
+_migrar_capim()
+
 app = FastAPI(title="Gado Água do Tigre", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(api.router)

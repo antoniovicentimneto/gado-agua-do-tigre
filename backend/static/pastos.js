@@ -84,7 +84,8 @@ function ptTodosLotes() {
 }
 
 function ptLoteDescricao(l) {
-  return `${l.cabecas} cab.` + (l.peso_medio ? ` · ${ptNum(l.peso_medio, 0)} kg méd.` : "");
+  // "~" = peso estimado (último peso + GMD × dias desde a pesagem).
+  return `${l.cabecas} cab.` + (l.peso_medio ? ` · ${l.estimado ? "~" : ""}${ptNum(l.peso_medio, 0)} kg méd.` : "");
 }
 
 function ptTextoStatus(p) {
@@ -187,7 +188,10 @@ function ptRenderLista() {
               <div class="pt-piquete-sub">${p.hectares ? ptNum(p.hectares, 2) + " ha" : "área não informada"}${p.capim ? " · " + esc(p.capim) : ""}${lotacao}</div>
               <span class="pt-status ${p.status}">${ptTextoStatus(p)}</span>
             </div>
-            ${ptEhDono() ? `<button type="button" class="pt-editar" data-editar="${p.id}">⚙</button>` : ""}
+            <div class="pt-card-botoes">
+              <button type="button" class="pt-editar" data-historico="${p.id}" title="Histórico">📜</button>
+              ${ptEhDono() ? `<button type="button" class="pt-editar" data-editar="${p.id}" title="Editar">⚙</button>` : ""}
+            </div>
           </div>
           ${p.lotes.length ? `<div class="pt-lotes">${p.lotes.map((l) => ptBotaoLote(l, p.id)).join("")}</div>` : ""}
           ${levar}
@@ -199,6 +203,9 @@ function ptRenderLista() {
   ptLigarLotes(box);
   box.querySelectorAll("[data-levar]").forEach((b) => {
     b.onclick = () => ptConfirmarMover(Number(b.dataset.levar));
+  });
+  box.querySelectorAll("[data-historico]").forEach((b) => {
+    b.onclick = () => ptHistoricoPiquete(Number(b.dataset.historico));
   });
   box.querySelectorAll("[data-editar]").forEach((b) => {
     b.onclick = () => ptFormPiquete(ptPiquete(Number(b.dataset.editar)));
@@ -212,7 +219,7 @@ function ptRenderMovs() {
       ${movs.map((m) => `
         <div class="pt-mov${m.desfeita ? " desfeita" : ""}">
           <div>${esc(m.resumo)}<br><small>${ptDataBR(m.data)}${m.usuario ? " · " + esc(m.usuario) : ""}${m.pendente ? " · 📡 aguardando a rede" : ""}${m.desfeita ? " · desfeita" : ""}</small></div>
-          ${m.desfeita ? "" : `<button type="button" class="secundario" data-desfazer="${m.id}">↶ Desfazer</button>`}
+          ${m.desfeita || m.tipo === "dividir" ? "" : `<button type="button" class="secundario" data-desfazer="${m.id}">↶ Desfazer</button>`}
         </div>`).join("")}
     </div>` : "";
   ptEl("pt-movs").querySelectorAll("[data-desfazer]").forEach((b) => {
@@ -933,10 +940,13 @@ function ptFichaLote(loteId) {
     <h2>${ptMarcaLote(l, true)} ${esc(l.nome)}</h2>
     <div class="pt-ficha-grade">
       <div><b>${l.cabecas}</b><span>cabeças</span></div>
-      <div><b>${ptNum(l.peso_medio, 0)}</b><span>kg médio</span></div>
-      <div><b>${ptNum(l.ua)}</b><span>UA</span></div>
+      <div><b>${l.estimado ? "~" : ""}${ptNum(l.peso_medio, 0)}</b><span>kg médio${l.estimado ? " (estimado)" : ""}</span></div>
+      <div><b>${l.estimado ? "~" : ""}${ptNum(l.ua)}</b><span>UA</span></div>
       <div><b>${l.ugmd_medio != null ? ptNum(l.ugmd_medio, 3) : "—"}</b><span>GMD médio (último)</span></div>
     </div>
+    ${l.estimado ? `<p class="info${l.estimativa_velha ? " pt-aviso-velha" : ""}">Peso estimado: último real ${ptNum(l.peso_medio_real, 0)} kg
+      + ${ptNum(l.gmd_usado, 3)} kg/dia (${esc(l.fonte_gmd || "")}) × dias sem pesar (até ${l.dias_sem_pesar}).
+      ${l.estimativa_velha ? "<b>⚠ Faz mais de 120 dias sem pesar — hora de passar na balança.</b>" : ""}</p>` : ""}
     <p>${p ? `📍 <b>${esc(ptNomePiquete(p.id))}</b>${p.hectares ? ` · ${ptNum(p.hectares, 2)} ha` : ""}${p.ua_ha ? ` · ${ptNum(p.ua_ha, 2)} UA/ha` : ""}<br>
        Entrou em ${ptDataBR(l.data_entrada)} · há ${l.dias} dia${l.dias === 1 ? "" : "s"} nesse piquete` : "📍 Sem piquete"}</p>
     <button type="button" class="pt-salgar" id="pt-fl-salgar">🧂 Salgar cocho</button>
@@ -1008,7 +1018,9 @@ function ptFichaPiquete(p) {
     <p class="info">${esc(p.area || "Sem área")} · ${p.hectares ? ptNum(p.hectares, 2) + " ha" : "área não informada"}${p.capim ? " · " + esc(p.capim) : ""}</p>
     <p class="pt-status ${p.status}">${ptTextoStatus(p)}</p>
     ${p.lotes.length ? `<p>Toque num lote para mudá-lo de lugar:</p><div class="pt-lotes" id="pt-f-lotes">${p.lotes.map((l) => ptBotaoLote(l, p.id)).join("")}</div>` : ""}
-    ${ptEhDono() ? '<button type="button" class="secundario" id="pt-f-editar" style="width:100%;margin-top:14px">⚙ Editar piquete</button>' : ""}`);
+    <button type="button" class="secundario" id="pt-f-historico" style="width:100%;margin-top:14px">📜 Histórico do piquete</button>
+    ${ptEhDono() ? '<button type="button" class="secundario" id="pt-f-editar" style="width:100%;margin-top:8px">⚙ Editar piquete</button>' : ""}`);
+  ptEl("pt-f-historico").onclick = () => ptHistoricoPiquete(p.id);
   document.querySelectorAll("#pt-f-lotes .pt-lote").forEach((b) => {
     b.onclick = () => { ptFecharModal(); ptSelecionar(Number(b.dataset.loteId), p.id); };
   });
@@ -1077,8 +1089,10 @@ ptEl("pt-desenho-ok").onclick = () => {
   anel.push(anel[0]);
   const geometria = { type: "Polygon", coordinates: [anel] };
   const existente = dz.piquete;
+  const divisao = dz.divisao;
   ptEncerrarDesenho();
-  if (existente) ptFormPiquete(existente, geometria);
+  if (divisao) ptParteDesenhada(geometria);
+  else if (existente) ptFormPiquete(existente, geometria);
   else ptFormPiquete(null, geometria);
 };
 
@@ -1111,7 +1125,8 @@ function ptFormPiquete(p, geometriaNova) {
       <div><label>Descanso desejado (dias)</label><input id="pt-p-meta" inputmode="numeric" value="${p && p.descanso_meta_dias ? p.descanso_meta_dias : ""}" /></div>
     </div>
     ${geometriaNova ? `<p class="info">Área calculada pelo desenho: ${ptNum(haCalc, 2)} ha (pode corrigir).</p>` : ""}
-    <label>Capim</label><input id="pt-p-capim" placeholder="Ex.: Marandu, Mombaça, Azevém" value="${esc(p && p.capim ? p.capim : "")}" />
+    ${p ? `<h3 style="margin-top:16px">🌱 Pasto</h3><div id="pt-p-pasto" class="info">Carregando…</div>`
+      : `<label>Pasto</label><div id="pt-p-capim-box"></div>`}
     <label>Observação</label><input id="pt-p-obs" value="${esc(p && p.observacao ? p.observacao : "")}" />
     <div class="pt-linha-botoes">
       <button type="button" class="secundario" id="pt-p-cancelar">Cancelar</button>
@@ -1119,9 +1134,20 @@ function ptFormPiquete(p, geometriaNova) {
     </div>
     ${p ? `
       <div class="pt-linha-botoes">
-        <button type="button" class="secundario" id="pt-p-redesenhar">✏ ${p.geometria ? "Redesenhar contorno" : "Desenhar contorno"}</button>
+        <button type="button" class="secundario" id="pt-p-historico">📜 Histórico</button>
+        ${p.tem_historico ? `<button type="button" class="secundario" id="pt-p-dividir">✂ Dividir piquete</button>` : ""}
+      </div>
+      <div class="pt-linha-botoes">
+        <button type="button" class="secundario" id="pt-p-redesenhar">✏ ${!p.geometria ? "Desenhar contorno"
+          : p.tem_historico ? "Corrigir contorno (desenho errado)" : "Redesenhar contorno"}</button>
         <button type="button" class="perigo" id="pt-p-remover">Remover piquete</button>
       </div>` : ""}`);
+  if (p) ptSecaoPasto(p, "pt-p-pasto");
+  else campoSelectHTML("pasto", "pt-p-capim", "", "— não informar —").then((html) => {
+    if (!ptEl("pt-p-capim-box")) return;
+    ptEl("pt-p-capim-box").innerHTML = html;
+    ligarCampoSelect("pt-p-capim");
+  });
 
   ptEl("pt-p-area").onchange = () => {
     ptEl("pt-p-area-nova").classList.toggle("escondido", ptEl("pt-p-area").value !== "__nova__");
@@ -1141,10 +1167,16 @@ function ptFormPiquete(p, geometriaNova) {
       nome,
       hectares: num(ptEl("pt-p-ha").value),
       descanso_meta_dias: parseInt(ptEl("pt-p-meta").value, 10) || null,
-      capim: ptEl("pt-p-capim").value.trim() || null,
       observacao: ptEl("pt-p-obs").value.trim() || null,
     };
+    if (!p && ptEl("pt-p-capim")) corpo.capim = (await valorCampoSelect("pasto", "pt-p-capim")) || null;
     if (geometriaNova) corpo.geometria = geometriaNova;
+    // Piquete que já teve gado: mudar a área muda o passado. Só como correção de erro.
+    const mudouArea = geometriaNova || (corpo.hectares != null && p && Math.abs(corpo.hectares - (p.hectares || 0)) >= 0.01);
+    if (p && p.tem_historico && mudouArea) {
+      if (!geometriaNova && !confirm("Esse piquete já teve gado. Mudar os hectares muda também a densidade dos períodos passados.\n\nSe a CERCA mudou, cancele e use \"Dividir piquete\". Se o número estava ERRADO desde o início, toque em OK para corrigir.")) return;
+      corpo.corrigir = true;
+    }
     try {
       const area = ptEl("pt-p-area").value;
       if (area === "__nova__") {
@@ -1165,7 +1197,13 @@ function ptFormPiquete(p, geometriaNova) {
     }
   };
   if (p) {
-    ptEl("pt-p-redesenhar").onclick = () => { ptFecharModal(); ptIniciarDesenho(p); };
+    ptEl("pt-p-redesenhar").onclick = () => {
+      if (p.tem_historico && p.geometria && !confirm("Esse piquete já teve gado.\n\nSe a CERCA mudou, use \"Dividir piquete\" (o histórico fica com a área antiga).\n\nSó continue se o desenho estava ERRADO desde o início.")) return;
+      ptFecharModal();
+      ptIniciarDesenho(p);
+    };
+    ptEl("pt-p-historico").onclick = () => ptHistoricoPiquete(p.id);
+    if (ptEl("pt-p-dividir")) ptEl("pt-p-dividir").onclick = () => ptIniciarDivisao(p);
     ptEl("pt-p-remover").onclick = async () => {
       if (!confirm(`Remover o piquete ${p.nome}? (Se ele tiver histórico, só sai da lista.)`)) return;
       try {
@@ -1279,7 +1317,8 @@ function ptMostrarPrevia(areas) {
       await ptCarregar();
       ptMudarModo("mapa");
       const oQue = { piquetes: "piquete(s)", divisa: "divisa(s) da fazenda", uso: "área(s) de outro uso" }[destino()];
-      ptToast(`✔ ${r.criados} ${oQue} criada(s)${r.atualizados ? `, ${r.atualizados} atualizada(s)` : ""}.`);
+      ptToast(`✔ ${r.criados} ${oQue} criada(s)${r.atualizados ? `, ${r.atualizados} atualizada(s)` : ""}.` +
+        (r.protegidos && r.protegidos.length ? ` ${r.protegidos.length} não mudou(aram) porque já teve gado (use Dividir): ${r.protegidos.join(", ")}.` : ""));
     } catch (e) {
       alert(e instanceof TypeError ? "Importar precisa de sinal." : e.message);
     }
