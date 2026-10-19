@@ -396,6 +396,7 @@ class LotePiquete(Base):
     data_entrada: Mapped[date] = mapped_column(Date)
     data_saida: Mapped[date | None] = mapped_column(Date)
     cabecas: Mapped[int | None] = mapped_column(Integer)  # quantas cabeças entraram
+    dias_previstos: Mapped[int | None] = mapped_column(Integer)  # planejado no cronograma
     # "Foto" da ocupação, pra densidade e ganho do período saírem certos mesmo que o
     # piquete seja dividido ou o lote mude depois. Peso = soma do lote (real ou estimado).
     hectares: Mapped[float | None] = mapped_column(Float)

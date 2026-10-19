@@ -170,6 +170,7 @@ def painel(db: Session, hoje: date | None = None) -> dict:
             continue
         item = _resumo_lote(o.lote, reb.get(o.lote_id))
         item["data_entrada"] = o.data_entrada.isoformat()
+        item["dias_previstos"] = o.dias_previstos
         item["dias"] = (hoje - o.data_entrada).days
         ocupantes.setdefault(o.piquete_id, []).append(item)
 

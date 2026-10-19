@@ -15,6 +15,7 @@ from ..services import pastos_historico as hist
 from ..services import peso_estimado as pe
 from ..services import indicadores_pasto as ind
 from ..services import alertas as svc_alertas
+from ..services import cronograma as svc_crono
 from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api/pastos", tags=["pastos"], dependencies=[Depends(usuario_atual)])
@@ -254,3 +255,30 @@ def salvar_limites_alertas(dados: dict = Body(...), db: Session = Depends(get_db
         return svc_alertas.salvar_limites(db, dados)
     except (TypeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e) or "Valor inválido")
+
+
+
+# ---------------------------------------------------------------- Cronograma de rotação
+
+@router.get("/cronograma")
+def cronograma_geral(hoje: date | None = None, db: Session = Depends(get_db)):
+    """Fila de próximos piquetes de todos os lotes que estão em piquete, com as datas."""
+    return svc_crono.visao_geral(db, hoje)
+
+
+@router.get("/lotes/{lote_id}/cronograma")
+def cronograma_lote(lote_id: int, hoje: date | None = None, db: Session = Depends(get_db)):
+    return _executar(svc_crono.cronograma_lote, db, lote_id, hoje)
+
+
+@router.put("/lotes/{lote_id}/cronograma")
+def salvar_cronograma(lote_id: int, itens: list[dict] = Body(...), dias_atual: int | None = Body(None),
+                      db: Session = Depends(get_db)):
+    return _executar(svc_crono.salvar, db, lote_id, itens, dias_atual)
+
+
+@router.post("/lotes/{lote_id}/cronograma/avancar")
+def avancar_cronograma(lote_id: int, dados: dict = Body({}), db: Session = Depends(get_db),
+                       usuario: Usuario = Depends(usuario_atual)):
+    quando = date.fromisoformat(dados["data"]) if dados.get("data") else None
+    return _executar(svc_crono.avancar, db, lote_id, quando, dados.get("chave"), usuario.nome)

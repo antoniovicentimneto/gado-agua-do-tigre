@@ -34,6 +34,7 @@ COLUNAS_NOVAS = [
     ("piquetes", "uso", "VARCHAR(20)"),
     ("piquetes", "ocupacao_max_dias", "INTEGER"),
     ("salgas_cocho", "grupo", "VARCHAR(40)"),
+    ("lote_piquete", "dias_previstos", "INTEGER"),
     ("lote_piquete", "hectares", "FLOAT"),
     ("lote_piquete", "peso_entrada", "FLOAT"),
     ("lote_piquete", "entrada_estimada", "BOOLEAN"),

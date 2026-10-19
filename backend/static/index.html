@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=68" />
+  <link rel="stylesheet" href="/static/style.css?v=69" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -206,6 +206,7 @@
     <div class="modo-toggle pt-modos">
       <button data-ptmodo="lista" class="ativa">📋 Lista</button>
       <button data-ptmodo="mapa">🗺 Mapa</button>
+      <button data-ptmodo="cronograma">📅 Cronograma</button>
       <button data-ptmodo="indicadores">📊 Indicadores</button>
     </div>
     <div id="pt-aviso" class="info"></div>
@@ -250,6 +251,7 @@
     </div>
 
     <div id="pt-indicadores" class="escondido"></div>
+    <div id="pt-cronograma" class="escondido"></div>
 
     <div id="pt-movs"></div>
   </section>
@@ -509,21 +511,22 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=68"></script>
-  <script src="/static/fila-offline.js?v=68"></script>
-  <script src="/static/mangueira.js?v=68"></script>
-  <script src="/static/planilha.js?v=68"></script>
-  <script src="/static/venda-gancho.js?v=68"></script>
-  <script src="/static/cria.js?v=68"></script>
+  <script src="/static/app.js?v=69"></script>
+  <script src="/static/fila-offline.js?v=69"></script>
+  <script src="/static/mangueira.js?v=69"></script>
+  <script src="/static/planilha.js?v=69"></script>
+  <script src="/static/venda-gancho.js?v=69"></script>
+  <script src="/static/cria.js?v=69"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=68"></script>
-  <script src="/static/pastos-historico.js?v=68"></script>
-  <script src="/static/pastos-indicadores.js?v=68"></script>
-  <script src="/static/alertas.js?v=68"></script>
-  <script src="/static/mapa-offline.js?v=68"></script>
-  <script src="/static/pastos.js?v=68"></script>
-  <script src="/static/financeiro.js?v=68"></script>
-  <script src="/static/financeiro-notas.js?v=68"></script>
+  <script src="/static/campo.js?v=69"></script>
+  <script src="/static/pastos-historico.js?v=69"></script>
+  <script src="/static/pastos-indicadores.js?v=69"></script>
+  <script src="/static/alertas.js?v=69"></script>
+  <script src="/static/mapa-offline.js?v=69"></script>
+  <script src="/static/pastos-cronograma.js?v=69"></script>
+  <script src="/static/pastos.js?v=69"></script>
+  <script src="/static/financeiro.js?v=69"></script>
+  <script src="/static/financeiro-notas.js?v=69"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

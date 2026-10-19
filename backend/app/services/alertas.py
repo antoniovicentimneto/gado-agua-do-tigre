@@ -63,13 +63,19 @@ def alertas(db: Session, hoje: date | None = None) -> dict:
     dados = painel(db, hoje)
     lista: list[dict] = []
 
+    from .cronograma import proximos_por_lote
+    proximos = proximos_por_lote(db)
     for p in dados["piquetes"]:
-        maximo = p.get("ocupacao_max_dias") or limites["ocupacao_max_dias"]
         for l in p["lotes"]:
-            if l["dias"] > maximo:
+            # Dias planejados no cronograma valem mais que o máximo do piquete/padrão.
+            planejado = l.get("dias_previstos")
+            maximo = planejado or p.get("ocupacao_max_dias") or limites["ocupacao_max_dias"]
+            if (planejado and l["dias"] >= planejado) or (not planejado and l["dias"] > maximo):
+                prox = proximos.get(l["id"])
                 lista.append(_alerta(
-                    "mudar_lote", "vermelho", f"Mudar o lote {l['nome']}",
-                    f"Está há {l['dias']} dias no {p['nome']} (máximo {maximo}).",
+                    "mudar_lote", "vermelho",
+                    f"Mudar o lote {l['nome']}" + (f" para o {prox}" if prox else ""),
+                    f"Está há {l['dias']} dias no {p['nome']} ({'previsto' if planejado else 'máximo'} {maximo}).",
                     {"tipo": "lote", "id": l["id"], "piquete_id": p["id"]}))
         if p["status"] == "pronto":
             lista.append(_alerta(

@@ -80,3 +80,15 @@ class ConfigValor(Base):
 
     chave: Mapped[str] = mapped_column(String(60), primary_key=True)
     valor: Mapped[str] = mapped_column(Text)
+
+
+class CronogramaItem(Base):
+    """Próximo piquete planejado de um lote, na ordem, com os dias previstos lá."""
+    __tablename__ = "cronograma_rotacao"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lote_id: Mapped[int] = mapped_column(ForeignKey("lotes.id"), index=True)
+    ordem: Mapped[int] = mapped_column(Integer)
+    piquete_id: Mapped[int] = mapped_column(ForeignKey("piquetes.id"))
+    dias_previstos: Mapped[int] = mapped_column(Integer)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

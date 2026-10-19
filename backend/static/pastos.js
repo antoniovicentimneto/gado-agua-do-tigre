@@ -119,12 +119,14 @@ function ptRender() {
     <span>⏳ ${cont.descansando} descansando</span>
     <span>✅ ${cont.pronto} prontos</span>` : "";
 
-  const ind = pt.modo === "indicadores";
+  // Indicadores e Cronograma são painéis próprios (se desenham ao trocar de modo).
+  const ind = pt.modo === "indicadores" || pt.modo === "cronograma";
   ptEl("pt-sem-piquete").classList.toggle("escondido", ind);
   ptEl("pt-lista").classList.toggle("escondido", ind);
   ptEl("pt-movs").classList.toggle("escondido", ind);
-  ptEl("pt-indicadores").classList.toggle("escondido", !ind);
-  if (ind) { ptRenderBarra(); return; }  // indicadores se desenham ao trocar de modo/período
+  ptEl("pt-indicadores").classList.toggle("escondido", pt.modo !== "indicadores");
+  ptEl("pt-cronograma").classList.toggle("escondido", pt.modo !== "cronograma");
+  if (ind) { ptRenderBarra(); return; }
   ptRenderSemPiquete();
   if (pt.modo === "lista") ptRenderLista();
   else ptRenderMapa();
@@ -964,6 +966,7 @@ function ptFichaLote(loteId) {
       <button type="button" class="secundario" id="pt-fl-separar">✂ Separar</button>
       <button type="button" class="secundario" id="pt-fl-juntar">🔗 Juntar</button>
       <button type="button" class="secundario" id="pt-fl-animais">🐄 Ver animais</button>
+      <button type="button" class="secundario" id="pt-fl-crono">📅 Cronograma</button>
     </div>
     <label>Cor do lote</label>
     <div class="pt-paleta">${(pt.dados.paleta || []).map((c) => `
@@ -985,6 +988,7 @@ function ptFichaLote(loteId) {
   ptEl("pt-fl-juntar").onclick = () => { selecionarEFechar(); ptFormJuntar(); };
   ptEl("pt-fl-animais").onclick = () => { ptFecharModal(); abrirLote(l.id, l.nome); };
   ptEl("pt-fl-salgar").onclick = () => salFormulario(l);
+  ptEl("pt-fl-crono").onclick = () => ptEditarCronograma(l.id);
   salResumoNaFicha(l, "pt-fl-sal");
   const salvar = async (corpo) => {
     try {
@@ -1437,9 +1441,10 @@ function ptMudarModo(modo) {
   document.querySelectorAll("[data-ptmodo]").forEach((b) => b.classList.toggle("ativa", b.dataset.ptmodo === modo));
   ptEl("pt-mapa-box").classList.toggle("escondido", modo !== "mapa");
   if (modo !== "mapa") ptEncerrarDesenho();
-  if (modo === "indicadores") pt.sel = null;
+  if (modo === "indicadores" || modo === "cronograma") pt.sel = null;
   ptRender();
   if (modo === "indicadores") ptRenderIndicadores();
+  if (modo === "cronograma") ptRenderCronograma();
 }
 
 document.querySelectorAll("[data-ptmodo]").forEach((b) => {
