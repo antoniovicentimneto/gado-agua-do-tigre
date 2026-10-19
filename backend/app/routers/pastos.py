@@ -282,3 +282,20 @@ def avancar_cronograma(lote_id: int, dados: dict = Body({}), db: Session = Depen
                        usuario: Usuario = Depends(usuario_atual)):
     quando = date.fromisoformat(dados["data"]) if dados.get("data") else None
     return _executar(svc_crono.avancar, db, lote_id, quando, dados.get("chave"), usuario.nome)
+
+
+
+# ---------------------------------------------------------------- Unir e editar em massa (dono)
+
+@router.post("/piquetes/unir")
+def unir_piquetes(dados: dict = Body(...), db: Session = Depends(get_db),
+                  dono: Usuario = Depends(requer_dono)):
+    quando = date.fromisoformat(dados["data"]) if dados.get("data") else None
+    return _executar(hist.unir, db, dados.get("ids") or [], dados.get("nome"), quando,
+                     dados.get("pasto"), dono.nome)
+
+
+@router.post("/piquetes/massa")
+def editar_piquetes_em_massa(dados: dict = Body(...), db: Session = Depends(get_db),
+                             _dono=Depends(requer_dono)):
+    return _executar(hist.editar_em_massa, db, dados.get("ids") or [], dados)

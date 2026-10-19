@@ -39,7 +39,9 @@ function ptRenderHistorico(h) {
     <p class="info">${p.hectares ? ptNum(p.hectares, 2) + " ha" : "área não informada"}${p.encerrado_em
       ? ` · encerrado em ${ptDataBR(p.encerrado_em)}` : ""}
       ${h.origem ? `<br>Veio da divisão de <a href="#" data-hist="${h.origem.id}">${esc(h.origem.nome)}</a>` : ""}
-      ${h.partes.length ? `<br>Dividido em ${h.partes.map((x) => `<a href="#" data-hist="${x.id}">${esc(x.nome)}</a>`).join(", ")}` : ""}</p>
+      ${h.partes.length ? `<br>Dividido em ${h.partes.map((x) => `<a href="#" data-hist="${x.id}">${esc(x.nome)}</a>`).join(", ")}` : ""}
+      ${h.unido_em ? `<br>Unido em <a href="#" data-hist="${h.unido_em.id}">${esc(h.unido_em.nome)}</a>` : ""}
+      ${h.uniao_de && h.uniao_de.length ? `<br>União de ${h.uniao_de.map((x) => `<a href="#" data-hist="${x.id}">${esc(x.nome)}</a>`).join(", ")}` : ""}</p>
 
     <h3>Pasto</h3>
     ${h.pastos.length ? `<ul class="pt-pastos">${h.pastos.map((x) => `

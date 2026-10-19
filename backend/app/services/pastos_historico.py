@@ -267,11 +267,143 @@ def historico(db: Session, piquete_id: int, hoje: date | None = None) -> dict:
         })
     origem = db.get(Piquete, p.origem_id) if p.origem_id else None
     partes = db.query(Piquete).filter(Piquete.origem_id == p.id).all()
+    destino = db.get(Piquete, p.destino_id) if p.destino_id else None
+    unidos = db.query(Piquete).filter(Piquete.destino_id == p.id).all()
     return {
         "piquete": {"id": p.id, "nome": p.nome, "hectares": p.hectares, "ativo": p.ativo,
                     "encerrado_em": p.encerrado_em.isoformat() if p.encerrado_em else None},
         "origem": {"id": origem.id, "nome": origem.nome} if origem else None,
         "partes": [{"id": x.id, "nome": x.nome} for x in partes],
+        "unido_em": {"id": destino.id, "nome": destino.nome} if destino else None,
+        "uniao_de": [{"id": x.id, "nome": x.nome} for x in unidos],
         "ocupacoes": lista,
         "pastos": [_periodo_dict(x) for x in reversed(pers)],
     }
+
+
+# ---------------------------------------------------------------- Unir piquetes
+
+def unir(db: Session, piquete_ids: list[int], nome: str, quando: date | None = None,
+         pasto: str | None = None, usuario: str | None = None) -> dict:
+    """Une dois ou mais piquetes num só (tirou a cerca entre eles).
+
+    Os originais são ENCERRADOS na data com a área e o histórico que tinham (renomeados
+    "Nome (até dd/mm/aaaa)") e apontam pro novo; o novo tem a soma das áreas e os
+    contornos juntos. O gado que estava em qualquer um deles passa pro novo.
+    Pasto: se todos tinham o mesmo, o novo herda; senão vale o informado em `pasto`.
+    """
+    quando = _validar_data(quando)
+    ids = list(dict.fromkeys(int(x) for x in piquete_ids))
+    if len(ids) < 2:
+        raise ErroPasto("Escolha pelo menos dois piquetes para unir.")
+    originais = [db.get(Piquete, i) for i in ids]
+    if any(p is None or not p.ativo for p in originais):
+        raise ErroPasto("Piquete não encontrado.")
+    nome = (nome or "").strip()[:80]
+    if not nome:
+        raise ErroPasto("Dê um nome para o piquete unido.")
+    area_id = originais[0].area_id
+    q = db.query(Piquete).filter(Piquete.nome == nome, Piquete.ativo.is_(True), Piquete.id.notin_(ids))
+    q = q.filter(Piquete.area_id.is_(None) if area_id is None else Piquete.area_id == area_id)
+    if q.first():
+        raise ErroPasto(f"Já existe o piquete '{nome}' nesse grupo.")
+
+    abertas = db.query(LotePiquete).filter(LotePiquete.piquete_id.in_(ids),
+                                           LotePiquete.data_saida.is_(None)).all()
+    if any(o.data_entrada > quando for o in abertas):
+        raise ErroPasto("A data da união é anterior à entrada do gado que está num dos piquetes.")
+
+    # Contornos juntos (MultiPolygon) e soma das áreas.
+    poligonos = []
+    for p in originais:
+        if p.geometria:
+            g = json.loads(p.geometria)
+            poligonos.extend([g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"])
+    geometria = {"type": "MultiPolygon", "coordinates": poligonos} if poligonos else None
+    hectares = round(sum(p.hectares or 0 for p in originais), 2) or None
+
+    especies = {tuple(sorted(x.especie for x in db.query(PastoPeriodo).filter(
+        PastoPeriodo.piquete_id == p.id, PastoPeriodo.fim.is_(None)))) for p in originais}
+    if pasto is None and len(especies) == 1:
+        herdadas = list(next(iter(especies)))
+    else:
+        herdadas = [pasto] if pasto else []
+
+    nomes_originais = [p.nome for p in originais]
+    for p in originais:
+        p.ativo = False
+        p.encerrado_em = quando
+        p.nome = f"{p.nome} (até {quando.strftime('%d/%m/%Y')})"[:80]
+        for per in db.query(PastoPeriodo).filter(PastoPeriodo.piquete_id == p.id, PastoPeriodo.fim.is_(None)):
+            per.fim = quando
+    db.flush()
+    novo = Piquete(
+        nome=nome, area_id=area_id, geometria=json.dumps(geometria) if geometria else None,
+        hectares=hectares, ativo=True, uso=originais[0].uso,
+        descanso_meta_dias=max((p.descanso_meta_dias or 0) for p in originais) or None,
+        ocupacao_max_dias=min((p.ocupacao_max_dias for p in originais if p.ocupacao_max_dias), default=None),
+        observacao="União de " + ", ".join(nomes_originais),
+    )
+    db.add(novo)
+    db.flush()
+    for p in originais:
+        p.destino_id = novo.id
+    for especie in herdadas:
+        db.add(PastoPeriodo(piquete_id=novo.id, especie=especie, inicio=quando,
+                            observacao="união de piquetes"))
+    db.flush()
+    _sincronizar_capim(db, novo.id)
+
+    alt = _novo_alt()
+    for lote_id in dict.fromkeys(o.lote_id for o in abertas):
+        tinha_gado = _foto_lote(db, lote_id, quando)["cabecas"]
+        _fechar_ocupacao(db, lote_id, quando, alt)
+        if tinha_gado:
+            _abrir_ocupacao(db, lote_id, novo.id, quando, 0, alt)
+
+    resumo = f"{', '.join(nomes_originais)} unidos em {nome}" + (
+        f" ({hectares:.2f} ha)".replace(".", ",") if hectares else "")
+    db.add(MovimentacaoPasto(tipo="unir", data=quando, resumo=resumo,
+                             alteracoes=json.dumps(alt), usuario_nome=usuario))
+    db.commit()
+    return {"ok": True, "novo": {"id": novo.id, "nome": novo.nome, "hectares": novo.hectares},
+            "resumo": resumo, "pasto_herdado": herdadas}
+
+
+# ---------------------------------------------------------------- Editar em massa
+
+def editar_em_massa(db: Session, piquete_ids: list[int], dados: dict) -> dict:
+    """Aplica os mesmos campos a vários piquetes de uma vez (grupo, uso, descanso,
+    máximo de dias, pastagem). Só muda o que veio preenchido."""
+    from .pastos import _area_por_nome, _validar_uso
+    ids = list(dict.fromkeys(int(x) for x in piquete_ids))
+    if not ids:
+        raise ErroPasto("Selecione pelo menos um piquete.")
+    piquetes = [db.get(Piquete, i) for i in ids]
+    if any(p is None or not p.ativo for p in piquetes):
+        raise ErroPasto("Piquete não encontrado.")
+    area_id = None
+    if dados.get("area_nome"):
+        area_id = _area_por_nome(db, dados["area_nome"]).id
+    uso = _validar_uso(dados.get("uso")) if dados.get("uso") else None
+    pasto = (dados.get("pasto") or "").strip()
+    try:  # a tela manda a data como texto (AAAA-MM-DD)
+        inicio_pasto = date.fromisoformat(dados["pasto_inicio"]) if dados.get("pasto_inicio") else _hoje()
+    except (TypeError, ValueError):
+        raise ErroPasto("Data da pastagem inválida.")
+    for p in piquetes:
+        if area_id is not None or dados.get("sem_grupo"):
+            p.area_id = area_id
+        if uso:
+            p.uso = uso
+        for campo in ("descanso_meta_dias", "ocupacao_max_dias"):
+            if dados.get(campo) not in (None, ""):
+                v = int(dados[campo])
+                if not 1 <= v <= 365:
+                    raise ErroPasto("Os dias precisam ficar entre 1 e 365.")
+                setattr(p, campo, v)
+        if pasto and pasto != (p.capim or ""):
+            adicionar_pasto(db, p.id, pasto, inicio_pasto,
+                            substitui=dados.get("pasto_substitui", True), commit=False)
+    db.commit()
+    return {"ok": True, "alterados": len(piquetes)}

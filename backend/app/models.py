@@ -381,6 +381,8 @@ class Piquete(Base):
     # com origem_id apontando pra ele — o histórico antigo fica com a área antiga.
     origem_id: Mapped[int | None] = mapped_column(ForeignKey("piquetes.id"))
     encerrado_em: Mapped[date | None] = mapped_column(Date)
+    # União: os piquetes unidos são encerrados e apontam pro piquete novo.
+    destino_id: Mapped[int | None] = mapped_column(ForeignKey("piquetes.id"))
 
     area: Mapped[AreaPasto | None] = relationship(back_populates="piquetes")
     ocupacoes: Mapped[list[LotePiquete]] = relationship(back_populates="piquete")

@@ -966,3 +966,13 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .cr-item .cr-aviso { grid-column: 2 / -1; }
 .cr-n { font-weight: 700; color: var(--cinza); text-align: center; }
 .pt-modos button { flex: 1 1 22%; }
+
+/* ---- Seleção em massa e cor por pastagem */
+.pt-selecionavel { cursor: pointer; position: relative; padding-left: 44px; }
+.pt-selecionavel::before { content: ""; position: absolute; left: 12px; top: 14px; width: 22px; height: 22px;
+  border: 2px solid var(--cinza); border-radius: 6px; background: #fff; }
+.pt-marcado { outline: 3px solid var(--verde); background: var(--verde-claro); }
+.pt-marcado::before { content: "✓"; background: var(--verde); border-color: var(--verde); color: #fff;
+  font-weight: 700; text-align: center; line-height: 22px; }
+.pt-colorir { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; margin: 6px 0; flex-wrap: wrap; }
+.pt-colorir select { flex: 0 1 260px; padding: 6px; }

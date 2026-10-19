@@ -213,6 +213,7 @@ function ptRenderLista() {
   box.querySelectorAll("[data-levar]").forEach((b) => {
     b.onclick = () => ptConfirmarMover(Number(b.dataset.levar));
   });
+  ptMassaLigarCartoes(box);
   box.querySelectorAll("[data-historico]").forEach((b) => {
     b.onclick = () => ptHistoricoPiquete(Number(b.dataset.historico));
   });
@@ -228,7 +229,7 @@ function ptRenderMovs() {
       ${movs.map((m) => `
         <div class="pt-mov${m.desfeita ? " desfeita" : ""}">
           <div>${esc(m.resumo)}<br><small>${ptDataBR(m.data)}${m.usuario ? " · " + esc(m.usuario) : ""}${m.pendente ? " · 📡 aguardando a rede" : ""}${m.desfeita ? " · desfeita" : ""}</small></div>
-          ${m.desfeita || m.tipo === "dividir" ? "" : `<button type="button" class="secundario" data-desfazer="${m.id}">↶ Desfazer</button>`}
+          ${m.desfeita || m.tipo === "dividir" || m.tipo === "unir" ? "" : `<button type="button" class="secundario" data-desfazer="${m.id}">↶ Desfazer</button>`}
         </div>`).join("")}
     </div>` : "";
   ptEl("pt-movs").querySelectorAll("[data-desfazer]").forEach((b) => {
@@ -252,6 +253,7 @@ function ptCancelarSelecao() {
 }
 
 function ptRenderBarra() {
+  if (ptMassaBarra()) return;
   const barra = ptEl("pt-barra");
   const visivel = !!pt.sel && ptEl("aba-pastos").classList.contains("ativa");
   barra.classList.toggle("escondido", !visivel);
@@ -825,7 +827,8 @@ function ptRenderMapa() {
     if (!p.geometria) continue;
     const camada = L.geoJSON(p.geometria, {
       style: {
-        color: "#fff", weight: 2, fillColor: PT_CORES[p.status] || PT_CORES.sem_registro,
+        color: "#fff", weight: 2,
+        fillColor: ptColorirPor === "pasto" ? ptCorPasto(p.capim) : (PT_CORES[p.status] || PT_CORES.sem_registro),
         fillOpacity: pt.sel && pt.sel.piqueteId !== p.id ? 0.5 : 0.3,
       },
     });
@@ -874,6 +877,7 @@ function ptRenderMapa() {
     }
   }
   ptAtualizarZoom();
+  ptLegendaMapa();
   ptRenderLegendaLotes();
   const semMapa = pt.dados.piquetes.filter((p) => !p.geometria).length;
   ptEl("pt-lista").innerHTML = semMapa
@@ -1452,6 +1456,8 @@ document.querySelectorAll("[data-ptmodo]").forEach((b) => {
 });
 ptEl("pt-btn-importar").onclick = ptFormImportar;
 ptEl("pt-btn-offline").onclick = () => moAbrir();
+ptEl("pt-btn-selecionar").onclick = ptMassaAlternar;
+ptEl("pt-colorir").onchange = () => { ptColorirPor = ptEl("pt-colorir").value; ptRender(); };
 document.querySelectorAll("[data-camada]").forEach((c) => {
   c.onchange = () => {
     ptCamadasVisiveis[c.dataset.camada] = c.checked;

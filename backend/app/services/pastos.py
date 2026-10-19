@@ -514,8 +514,8 @@ def desfazer(db: Session, mov_id: int) -> dict:
         raise ErroPasto("Mudança não encontrada.")
     if mov.desfeita:
         raise ErroPasto("Essa mudança já foi desfeita.")
-    if mov.tipo == "dividir":
-        raise ErroPasto("A divisão de piquete não pode ser desfeita por aqui.")
+    if mov.tipo in ("dividir", "unir"):
+        raise ErroPasto("Divisão e união de piquetes não podem ser desfeitas por aqui.")
     alt = json.loads(mov.alteracoes)
     conflito = ErroPasto(
         "Não dá pra desfazer: esses animais já tiveram outra mudança depois. "
