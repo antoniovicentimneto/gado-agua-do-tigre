@@ -338,7 +338,9 @@ def detalhe(db: Session, lanc_id: int) -> dict:
 
 
 def possiveis_duplicados(db: Session) -> list[list[int]]:
-    """Mesma chave de nota, ou mesmo fornecedor + mesmo valor com datas a até 3 dias."""
+    """Mesma chave de nota, ou mesmo fornecedor + mesmo valor + MESMA descrição com datas a até
+    3 dias. Descrição com qualquer palavra diferente (ex.: parcela 1/2P × 2/2P) não é duplicado;
+    só espaços e maiúsculas/minúsculas são ignorados."""
     lancs = db.scalars(select(FinLancamento).where(FinLancamento.excluido.is_(False),
                                                    FinLancamento.dup_ok.is_(False))
                        .order_by(FinLancamento.data)).all()
@@ -355,7 +357,8 @@ def possiveis_duplicados(db: Session) -> list[list[int]]:
     por_forn: dict[tuple, list[FinLancamento]] = {}
     for lc in lancs:
         if lc.fornecedor_id and lc.origem != "recorrente":
-            por_forn.setdefault((lc.fornecedor_id, round(lc.valor_total, 2)), []).append(lc)
+            desc = " ".join((lc.descricao or "").split()).casefold()
+            por_forn.setdefault((lc.fornecedor_id, round(lc.valor_total, 2), desc), []).append(lc)
     for lista in por_forn.values():
         for a, b in zip(lista, lista[1:]):
             if (b.data - a.data).days <= 3 and a.id not in vistos and b.id not in vistos:

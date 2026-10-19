@@ -133,6 +133,13 @@ def test_duplicado_mesmo_fornecedor_valor_e_data_proxima(fdb):
     assert svc.possiveis_duplicados(fdb) == []
 
 
+def test_parcelas_com_descricao_diferente_nao_sao_duplicado(fdb):
+    a = _lanc(fdb, data="2026-03-05", descricao="Motobomba VT 1786,30 1/2P")
+    _lanc(fdb, data="2026-03-05", descricao="Motobomba VT 1786,30 2/2P")
+    c = _lanc(fdb, data="2026-03-06", descricao="motobomba  VT 1786,30 1/2P")  # só espaço/maiúscula
+    assert svc.possiveis_duplicados(fdb) == [[a.id, c.id]]
+
+
 # ---------------------------------------------------------------- resultado por mês
 
 def test_resultado_caixa_por_mes_e_detalhe(fdb):

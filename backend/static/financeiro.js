@@ -721,7 +721,8 @@ async function finTelaRevisar(alvo) {
       <div class="info">Confira o valor real do mês e toque em ✔. Se não houve a despesa, abra e exclua.</div>
       <div id="frc-lista"></div></div>
     <div class="fin-secao" id="fr-dup"><h3>Possíveis duplicados</h3>
-      <div class="info">Mesma nota, ou mesmo fornecedor e valor com até 3 dias de diferença. Abra e exclua o repetido.</div>
+      <div class="info">Mesma nota, ou mesmo fornecedor, valor e descrição idêntica com até 3 dias de diferença
+        (parcelas 1/2P e 2/2P não contam). Abra e exclua o repetido.</div>
       <div id="frd-lista"></div></div>
     <div class="fin-secao" id="fr-revisar"><h3>A revisar</h3><div id="frr-lista"></div></div>`;
   alvo.querySelectorAll(".fin-card").forEach((a) => {
