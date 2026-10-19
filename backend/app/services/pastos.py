@@ -199,6 +199,7 @@ def painel(db: Session, hoje: date | None = None) -> dict:
             "tem_historico": p.id in com_historico,
             "uso": p.uso,
             "descanso_meta_dias": p.descanso_meta_dias,
+            "ocupacao_max_dias": p.ocupacao_max_dias,
             "observacao": p.observacao,
             "geometria": json.loads(p.geometria) if p.geometria else None,
             "status": status,
@@ -655,6 +656,8 @@ def salvar_piquete(db: Session, dados: dict, piquete_id: int | None = None) -> d
             setattr(p, campo, (dados[campo] or "").strip() or None)
     if "descanso_meta_dias" in dados:
         p.descanso_meta_dias = dados["descanso_meta_dias"] or None
+    if "ocupacao_max_dias" in dados:
+        p.ocupacao_max_dias = dados["ocupacao_max_dias"] or None
     if "uso" in dados:
         p.uso = uso
     novo_ha = None

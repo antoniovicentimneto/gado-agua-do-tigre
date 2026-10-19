@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=65" />
+  <link rel="stylesheet" href="/static/style.css?v=66" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -46,6 +46,7 @@
   <header>
     <h1>🐂 Gado Água do Tigre</h1>
     <div class="header-usuario">
+      <button id="btn-sino" class="btn-sino" title="Alertas">🔔<span></span></button>
       <span id="usuario-logado-nome"></span>
       <button id="btn-logout" class="secundario">Saída</button>
     </div>
@@ -424,6 +425,11 @@
       </div>
     </div>
     <div class="ficha-secao">
+      <h3>🔔 Alertas</h3>
+      <div id="cfg-alertas"></div>
+    </div>
+
+    <div class="ficha-secao">
       <h3>GMD de referência por época (peso estimado)</h3>
       <div id="cfg-gmd"></div>
     </div>
@@ -497,19 +503,20 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=65"></script>
-  <script src="/static/fila-offline.js?v=65"></script>
-  <script src="/static/mangueira.js?v=65"></script>
-  <script src="/static/planilha.js?v=65"></script>
-  <script src="/static/venda-gancho.js?v=65"></script>
-  <script src="/static/cria.js?v=65"></script>
+  <script src="/static/app.js?v=66"></script>
+  <script src="/static/fila-offline.js?v=66"></script>
+  <script src="/static/mangueira.js?v=66"></script>
+  <script src="/static/planilha.js?v=66"></script>
+  <script src="/static/venda-gancho.js?v=66"></script>
+  <script src="/static/cria.js?v=66"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=65"></script>
-  <script src="/static/pastos-historico.js?v=65"></script>
-  <script src="/static/pastos-indicadores.js?v=65"></script>
-  <script src="/static/pastos.js?v=65"></script>
-  <script src="/static/financeiro.js?v=65"></script>
-  <script src="/static/financeiro-notas.js?v=65"></script>
+  <script src="/static/campo.js?v=66"></script>
+  <script src="/static/pastos-historico.js?v=66"></script>
+  <script src="/static/pastos-indicadores.js?v=66"></script>
+  <script src="/static/alertas.js?v=66"></script>
+  <script src="/static/pastos.js?v=66"></script>
+  <script src="/static/financeiro.js?v=66"></script>
+  <script src="/static/financeiro-notas.js?v=66"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

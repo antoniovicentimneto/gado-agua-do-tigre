@@ -373,6 +373,7 @@ class Piquete(Base):
     # integração) ou verao (pasto só no verão). Pesa no cálculo de área por ano.
     uso: Mapped[str | None] = mapped_column(String(20))
     descanso_meta_dias: Mapped[int | None] = mapped_column(Integer)  # dias de descanso desejados
+    ocupacao_max_dias: Mapped[int | None] = mapped_column(Integer)  # passou disso = alerta de mudar o lote
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     observacao: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

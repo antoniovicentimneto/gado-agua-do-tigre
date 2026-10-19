@@ -307,6 +307,7 @@ class PiqueteEntrada(BaseModel):
     hectares: float | None = None
     capim: str | None = None
     descanso_meta_dias: int | None = None
+    ocupacao_max_dias: int | None = None
     observacao: str | None = None
     uso: str | None = None  # perene / inverno / verao
     geometria: dict | None = None  # GeoJSON Polygon/MultiPolygon

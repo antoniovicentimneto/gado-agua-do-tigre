@@ -43,6 +43,7 @@ async function ptCarregar() {
     pt.dados = dados;
     pt.offline = false;
     salvarOffline(CHAVE_PASTOS_OFFLINE, { ...dados, salvoEm: Date.now() });
+    if (window.alCarregar) window.alCarregar();
   } catch (e) {
     const salvo = lerOffline(CHAVE_PASTOS_OFFLINE);
     if (!semSinal(e) || !salvo) {
@@ -1132,6 +1133,7 @@ function ptFormPiquete(p, geometriaNova) {
     <div class="grid-2">
       <div><label>Hectares</label><input id="pt-p-ha" inputmode="decimal" value="${ha ? ptNum(ha, 2) : ""}" /></div>
       <div><label>Descanso desejado (dias)</label><input id="pt-p-meta" inputmode="numeric" value="${p && p.descanso_meta_dias ? p.descanso_meta_dias : ""}" /></div>
+      <div><label>Máx. de dias com gado</label><input id="pt-p-ocupmax" inputmode="numeric" placeholder="padrão da Config" value="${p && p.ocupacao_max_dias ? p.ocupacao_max_dias : ""}" /></div>
     </div>
     ${geometriaNova ? `<p class="info">Área calculada pelo desenho: ${ptNum(haCalc, 2)} ha (pode corrigir).</p>` : ""}
     ${p ? `<h3 style="margin-top:16px">🌱 Pasto</h3><div id="pt-p-pasto" class="info">Carregando…</div>`
@@ -1176,6 +1178,7 @@ function ptFormPiquete(p, geometriaNova) {
       nome,
       hectares: num(ptEl("pt-p-ha").value),
       descanso_meta_dias: parseInt(ptEl("pt-p-meta").value, 10) || null,
+      ocupacao_max_dias: parseInt(ptEl("pt-p-ocupmax").value, 10) || null,
       observacao: ptEl("pt-p-obs").value.trim() || null,
       uso: ptEl("pt-p-uso").value || null,
     };

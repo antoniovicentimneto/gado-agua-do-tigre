@@ -14,6 +14,7 @@ from ..services import pastos as svc
 from ..services import pastos_historico as hist
 from ..services import peso_estimado as pe
 from ..services import indicadores_pasto as ind
+from ..services import alertas as svc_alertas
 from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api/pastos", tags=["pastos"], dependencies=[Depends(usuario_atual)])
@@ -235,3 +236,21 @@ def indicadores(inicio: date | None = None, fim: date | None = None, hoje: date 
     """Lotação (UA/ha), ocupação e descanso médios, uso da área; por época, piquete e pasto.
     Sem datas = safra atual (julho a junho)."""
     return ind.indicadores(db, inicio, fim, hoje)
+
+
+
+# ---------------------------------------------------------------- Alertas (sininho)
+
+@router.get("/alertas")
+def alertas(hoje: date | None = None, db: Session = Depends(get_db)):
+    """O que precisa de atenção hoje: mudar lote, piquete pronto, salgar, pesar."""
+    return svc_alertas.alertas(db, hoje)
+
+
+@router.put("/alertas/limites")
+def salvar_limites_alertas(dados: dict = Body(...), db: Session = Depends(get_db),
+                           _dono=Depends(requer_dono)):
+    try:
+        return svc_alertas.salvar_limites(db, dados)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e) or "Valor inválido")

@@ -925,3 +925,15 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 #pt-ind-tabela th { cursor: pointer; }
 .pt-ind-inativo td { color: var(--cinza); font-style: italic; }
 .pt-modos button { flex: 1 1 30%; }
+
+/* ---- Sininho de alertas */
+.btn-sino { width: auto; background: rgba(255,255,255,0.15); color: #fff; padding: 6px 10px; position: relative; }
+.btn-sino span { font-size: 0.75rem; margin-left: 2px; }
+.btn-sino.tem span { background: #fdd835; color: #1f2937; border-radius: 999px; padding: 1px 6px; }
+.btn-sino.urgente span { background: #e53935; color: #fff; }
+.al-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  border: 1px solid var(--borda); border-left-width: 6px; border-radius: 10px; padding: 10px; margin: 8px 0; }
+.al-vermelho { border-left-color: #e53935; } .al-amarelo { border-left-color: #f9a825; } .al-verde { border-left-color: #2e7d32; }
+.al-texto { flex: 1 1 220px; }
+.al-botoes { display: flex; gap: 6px; }
+.al-botoes button { width: auto; min-height: 44px; }

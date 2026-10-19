@@ -260,6 +260,7 @@ async function carregarConfig() {
   await renderConfigLista("medicamento", "cfg-medicamentos");
   await renderConfigLista("problema", "cfg-problemas");
   if (window.ptConfigGmd) await window.ptConfigGmd("cfg-gmd");
+  if (window.alConfigLimites) await window.alConfigLimites("cfg-alertas");
   await carregarLogUsuarios();
   await carregarLogs(true);
 }
@@ -1760,6 +1761,7 @@ function mostrarApp(dadosUsuario, offline) {
   carregarLista();
   carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
   if (typeof mgInit === "function") mgInit();
+  if (window.alCarregar) window.alCarregar();   // sininho de alertas
 }
 
 // Início: se já tem token salvo, tenta validar; senão mostra a tela de login.
