@@ -13,6 +13,7 @@ from ..services import geo
 from ..services import pastos as svc
 from ..services import pastos_historico as hist
 from ..services import peso_estimado as pe
+from ..services import indicadores_pasto as ind
 from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api/pastos", tags=["pastos"], dependencies=[Depends(usuario_atual)])
@@ -223,3 +224,14 @@ def salvar_config_gmd(epocas: list[dict] = Body(..., embed=True), db: Session = 
         return {"epocas": pe.salvar_referencia(db, epocas), "limite_dias": pe.LIMITE_DIAS}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+
+# ---------------------------------------------------------------- Indicadores de rotação
+
+@router.get("/indicadores")
+def indicadores(inicio: date | None = None, fim: date | None = None, hoje: date | None = None,
+                db: Session = Depends(get_db)):
+    """Lotação (UA/ha), ocupação e descanso médios, uso da área; por época, piquete e pasto.
+    Sem datas = safra atual (julho a junho)."""
+    return ind.indicadores(db, inicio, fim, hoje)

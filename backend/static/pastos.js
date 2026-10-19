@@ -118,6 +118,12 @@ function ptRender() {
     <span>⏳ ${cont.descansando} descansando</span>
     <span>✅ ${cont.pronto} prontos</span>` : "";
 
+  const ind = pt.modo === "indicadores";
+  ptEl("pt-sem-piquete").classList.toggle("escondido", ind);
+  ptEl("pt-lista").classList.toggle("escondido", ind);
+  ptEl("pt-movs").classList.toggle("escondido", ind);
+  ptEl("pt-indicadores").classList.toggle("escondido", !ind);
+  if (ind) { ptRenderBarra(); return; }  // indicadores se desenham ao trocar de modo/período
   ptRenderSemPiquete();
   if (pt.modo === "lista") ptRenderLista();
   else ptRenderMapa();
@@ -1427,7 +1433,9 @@ function ptMudarModo(modo) {
   document.querySelectorAll("[data-ptmodo]").forEach((b) => b.classList.toggle("ativa", b.dataset.ptmodo === modo));
   ptEl("pt-mapa-box").classList.toggle("escondido", modo !== "mapa");
   if (modo !== "mapa") ptEncerrarDesenho();
+  if (modo === "indicadores") pt.sel = null;
   ptRender();
+  if (modo === "indicadores") ptRenderIndicadores();
 }
 
 document.querySelectorAll("[data-ptmodo]").forEach((b) => {

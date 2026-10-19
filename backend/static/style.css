@@ -915,3 +915,13 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .pt-i-todos select { flex: 1; }
 .pt-i-todos button { width: auto; }
 .pt-imp-tabela select { width: 100%; padding: 6px; }
+
+/* ---- Indicadores de rotação */
+.pt-ind-topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.pt-ind-topo select { flex: 0 1 260px; }
+.pt-ind-cards { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 520px) { .pt-ind-cards { grid-template-columns: 1fr 1fr; } }
+#pt-indicadores h3 { margin: 18px 0 8px; font-size: 1rem; }
+#pt-ind-tabela th { cursor: pointer; }
+.pt-ind-inativo td { color: var(--cinza); font-style: italic; }
+.pt-modos button { flex: 1 1 30%; }
