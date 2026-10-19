@@ -13,7 +13,7 @@ import warnings
 from collections import defaultdict
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import String, select
 from sqlalchemy.orm import Session
 
 from ..models_financeiro import FinFornecedor, FinLancamento, FinParcela, FinPlano
@@ -260,6 +260,16 @@ def importar(db: Session, conteudo: bytes, usuario: str, antiga: bytes | None = 
     return r
 
 
+def _caber(obj):
+    """Corta cada texto no tamanho da coluna (a planilha antiga tem nº de nota/conta com texto
+    comprido; o SQLite aceita, o Postgres recusa a importação inteira)."""
+    for col in obj.__table__.columns:
+        v = getattr(obj, col.key, None)
+        if isinstance(v, str) and isinstance(col.type, String) and col.type.length and len(v) > col.type.length:
+            setattr(obj, col.key, v[:col.type.length].rstrip())
+    return obj
+
+
 def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
     r = bloco[0]
     tipo = "despesa" if str(r["es"]).strip().upper().startswith("1") else "receita"
@@ -286,8 +296,8 @@ def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
     if setor_original == "CONFIGURAÇÕES":
         motivos.append("Estava em 'Configurações' na CONSIPA")
     if cat and (tipo, setor, grupo, cat) not in plano:
-        db.add(FinPlano(tipo=tipo, setor=setor, grupo=grupo, categoria=cat,
-                        codigo=limpar_nome(categoria)[0] or limpar_nome(central)[0]))
+        db.add(_caber(FinPlano(tipo=tipo, setor=setor, grupo=grupo, categoria=cat,
+                               codigo=limpar_nome(categoria)[0] or limpar_nome(central)[0])))
         plano.add((tipo, setor, grupo, cat))
 
     nome_forn = _txt(r["fornecedor"])
@@ -295,7 +305,7 @@ def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
     if nome_forn:
         forn = fornecedores.get(normalizar(nome_forn))
         if forn is None:
-            forn = FinFornecedor(nome=nome_forn)
+            forn = _caber(FinFornecedor(nome=nome_forn))
             db.add(forn)
             fornecedores[normalizar(nome_forn)] = forn
 
@@ -316,7 +326,7 @@ def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
         lanc.parcelas.append(FinParcela(numero=i, vencimento=_dt(p["data_fluxo"]) or lanc.data,
                                         valor=round(float(p["valor"]), 2)))
     lanc.valor_total = round(sum(p.valor for p in lanc.parcelas), 2)
-    return lanc
+    return _caber(lanc)
 
 
 def _aprender_padroes(db: Session) -> None:

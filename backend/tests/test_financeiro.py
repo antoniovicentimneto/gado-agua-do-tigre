@@ -266,6 +266,11 @@ def test_importar_com_planilha_antiga(fdb):
     assert fin_consipa.importar(fdb, _planilha_consipa(), "Antonio", _planilha_antiga())["lancamentos"] == 0
 
 
+def test_texto_comprido_cabe_na_coluna():
+    lc = fin_consipa._caber(FinLancamento(tipo="despesa", nf_numero="IMPOSTO / ENCARGOS DA FOLHA", conta="x" * 200))
+    assert lc.nf_numero == "IMPOSTO / ENCARGOS D" and len(lc.conta) == 80
+
+
 def test_importar_arquivo_que_nao_e_consipa(fdb):
     wb = openpyxl.Workbook()
     buf = io.BytesIO()
