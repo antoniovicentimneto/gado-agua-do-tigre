@@ -942,3 +942,13 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .pt-btn-offline { width: 100%; margin: 8px 0 4px; }
 .mo-barra { height: 14px; background: #eee; border-radius: 7px; overflow: hidden; margin: 10px 0; }
 .mo-barra div { height: 100%; width: 0; background: var(--verde); transition: width 0.3s; }
+
+/* ---- Cocho dividido e faixa de consumo */
+.sal-dividido { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; margin-top: 12px; }
+.sal-dividido summary { font-weight: 600; cursor: pointer; }
+.sal-outro small { margin-left: 4px; }
+.sal-baixo, .sal-alto { color: var(--vermelho); font-weight: 700; }
+.sal-ok { color: var(--verde); }
+.sal-faixa { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; align-items: center; margin: 4px 0; }
+.sal-faixa input { width: 100%; padding: 8px 6px; }
+.sal-faixa-cab span { font-size: 0.75rem; color: var(--cinza); }

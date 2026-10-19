@@ -93,6 +93,15 @@ def alertas(db: Session, hoje: date | None = None) -> dict:
                 f"Tem animal há {l.get('dias_sem_pesar')} dias sem pesar (o peso estimado vale até "
                 f"{pe.LIMITE_DIAS} dias).", {"tipo": "lote", "id": l["id"]}))
 
+    from .campo import consumo_fora_da_faixa
+    for c in consumo_fora_da_faixa(db, hoje):
+        f = c["faixa"]
+        faixa_txt = " a ".join(f"{v:g}" for v in (f.get("min"), f.get("max")) if v is not None)
+        lista.append(_alerta(
+            "sal_fora_da_faixa", "amarelo", f"Consumo de {c['produto']} {c['situacao']} no {c['lote']}",
+            f"{c['g_cab_dia']} g por cabeça/dia (faixa {faixa_txt} g).",
+            {"tipo": "lote", "id": c["lote_id"]}))
+
     for gerar in GERADORES_EXTRAS:
         lista.extend(gerar(db, hoje, dados))
 

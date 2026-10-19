@@ -149,3 +149,42 @@ def test_listas_do_campo_ja_vem_preenchidas(db):
     assert opcoes.listar(db, "medicamento") == []
     opcoes.criar(db, "medicamento", "Ivermectina 1%")
     assert [o.nome for o in opcoes.listar(db, "medicamento")] == ["Ivermectina 1%"]
+
+
+# ---------------------------------------------------------------- Cocho dividido e faixa
+
+def test_cocho_dividido_reparte_pelas_cabecas(db):
+    a, b = _lote(db, "LOTEA"), _lote(db, "LOTEB")  # 2 e 1 cabeças
+    r = svc.salgar(db, a.id, "Sal mineral", 30, AGORA, outros_lotes=[b.id])
+    partes = {d["lote"]: d["quantidade_kg"] for d in r["divisao"]}
+    assert partes == {"LOTEA": 20, "LOTEB": 10}
+    # Apagar a salga de um lote apaga a parte dos dois (era um cocho só).
+    assert svc.apagar_salga(db, r["salga"]["id"], _usuario(db, PapelUsuario.DONO, "Dono"))["apagadas"] == 2
+
+
+def test_consumo_separado_por_sal(db):
+    lote = _lote(db, "LOTEA")  # 2 cabeças
+    t0 = AGORA - timedelta(days=20)
+    svc.salgar(db, lote.id, "Sal mineral", 4, t0)
+    svc.salgar(db, lote.id, "Proteinado", 20, t0 + timedelta(days=1))
+    svc.salgar(db, lote.id, "Sal mineral", 4, t0 + timedelta(days=10))
+    h = svc.historico_sal(db, lote.id, hoje=AGORA.date())
+    medias = {p["produto"]: p["media_g_cab_dia"] for p in h["por_produto"]}
+    # Mineral: 4 kg / (2 cab × 10 dias) = 200 g — o proteinado no meio não atrapalha.
+    assert medias["Sal mineral"] == 200 and medias["Proteinado"] is None
+
+
+def test_faixa_de_consumo_e_alerta(db):
+    from app.services import alertas
+    lote = _lote(db, "LOTEA")
+    t0 = AGORA - timedelta(days=10)
+    svc.salgar(db, lote.id, "Sal mineral", 4, t0)             # 200 g/cab/dia
+    svc.salgar(db, lote.id, "Sal mineral", 4, t0 + timedelta(days=10))
+    assert svc.consumo_fora_da_faixa(db, AGORA.date()) == []   # sem faixa configurada: nada
+    svc.salvar_faixas(db, {"Sal mineral": {"min": "60", "max": "120"}})
+    fora = svc.consumo_fora_da_faixa(db, AGORA.date())
+    assert fora[0]["situacao"] == "alto" and fora[0]["g_cab_dia"] == 200
+    tipos = {a["tipo"] for a in alertas.alertas(db, AGORA.date())["alertas"]}
+    assert "sal_fora_da_faixa" in tipos
+    with pytest.raises(svc.ErroCampo):
+        svc.salvar_faixas(db, {"Sal mineral": {"min": 200, "max": 100}})

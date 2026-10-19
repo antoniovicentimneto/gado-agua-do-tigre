@@ -261,6 +261,7 @@ async function carregarConfig() {
   await renderConfigLista("problema", "cfg-problemas");
   if (window.ptConfigGmd) await window.ptConfigGmd("cfg-gmd");
   if (window.alConfigLimites) await window.alConfigLimites("cfg-alertas");
+  if (window.salConfigFaixas) await window.salConfigFaixas("cfg-faixas-sal");
   await carregarLogUsuarios();
   await carregarLogs(true);
 }

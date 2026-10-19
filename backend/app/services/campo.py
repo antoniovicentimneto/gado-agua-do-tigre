@@ -5,13 +5,14 @@ gravação aceita uma `chave` gerada no aparelho (o reenvio da fila não duplica
 """
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import Animal, AnimalLote, Lote, LotePiquete, PapelUsuario, StatusAnimal, Usuario
-from ..models_campo import OcorrenciaSanitaria, SalgaCocho
+from ..models_campo import ConfigValor, OcorrenciaSanitaria, SalgaCocho
 from .consultas import lote_atual
 
 JANELA_CONSUMO_DIAS = 60  # consumo médio de sal olha as salgas dos últimos 60 dias
@@ -69,14 +70,20 @@ def _cabecas_ativas(db: Session, lote_id: int) -> int:
 
 def salgar(db: Session, lote_id: int, produto: str, quantidade_kg: float,
            data_hora: datetime | None = None, observacao: str | None = None,
-           chave: str | None = None, usuario: Usuario | None = None) -> dict:
-    """Registra uma salga de cocho do lote (guarda piquete e cabeças do momento)."""
+           chave: str | None = None, usuario: Usuario | None = None,
+           outros_lotes: list[int] | None = None) -> dict:
+    """Registra uma salga de cocho (guarda piquete e cabeças do momento).
+
+    Com `outros_lotes`, o cocho é dividido: a quantidade é repartida pelas cabeças de cada
+    lote e cada um ganha sua linha (mesmo `grupo`), pra o consumo por cabeça sair certo.
+    """
     if chave:
         feita = db.query(SalgaCocho).filter(SalgaCocho.chave_cliente == chave).first()
         if feita:
             return {"ok": True, "salga": _salga_dict(feita), "repetida": True}
-    lote = db.get(Lote, lote_id)
-    if lote is None:
+    lote_ids = [lote_id] + [x for x in dict.fromkeys(outros_lotes or []) if x != lote_id]
+    lotes = [db.get(Lote, x) for x in lote_ids]
+    if any(l is None for l in lotes):
         raise ErroCampo("Lote não encontrado.")
     produto = (produto or "").strip()
     if not produto:
@@ -85,52 +92,111 @@ def salgar(db: Session, lote_id: int, produto: str, quantidade_kg: float,
         raise ErroCampo("Informe a quantidade em kg.")
     if quantidade_kg > 20000:
         raise ErroCampo("Quantidade alta demais — confira se está em kg.")
-    ocup = (
-        db.query(LotePiquete)
-        .filter(LotePiquete.lote_id == lote_id, LotePiquete.data_saida.is_(None))
-        .first()
-    )
-    s = SalgaCocho(
-        lote_id=lote.id, piquete_id=ocup.piquete_id if ocup else None,
-        cabecas=_cabecas_ativas(db, lote.id), produto=produto[:60],
-        quantidade_kg=round(float(quantidade_kg), 2),
-        data_hora=_validar_data_hora(data_hora), observacao=(observacao or "").strip() or None,
-        usuario_id=usuario.id if usuario else None,
-        usuario_nome=usuario.nome if usuario else None, chave_cliente=chave,
-    )
-    db.add(s)
+    quando = _validar_data_hora(data_hora)
+    cabecas = [_cabecas_ativas(db, l.id) for l in lotes]
+    total = sum(cabecas)
+    dividido = len(lotes) > 1
+    if dividido and not total:
+        raise ErroCampo("Os lotes do cocho estão sem animais — não dá pra dividir.")
+    grupo = (chave or f"g{int(quando.timestamp())}-{lote_id}")[:40] if dividido else None
+    linhas = []
+    for n, (l, cab) in enumerate(zip(lotes, cabecas)):
+        ocup = (db.query(LotePiquete)
+                .filter(LotePiquete.lote_id == l.id, LotePiquete.data_saida.is_(None)).first())
+        parte = quantidade_kg * (cab / total) if dividido else quantidade_kg
+        s = SalgaCocho(
+            lote_id=l.id, piquete_id=ocup.piquete_id if ocup else None, cabecas=cab,
+            produto=produto[:60], quantidade_kg=round(float(parte), 2), data_hora=quando,
+            observacao=(observacao or "").strip() or None,
+            usuario_id=usuario.id if usuario else None,
+            usuario_nome=usuario.nome if usuario else None,
+            chave_cliente=chave if n == 0 else (f"{chave}:{n}"[:40] if chave else None),
+            grupo=grupo,
+        )
+        db.add(s)
+        linhas.append(s)
     db.commit()
-    return {"ok": True, "salga": _salga_dict(s)}
+    r = {"ok": True, "salga": _salga_dict(linhas[0])}
+    if dividido:
+        r["divisao"] = [{"lote": x.lote.nome if x.lote else None, "cabecas": x.cabecas,
+                         "quantidade_kg": x.quantidade_kg} for x in linhas]
+    return r
+
+
+# ---------------------------------------------------------------- Faixa de consumo por sal
+
+CHAVE_FAIXAS = "faixas_sal"
+
+
+def carregar_faixas(db: Session) -> dict:
+    """{produto: {"min": g, "max": g}} — consumo esperado por cabeça/dia (do rótulo)."""
+    linha = db.get(ConfigValor, CHAVE_FAIXAS)
+    try:
+        return json.loads(linha.valor) if linha else {}
+    except ValueError:
+        return {}
+
+
+def salvar_faixas(db: Session, faixas: dict) -> dict:
+    limpas = {}
+    for produto, f in (faixas or {}).items():
+        produto = str(produto).strip()[:60]
+        f = f if isinstance(f, dict) else {}
+        try:
+            mn = float(str(f["min"]).replace(",", ".")) if f.get("min") not in (None, "") else None
+            mx = float(str(f["max"]).replace(",", ".")) if f.get("max") not in (None, "") else None
+        except ValueError:
+            raise ErroCampo(f"{produto}: use números na faixa.")
+        if mn is None and mx is None:
+            continue
+        if mn is not None and mx is not None and mn > mx:
+            raise ErroCampo(f"{produto}: o mínimo é maior que o máximo.")
+        if any(v is not None and not 0 <= v <= 5000 for v in (mn, mx)):
+            raise ErroCampo(f"{produto}: faixa fora do razoável (0 a 5.000 g por cabeça/dia).")
+        limpas[produto] = {"min": mn, "max": mx}
+    linha = db.get(ConfigValor, CHAVE_FAIXAS) or ConfigValor(chave=CHAVE_FAIXAS)
+    linha.valor = json.dumps(limpas)
+    db.add(linha)
+    db.commit()
+    return limpas
+
+
+def _situacao(g: float | None, faixa: dict | None) -> str | None:
+    if g is None or not faixa:
+        return None
+    if faixa.get("min") is not None and g < faixa["min"]:
+        return "baixo"
+    if faixa.get("max") is not None and g > faixa["max"]:
+        return "alto"
+    return "ok"
 
 
 def consumo(salgas: list[SalgaCocho], hoje: date) -> dict:
-    """Consumo de sal em gramas por cabeça por dia.
+    """Consumo em gramas por cabeça por dia, separado por sal (o cocho do mineral e o do
+    proteinado são cochos diferentes).
 
-    Cada salga é "consumida" até a salga seguinte: kg ÷ (cabeças × dias entre as duas).
-    A última salga ainda não terminou, então não entra. Média = total de kg ÷ total de
-    cabeça-dias das salgas fechadas nos últimos 60 dias.
+    Cada salga é "consumida" até a salga seguinte do MESMO sal: kg ÷ (cabeças × dias).
+    A última ainda está no cocho e não entra. Média = kg ÷ cabeça-dias dos últimos 60 dias.
     """
-    ordenadas = sorted(salgas, key=lambda s: s.data_hora)
-    intervalos = []
-    for atual, prox in zip(ordenadas, ordenadas[1:]):
-        dias = (prox.data_hora - atual.data_hora).total_seconds() / 86400
-        if dias < 0.5 or not atual.cabecas:
-            continue
-        intervalos.append({
-            "id": atual.id,
-            "g_cab_dia": round(atual.quantidade_kg * 1000 / (atual.cabecas * dias)),
-            "dias": round(dias, 1),
-            "inicio": atual.data_hora.date(),
-            "kg": atual.quantidade_kg,
-            "cab_dias": atual.cabecas * dias,
-        })
+    por_produto: dict[str, list] = {}
+    for s in sorted(salgas, key=lambda x: x.data_hora):
+        por_produto.setdefault(s.produto, []).append(s)
+    por_salga, medias = {}, {}
     limite = hoje - timedelta(days=JANELA_CONSUMO_DIAS)
-    janela = [i for i in intervalos if i["inicio"] >= limite]
-    cab_dias = sum(i["cab_dias"] for i in janela)
-    return {
-        "por_salga": {i["id"]: i["g_cab_dia"] for i in intervalos},
-        "media_g_cab_dia": round(sum(i["kg"] for i in janela) * 1000 / cab_dias) if cab_dias else None,
-    }
+    for produto, lista in por_produto.items():
+        kg = cab_dias = 0.0
+        for atual, prox in zip(lista, lista[1:]):
+            dias = (prox.data_hora - atual.data_hora).total_seconds() / 86400
+            if dias < 0.5 or not atual.cabecas:
+                continue
+            por_salga[atual.id] = round(atual.quantidade_kg * 1000 / (atual.cabecas * dias))
+            if atual.data_hora.date() >= limite:
+                kg += atual.quantidade_kg
+                cab_dias += atual.cabecas * dias
+        medias[produto] = round(kg * 1000 / cab_dias) if cab_dias else None
+    validas = [v for v in medias.values() if v is not None]
+    return {"por_salga": por_salga, "por_produto": medias,
+            "media_g_cab_dia": validas[0] if len(validas) == 1 else None}
 
 
 def historico_sal(db: Session, lote_id: int, hoje: date | None = None, limite: int = 30) -> dict:
@@ -140,19 +206,52 @@ def historico_sal(db: Session, lote_id: int, hoje: date | None = None, limite: i
         .options(selectinload(SalgaCocho.lote))
         .order_by(SalgaCocho.data_hora.desc()).limit(limite).all()
     )
+    faixas = carregar_faixas(db)
     c = consumo(salgas, hoje)
     lista = []
     for s in salgas:
         d = _salga_dict(s)
         d["g_cab_dia"] = c["por_salga"].get(s.id)
+        d["situacao"] = _situacao(d["g_cab_dia"], faixas.get(s.produto))
+        d["grupo"] = s.grupo
         lista.append(d)
     ultima = salgas[0] if salgas else None
     return {
         "salgas": lista,
         "media_g_cab_dia": c["media_g_cab_dia"],
+        "por_produto": [{"produto": p, "media_g_cab_dia": m, "faixa": faixas.get(p),
+                         "situacao": _situacao(m, faixas.get(p))} for p, m in c["por_produto"].items()],
         "ultima": _salga_dict(ultima) if ultima else None,
         "dias_desde_ultima": (hoje - ultima.data_hora.date()).days if ultima else None,
     }
+
+
+def consumo_fora_da_faixa(db: Session, hoje: date) -> list[dict]:
+    """Lotes cujo último consumo medido (de cada sal) saiu da faixa configurada."""
+    faixas = carregar_faixas(db)
+    if not faixas:
+        return []
+    desde = datetime.combine(hoje - timedelta(days=JANELA_CONSUMO_DIAS), datetime.min.time())
+    salgas = (db.query(SalgaCocho).filter(SalgaCocho.data_hora >= desde)
+              .options(selectinload(SalgaCocho.lote)).all())
+    por_lote: dict[int, list] = {}
+    for s in salgas:
+        por_lote.setdefault(s.lote_id, []).append(s)
+    saida = []
+    for lote_id, lista in por_lote.items():
+        c = consumo(lista, hoje)
+        for produto in sorted({s.produto for s in lista}):
+            faixa = faixas.get(produto)
+            medidas = sorted((s for s in lista if s.produto == produto and s.id in c["por_salga"]),
+                             key=lambda s: s.data_hora)
+            if not faixa or not medidas:
+                continue
+            g = c["por_salga"][medidas[-1].id]
+            sit = _situacao(g, faixa)
+            if sit in ("baixo", "alto"):
+                saida.append({"lote_id": lote_id, "lote": medidas[-1].lote.nome if medidas[-1].lote else "?",
+                              "produto": produto, "g_cab_dia": g, "situacao": sit, "faixa": faixa})
+    return saida
 
 
 def ultimas_salgas_por_lote(db: Session) -> dict[int, dict]:
@@ -170,14 +269,17 @@ def ultimas_salgas_por_lote(db: Session) -> dict[int, dict]:
 
 
 def apagar_salga(db: Session, salga_id: int, usuario: Usuario) -> dict:
+    """Apaga a salga; se o cocho era dividido, apaga a parte de todos os lotes."""
     s = db.get(SalgaCocho, salga_id)
     if s is None:
         raise ErroCampo("Salga não encontrada.")
     if not _pode_apagar(s, usuario, date.today()):
         raise ErroCampo("Só o dono apaga salgas antigas ou lançadas por outra pessoa.")
-    db.delete(s)
+    linhas = db.query(SalgaCocho).filter(SalgaCocho.grupo == s.grupo).all() if s.grupo else [s]
+    for x in linhas:
+        db.delete(x)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "apagadas": len(linhas)}
 
 
 # ---------------------------------------------------------------- Sanidade

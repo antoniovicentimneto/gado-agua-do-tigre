@@ -101,6 +101,7 @@ async function salFormulario(lote) {
     <label>Quantidade (kg)</label>
     <input id="sal-kg" inputmode="decimal" placeholder="Ex.: 25" value="${ultimo.kg ? ptNum(ultimo.kg, 2) : ""}" />
     <div class="sal-rapidos">${[10, 25, 30, 50, 100].map((k) => `<button type="button" class="secundario" data-kg="${k}">${k} kg</button>`).join("")}</div>
+    ${salOutrosLotesHTML(lote)}
     <label>Data e hora</label>
     <input type="datetime-local" id="sal-data" value="${agoraLocalInput()}" max="${agoraLocalInput()}" />
     <label>Observação</label>
@@ -111,8 +112,11 @@ async function salFormulario(lote) {
     </div>
     <p style="margin-top:14px"><a href="#" id="sal-historico">Ver histórico de sal deste lote</a></p>`);
   ligarCampoSelect("sal-produto");
+  const atualizarDivisao = () => salPreviaDivisao(lote);
+  document.querySelectorAll("[data-sal-outro]").forEach((c) => { c.onchange = atualizarDivisao; });
+  document.getElementById("sal-kg").addEventListener("input", atualizarDivisao);
   document.querySelectorAll(".sal-rapidos [data-kg]").forEach((b) => {
-    b.onclick = () => { document.getElementById("sal-kg").value = b.dataset.kg; };
+    b.onclick = () => { document.getElementById("sal-kg").value = b.dataset.kg; salPreviaDivisao(lote); };
   });
   document.getElementById("sal-cancelar").onclick = ptFecharModal;
   document.getElementById("sal-historico").onclick = (e) => { e.preventDefault(); salHistorico(lote); };
@@ -122,8 +126,9 @@ async function salFormulario(lote) {
     const produto = await valorCampoSelect("sal", "sal-produto");
     if (!produto) { alert("Escolha qual sal foi colocado."); return; }
     if (!kg || kg <= 0) { alert("Informe a quantidade em kg."); return; }
+    const outros = [...document.querySelectorAll("[data-sal-outro]:checked")].map((c) => Number(c.value));
     const corpo = {
-      lote_id: lote.id, produto, quantidade_kg: kg,
+      lote_id: lote.id, produto, quantidade_kg: kg, outros_lotes: outros,
       data_hora: document.getElementById("sal-data").value || agoraLocalInput(),
       observacao: document.getElementById("sal-obs").value.trim() || null,
     };
@@ -136,10 +141,12 @@ async function salFormulario(lote) {
       salvarOffline(CHAVE_SAL_ULTIMO, memoria);
       // A tela já mostra a salga (mesmo que ainda esteja na fila).
       salAtualizarLoteLocal(lote.id, { data_hora: corpo.data_hora, produto, quantidade_kg: kg });
+      for (const id of outros) salAtualizarLoteLocal(id, { data_hora: corpo.data_hora, produto, quantidade_kg: kg });
       ptFecharModal();
       pt.sel = null;
       ptRender();
-      ptToast(r ? `✔ Cocho do ${lote.nome} salgado: ${ptNum(kg)} kg de ${produto}.`
+      ptToast(r ? `✔ Cocho salgado: ${ptNum(kg)} kg de ${produto}` + (r.divisao
+          ? ` (dividido: ${r.divisao.map((d) => `${d.lote} ${ptNum(d.quantidade_kg)} kg`).join(", ")}).` : ".")
         : "📡 Salga guardada no aparelho — será enviada quando tiver sinal.");
     } catch (e) {
       alert(e.message);
@@ -147,6 +154,35 @@ async function salFormulario(lote) {
       btn.textContent = "✔ Salvar";
     }
   };
+}
+
+// "Este cocho é dividido com…": outros lotes, os do mesmo piquete primeiro.
+function salOutrosLotesHTML(lote) {
+  const outros = ptTodosLotes().filter((l) => l.id !== lote.id && l.id > 0);
+  if (!outros.length) return "";
+  const mesmo = outros.filter((l) => l.piqueteId != null && l.piqueteId === lote.piqueteId);
+  const resto = outros.filter((l) => !mesmo.includes(l));
+  const caixa = (l) => `<label class="pt-opcao sal-outro"><input type="checkbox" data-sal-outro value="${l.id}">
+    ${ptMarcaLote(l)} ${esc(l.nome)} <small class="info">${l.cabecas} cab. · ${esc(ptNomePiquete(l.piqueteId))}</small></label>`;
+  return `
+    <details class="sal-dividido" ${mesmo.length ? "open" : ""}>
+      <summary>Cocho dividido com outro lote?</summary>
+      ${mesmo.length ? `<p class="info">No mesmo piquete:</p>${mesmo.map(caixa).join("")}` : ""}
+      ${resto.length ? `<p class="info">Outros lotes:</p>${resto.map(caixa).join("")}` : ""}
+      <p class="info" id="sal-previa">A quantidade é repartida pelas cabeças de cada lote.</p>
+    </details>`;
+}
+
+function salPreviaDivisao(lote) {
+  const box = document.getElementById("sal-previa");
+  if (!box) return;
+  const ids = [...document.querySelectorAll("[data-sal-outro]:checked")].map((c) => Number(c.value));
+  const kg = parseFloat(String(document.getElementById("sal-kg").value).replace(",", "."));
+  if (!ids.length) { box.textContent = "A quantidade é repartida pelas cabeças de cada lote."; return; }
+  const lotes = [lote, ...ptTodosLotes().filter((l) => ids.includes(l.id))];
+  const total = lotes.reduce((s, l) => s + l.cabecas, 0);
+  box.textContent = !kg || !total ? "Informe a quantidade para ver a divisão."
+    : "Divisão: " + lotes.map((l) => `${l.nome} ${ptNum((kg * l.cabecas) / total)} kg`).join(" · ");
 }
 
 function salAtualizarLoteLocal(loteId, salga) {
@@ -166,7 +202,7 @@ async function salResumoNaFicha(lote, boxId) {
     if (!h.ultima) { box.textContent = "Nenhuma salga registrada para este lote."; return; }
     box.innerHTML = `Última salga <b>${textoDiasSalga(h.ultima)}</b> (${dataHoraBR(h.ultima.data_hora)}):
       ${ptNum(h.ultima.quantidade_kg)} kg de ${esc(h.ultima.produto)}<br>
-      Consumo médio (60 dias): <b>${h.media_g_cab_dia != null ? h.media_g_cab_dia + " g/cab/dia" : "precisa de 2 salgas"}</b>
+      Consumo médio (60 dias): <b>${h.por_produto.length ? h.por_produto.map((p) => `${esc(p.produto)} ${p.media_g_cab_dia != null ? p.media_g_cab_dia + " g/cab/dia" : "—"}${p.situacao === "baixo" ? " ⚠ baixo" : p.situacao === "alto" ? " ⚠ alto" : ""}`).join(" · ") : "precisa de 2 salgas"}</b>
       · <a href="#" id="${boxId}-hist">histórico</a>`;
     document.getElementById(boxId + "-hist").onclick = (e) => { e.preventDefault(); salHistorico(lote); };
   } catch (e) {
@@ -187,20 +223,23 @@ async function salHistorico(lote) {
   }
   ptModal(`
     <h2>🧂 Sal — ${ptMarcaLote(lote)} ${esc(lote.nome)}</h2>
-    <p>Consumo médio (60 dias): <b>${h.media_g_cab_dia != null ? h.media_g_cab_dia + " g por cabeça por dia" : "—"}</b></p>
-    <p class="info">Consumo de cada salga = kg ÷ (cabeças × dias até a salga seguinte). A última ainda está no cocho.</p>
+    ${h.por_produto.length ? h.por_produto.map((p) => `<p>${esc(p.produto)} — consumo médio (60 dias):
+      <b class="sal-${p.situacao || ""}">${p.media_g_cab_dia != null ? p.media_g_cab_dia + " g por cabeça/dia" : "precisa de 2 salgas"}</b>
+      ${p.faixa ? `<small class="info">(faixa ${[p.faixa.min, p.faixa.max].filter((v) => v != null).join(" a ")} g${p.situacao === "baixo" ? " — ABAIXO" : p.situacao === "alto" ? " — ACIMA" : ""})</small>` : ""}</p>`).join("") : ""}
+    <p class="info">Consumo de cada salga = kg ÷ (cabeças × dias até a salga seguinte do mesmo sal). A última ainda está no cocho.</p>
     ${h.salgas.length ? `<div class="sn-tabela-box"><table class="sn-tabela">
       <tr><th>Data</th><th>Sal</th><th>kg</th><th>Cab.</th><th>g/cab/dia</th><th>Quem</th><th></th></tr>
       ${h.salgas.map((s) => `<tr>
         <td>${dataHoraBR(s.data_hora)}</td><td>${esc(s.produto)}</td><td>${ptNum(s.quantidade_kg)}</td>
-        <td>${s.cabecas ?? "—"}</td><td>${s.g_cab_dia ?? "—"}</td><td>${esc(s.usuario || "")}</td>
+        <td>${s.cabecas ?? "—"}${s.grupo ? " 🔗" : ""}</td><td class="sal-${s.situacao || ""}">${s.g_cab_dia ?? "—"}</td><td>${esc(s.usuario || "")}</td>
         <td><button type="button" class="sn-apagar" data-sal="${s.id}" title="apagar">🗑</button></td></tr>`).join("")}
     </table></div>` : "<p>Nenhuma salga registrada.</p>"}
     <button type="button" class="pt-salgar" id="sal-h-nova">🧂 Salgar cocho agora</button>`);
   document.getElementById("sal-h-nova").onclick = () => salFormulario(lote);
   document.querySelectorAll("[data-sal]").forEach((b) => {
     b.onclick = async () => {
-      if (!confirm("Apagar esta salga?")) return;
+      const s = h.salgas.find((x) => String(x.id) === b.dataset.sal);
+      if (!confirm(s && s.grupo ? "Este cocho era dividido com outros lotes: apagar a salga de todos?" : "Apagar esta salga?")) return;
       try {
         await api.delete(`/api/sal/${b.dataset.sal}`);
         await ptCarregar();
@@ -416,3 +455,44 @@ window.addEventListener("fila-sincronizada", () => {
     carregarCacheAnimais().catch(() => {});
   }
 });
+
+
+// ---------------------------------------------------------------- Faixa de consumo (Config)
+
+async function salConfigFaixas(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  let faixas, sais;
+  try {
+    faixas = await api.get("/api/sal/faixas");
+    sais = await opcoes("sal");
+  } catch (e) { box.textContent = e.message; return; }
+  const nomes = [...new Set([...sais, ...Object.keys(faixas)])];
+  box.innerHTML = `
+    <p class="info">Consumo esperado de cada sal em <b>gramas por cabeça por dia</b> — veja no rótulo do
+      produto ou com o técnico. Com a faixa preenchida, o app avisa (🔔) quando o consumo medido sair dela.</p>
+    <div class="sal-faixa sal-faixa-cab"><span>Sal</span><span>mínimo (g)</span><span>máximo (g)</span></div>
+    ${nomes.map((n) => `<div class="sal-faixa" data-sal-nome="${esc(n)}"><span>${esc(n)}</span>
+      <input data-k="min" inputmode="decimal" value="${faixas[n] && faixas[n].min != null ? faixas[n].min : ""}" />
+      <input data-k="max" inputmode="decimal" value="${faixas[n] && faixas[n].max != null ? faixas[n].max : ""}" /></div>`).join("")}
+    <button type="button" class="secundario" id="sal-faixa-salvar" style="width:100%;margin-top:8px">Salvar modificações</button>
+    <div class="info" id="sal-faixa-msg"></div>`;
+  document.getElementById("sal-faixa-salvar").onclick = async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    const dados = {};
+    box.querySelectorAll("[data-sal-nome]").forEach((l) => {
+      dados[l.dataset.salNome] = { min: l.querySelector('[data-k="min"]').value, max: l.querySelector('[data-k="max"]').value };
+    });
+    try {
+      await api.put("/api/sal/faixas", { faixas: dados });
+      document.getElementById("sal-faixa-msg").textContent = "✓ Salvo.";
+      if (window.alCarregar) window.alCarregar();
+    } catch (e) {
+      document.getElementById("sal-faixa-msg").textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+window.salConfigFaixas = salConfigFaixas;

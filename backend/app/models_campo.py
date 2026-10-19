@@ -27,6 +27,9 @@ class SalgaCocho(Base):
     usuario_nome: Mapped[str | None] = mapped_column(String(100))
     # Gerada no aparelho: reenvio da fila offline não duplica.
     chave_cliente: Mapped[str | None] = mapped_column(String(40), index=True)
+    # Cocho dividido entre lotes: as linhas da mesma salga têm o mesmo grupo (a quantidade
+    # foi repartida pelas cabeças de cada lote).
+    grupo: Mapped[str | None] = mapped_column(String(40), index=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     lote = relationship("Lote")

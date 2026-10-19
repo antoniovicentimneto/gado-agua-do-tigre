@@ -328,6 +328,7 @@ class CamadaEditar(BaseModel):
 
 class SalgaEntrada(BaseModel):
     lote_id: int
+    outros_lotes: list[int] = []  # cocho dividido com esses lotes
     produto: str
     quantidade_kg: float
     data_hora: datetime | None = None  # hora local do aparelho

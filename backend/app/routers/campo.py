@@ -4,14 +4,14 @@ Peão e dono lançam; apagar é do dono (o peão só corrige o que lançou no me
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Usuario
 from .. import schemas
 from ..services import campo as svc
-from ..services.auth import usuario_atual
+from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api", tags=["campo"], dependencies=[Depends(usuario_atual)])
 
@@ -36,7 +36,19 @@ def historico_sal(lote_id: int, db: Session = Depends(get_db)):
 def salgar(dados: schemas.SalgaEntrada, db: Session = Depends(get_db),
            usuario: Usuario = Depends(usuario_atual)):
     return _executar(svc.salgar, db, dados.lote_id, dados.produto, dados.quantidade_kg,
-                     dados.data_hora, dados.observacao, dados.chave, usuario)
+                     dados.data_hora, dados.observacao, dados.chave, usuario, dados.outros_lotes)
+
+
+@router.get("/sal/faixas")
+def faixas_sal(db: Session = Depends(get_db)):
+    """Consumo esperado de cada sal (g por cabeça/dia), configurado pelo dono."""
+    return svc.carregar_faixas(db)
+
+
+@router.put("/sal/faixas")
+def salvar_faixas_sal(faixas: dict = Body(..., embed=True), db: Session = Depends(get_db),
+                      _dono=Depends(requer_dono)):
+    return _executar(svc.salvar_faixas, db, faixas)
 
 
 @router.delete("/sal/{salga_id}")
