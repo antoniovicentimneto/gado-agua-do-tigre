@@ -221,6 +221,51 @@ def test_importar_consipa_agrupa_parcelas_e_aplica_decisoes(fdb):
     assert fin_consipa.importar(fdb, _planilha_consipa(), "Antonio")["lancamentos"] == 0
 
 
+def _planilha_antiga() -> bytes:
+    """Versão antiga: sem a coluna FAZENDA e com o VALOR TOTAL quebrado (#REF!), em duas abas."""
+    wb = openpyxl.Workbook()
+    cab = ["DATA CONTÁBIL", "DATA FLUXO", "STATUS", "SETOR", "ENTRADAS/SAÍDAS", "CENTRAL DE CUSTO", "CATEGORIA",
+           "ITEM", "SUBITEM", "Nº NOTA FISCAL", "FORNECEDOR", "DESCRIÇÃO", "Nº DE PARCELAS", "QUANTIDADE",
+           "VALOR UNITÁRIO", "@/KG/L/SACA", "UNIDADE", "RENDIMENTO", "DESCONTO / ÁGIO", "OBSERVAÇÃO", "CONTA",
+           "VALOR TOTAL"]
+    ws = wb.active
+    ws.title = "Planilha1"
+    ws.append([None] + cab)
+
+    def linha(d, desc, q, vu, arroba=0, desc_pct=0, parc=1, setor="SEDE"):
+        return [None, d, d, "REALIZADO", setor, "1. DESPESA", "1.10. GASTOS GERAIS", "1.10.02. MERCADO", None, None,
+                None, "Loja", desc, parc, q, vu, arroba, None, None, desc_pct, None, None, "#REF!"]
+    ws.append(linha(date(2024, 3, 1), "compra antiga", 2, 100, desc_pct=0.1))         # 2×100×0,9 = 180
+    ws.append(linha(date(2024, 4, 1), "boi por kg", 10, 9.5, arroba=400, parc=2))   # 10×9,5×400÷2 = 19.000 (1 parcela)
+    ws.append(linha(date(2025, 5, 2), "depois do corte", 1, 50))                    # vale a CONSIPA
+    ws2 = wb.create_sheet("Planilha2")
+    ws2.append([None] + cab)
+    ws2.append(linha(date(2024, 3, 1), "compra antiga", 2, 100, desc_pct=0.1))       # cópia: não repete
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_valor_pela_formula_da_consipa():
+    f = fin_consipa.valor_pela_formula
+    assert f({"qtde": 580, "valor_unit": 140.5, "desconto": 0.015}) == 80267.65
+    assert f({"qtde": 19, "valor_unit": 316.5988, "arroba": 18.424, "desconto": 0.015}) == pytest.approx(109164.9, abs=0.01)
+    assert f({"qtde": 1, "valor_unit": 22450, "desconto": 0.13367, "n_parcelas": 5}) == pytest.approx(3889.82, abs=0.01)
+
+
+def test_importar_com_planilha_antiga(fdb):
+    r = fin_consipa.importar(fdb, _planilha_consipa(), "Antonio", _planilha_antiga())
+    info = r["planilha_antiga"]
+    assert info["antiga_incluidas"] == 2 and info["antiga_repetidas"] == 1  # a cópia da Planilha2
+    antiga = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao.like("compra antiga%")))
+    assert antiga.valor_total == 180
+    boi = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao.like("boi por kg%")))
+    assert boi.valor_total == 19000  # 10 × 9,5 × 400 ÷ 2: uma parcela (cada parcela é uma linha)
+    assert fdb.scalar(select(FinLancamento).where(FinLancamento.descricao.like("depois do corte%"))) is None
+    # De novo: nada novo
+    assert fin_consipa.importar(fdb, _planilha_consipa(), "Antonio", _planilha_antiga())["lancamentos"] == 0
+
+
 def test_importar_arquivo_que_nao_e_consipa(fdb):
     wb = openpyxl.Workbook()
     buf = io.BytesIO()

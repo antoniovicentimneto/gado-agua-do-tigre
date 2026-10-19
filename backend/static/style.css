@@ -980,3 +980,24 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 /* ---- Solo */
 .solo-cards { grid-template-columns: repeat(3, 1fr); }
 .solo-resultado { background: var(--verde-claro); border-radius: 10px; padding: 10px 12px; font-size: 1.05rem; }
+
+/* ---- Financeiro › Gráficos */
+.fg-cards { grid-template-columns: repeat(3, 1fr); }
+.fg-neg { color: var(--vermelho) !important; }
+.fg-titulo { margin: 20px 0 6px; font-size: 1rem; }
+.fg-svg { width: 100%; height: auto; display: block; background: #fff; border-radius: 10px; }
+.fg-grade { stroke: #eceff1; stroke-width: 1; }
+.fg-base { stroke: #90a4ae; stroke-width: 1; }
+.fg-eixo { font-size: 11px; fill: #6b7280; }
+.fg-barra { stroke: #fff; stroke-width: 2px; paint-order: stroke; }
+.fg-grupo.fg-ativo rect { fill: rgba(0, 0, 0, 0.04); }
+.fg-legenda { display: flex; gap: 16px; font-size: 0.85rem; color: var(--texto); margin-bottom: 4px; }
+.fg-legenda i, .fg-dica i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+.fg-ranking { background: #fff; border-radius: 10px; padding: 8px 10px; }
+.fg-linha { display: grid; grid-template-columns: minmax(90px, 38%) 1fr 64px; gap: 8px; align-items: center; padding: 5px 0; }
+.fg-nome { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-trilho { height: 14px; background: #f1f3f4; border-radius: 4px; overflow: hidden; }
+.fg-cheio { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.fg-valor { font-size: 0.8rem; text-align: right; color: var(--texto); }
+.fg-dica { position: fixed; z-index: 30; background: #263238; color: #fff; padding: 8px 10px; border-radius: 8px;
+  font-size: 0.8rem; pointer-events: none; max-width: 220px; }

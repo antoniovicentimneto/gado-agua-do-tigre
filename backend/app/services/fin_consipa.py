@@ -76,9 +76,143 @@ def ler_planilha(conteudo: bytes) -> list[dict]:
     return linhas
 
 
-def importar(db: Session, conteudo: bytes, usuario: str) -> dict:
+# ---------------------------------------------------------------- Planilha antiga (anos anteriores)
+
+# Nome da coluna (como está no cabeçalho, sem acento/maiúscula) -> campo do importador.
+CABECALHOS = {
+    "data contabil": "data", "data fluxo": "data_fluxo", "status": "status", "setor": "setor",
+    "entradas/saidas": "es", "central de custo": "central", "categoria": "categoria", "item": "item",
+    "subitem": "subitem", "no nota fiscal": "nf", "n nota fiscal": "nf", "fornecedor": "fornecedor",
+    "descricao": "descricao", "no de parcelas": "n_parcelas", "n de parcelas": "n_parcelas",
+    "quantidade": "qtde", "valor unitario": "valor_unit", "@/kg/l/saca": "arroba", "unidade": "unidade",
+    "rendimento": "rendimento", "desconto / agio": "desconto", "observacao": "obs", "conta": "conta",
+    "fazenda": "fazenda", "valor total": "valor",
+}
+
+
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(t or "")).encode("ascii", "ignore").decode().lower()
+    return " ".join(t.replace("º", "o").split())
+
+
+def _num(v, padrao=0.0) -> float:
+    return float(v) if isinstance(v, (int, float)) else padrao
+
+
+def valor_pela_formula(r: dict) -> float:
+    """Mesma conta da CONSIPA: qtde × unitário × (kg/@, quando houver) × (1 − desconto) ÷ parcelas.
+    Usada quando o "valor total" da planilha está quebrado (#REF!)."""
+    q = _num(r.get("qtde"), 1.0) or 1.0
+    n = _num(r.get("n_parcelas"), 1.0) or 1.0
+    mult = _num(r.get("arroba")) or 1.0
+    d = _num(r.get("desconto"))
+    bruto = q * _num(r.get("valor_unit")) * mult
+    return round(((bruto - d) if d >= 1 else bruto * (1 - d)) / n, 2)
+
+
+def ler_planilha_antiga(conteudo: bytes) -> list[dict]:
+    """Lê qualquer aba com o cabeçalho da CONSIPA ("DATA CONTÁBIL" ...), achando as colunas
+    pelo nome (as versões antigas não têm a coluna FAZENDA). Valor quebrado é recalculado."""
+    import openpyxl
+
+    warnings.filterwarnings("ignore", module="openpyxl")
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(conteudo), read_only=True, data_only=True)
+    except Exception:
+        raise ErroFinanceiro("Não consegui abrir a planilha antiga (.xlsx ou .xlsm).")
+    linhas = []
+    for ws in wb.worksheets:
+        mapa = None
+        for r in ws.iter_rows(values_only=True):
+            if mapa is None:
+                nomes = [_sem_acento(x) for x in r[:60]]
+                if any(n.startswith("data contabil") for n in nomes):
+                    mapa = {i: CABECALHOS[n] for i, n in enumerate(nomes) if n in CABECALHOS}
+                continue
+            if not any(r):
+                continue
+            d = {campo: (r[i] if i < len(r) else None) for i, campo in mapa.items()}
+            d["_aba"] = ws.title
+            if not isinstance(d.get("valor"), (int, float)) or not d.get("valor"):
+                d["valor"] = valor_pela_formula(d)
+            linhas.append(d)
+    wb.close()
+    if not linhas:
+        raise ErroFinanceiro("Não achei nenhuma tabela com o cabeçalho da CONSIPA na planilha antiga.")
+    return linhas
+
+
+def _assinatura(r: dict) -> tuple:
+    """Identifica o mesmo lançamento em planilhas diferentes (data, setor, E/S, categoria,
+    fornecedor e valor) — usado pra não importar duas vezes."""
+    return (_dt(r.get("data")), str(r.get("setor") or "").strip().upper(),
+            str(r.get("es") or "").strip().upper(), (str(r.get("categoria") or "").strip().upper())[:10],
+            str(r.get("fornecedor") or "").strip().upper(), round(_num(r.get("valor")), 0))
+
+
+def combinar(atual: list[dict], antiga: list[dict], corte: date | None = None) -> tuple[list[dict], dict]:
+    """Junta a CONSIPA atual com a planilha antiga.
+
+    Da antiga entra só o que é ANTES do corte (padrão: primeiro mês em que a CONSIPA tem
+    lançamentos de verdade) e que não está na atual. Do corte em diante vale a CONSIPA
+    (é a versão mais nova e corrigida)."""
+    validas = [r for r in atual if _dt(r.get("data")) and str(r.get("es") or "").strip().upper() in ("1. DESPESA", "2. RECEITA")]
+    if corte is None:
+        # Corte = primeiro mês em que a CONSIPA já tem pelo menos 80% das linhas que a
+        # planilha antiga tem naquele mês (a CONSIPA "assumiu" o controle). Antes disso, a
+        # antiga é a fonte; os poucos lançamentos que estão nas duas não se repetem.
+        atual_mes = defaultdict(int)
+        for r in validas:
+            atual_mes[_dt(r["data"]).replace(day=1)] += 1
+        antiga_mes = defaultdict(lambda: defaultdict(int))  # mês -> aba -> linhas
+        for r in antiga:
+            d = _dt(r.get("data"))
+            if d and str(r.get("es") or "").strip().upper() in ("1. DESPESA", "2. RECEITA"):
+                antiga_mes[d.replace(day=1)][r.get("_aba")] += 1
+        corte = date.max
+        for m in sorted(set(atual_mes) | set(antiga_mes)):
+            maior_aba = max(antiga_mes[m].values(), default=0)
+            if atual_mes[m] and atual_mes[m] >= 0.8 * maior_aba:
+                corte = m
+                break
+    # Cada aba da planilha antiga é comparada com a CONSIPA E com as abas anteriores (a
+    # mesma linha pode estar copiada em duas abas). Multiconjunto: duas compras iguais no
+    # mesmo dia, na mesma aba, continuam sendo duas.
+    from collections import Counter
+    base = Counter(_assinatura(r) for r in atual)
+    extras, repetidas, depois = [], 0, 0
+    abas = list(dict.fromkeys(r.get("_aba") for r in antiga))
+    for aba in abas:
+        disponiveis = base.copy()
+        da_aba = Counter()
+        for r in (x for x in antiga if x.get("_aba") == aba):
+            d = _dt(r.get("data"))
+            if d is None or str(r.get("es") or "").strip().upper() not in ("1. DESPESA", "2. RECEITA"):
+                continue
+            if d >= corte:
+                depois += 1
+                continue
+            a = _assinatura(r)
+            da_aba[a] += 1
+            if disponiveis[a] > 0:
+                disponiveis[a] -= 1
+                repetidas += 1
+                continue
+            extras.append(r)
+        base = base | da_aba  # a próxima aba também não repete o que esta já trouxe
+    return atual + extras, {"corte": corte.isoformat() if corte != date.max else None,
+                            "antiga_incluidas": len(extras), "antiga_repetidas": repetidas,
+                            "antiga_depois_do_corte": depois}
+
+
+def importar(db: Session, conteudo: bytes, usuario: str, antiga: bytes | None = None) -> dict:
+    """Importa a CONSIPA; com `antiga`, inclui também os anos anteriores da planilha antiga."""
     garantir_cadastros(db)
     linhas = ler_planilha(conteudo)
+    info_antiga = None
+    if antiga:
+        linhas, info_antiga = combinar(linhas, ler_planilha_antiga(antiga))
 
     # Agrupa as parcelas da mesma compra.
     grupos: dict[tuple, list[dict]] = defaultdict(list)
@@ -119,8 +253,11 @@ def importar(db: Session, conteudo: bytes, usuario: str) -> dict:
     db.flush()
     _aprender_padroes(db)
     db.commit()
-    return {"lancamentos": criados, "parcelas": parcelas_total, "ja_existiam": pulados,
-            "a_revisar": revisar, "linhas_ignoradas": ignoradas}
+    r = {"lancamentos": criados, "parcelas": parcelas_total, "ja_existiam": pulados,
+         "a_revisar": revisar, "linhas_ignoradas": ignoradas}
+    if info_antiga:
+        r["planilha_antiga"] = info_antiga
+    return r
 
 
 def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:

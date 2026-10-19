@@ -561,15 +561,22 @@ async function finCadImportar(box) {
   box.innerHTML = `<div class="fin-explica">Envie a planilha <b>CONSIPA</b> (.xlsm). O app lê a aba CentralReal e junta as parcelas de cada compra num lançamento só.
     Aplica as decisões combinadas: "Pecuária de leite" vira <b>fazenda Castro</b>; Agricultura vai pra Sede; lançamentos sem categoria e os 3 que estavam no
     grupo errado vão pra aba <b>Revisar</b> em vermelho. Pode enviar de novo depois (planilha atualizada): o que já foi importado é pulado, nada é apagado.</div>
-    <label class="fin-botao-arquivo">📥 Escolher a planilha CONSIPA<input type="file" id="fci-arq" accept=".xlsm,.xlsx" hidden></label>
+    <div class="fin-explica"><b>Anos anteriores:</b> se houver uma planilha mais antiga (ex.: a da Letícia, de 2024 pra trás),
+      escolha também. Dela entra só o que é <b>antes</b> de a CONSIPA assumir (o primeiro mês que a CONSIPA tem completo) e o que
+      não está repetido. Valor quebrado (#REF!) é recalculado pela fórmula da CONSIPA.</div>
+    <label>1. Planilha CONSIPA (atual) <input type="file" id="fci-arq" accept=".xlsm,.xlsx"></label>
+    <label>2. Planilha antiga (opcional) <input type="file" id="fci-antiga" accept=".xlsm,.xlsx"></label>
+    <button type="button" id="fci-ok" class="fin-botao-arquivo">📥 Importar</button>
     <div id="fci-res" class="fin-secao"></div>`;
-  box.querySelector("#fci-arq").onchange = async (e) => {
-    const arq = e.target.files[0];
-    if (!arq) return;
+  box.querySelector("#fci-ok").onclick = async (e) => {
+    const arq = box.querySelector("#fci-arq").files[0];
+    const antiga = box.querySelector("#fci-antiga").files[0];
+    if (!arq) { alert("Escolha a planilha CONSIPA."); return; }
     const res = box.querySelector("#fci-res");
-    res.innerHTML = `<div class="info">⏳ Importando ${esc(arq.name)} (pode levar um minuto)…</div>`;
+    res.innerHTML = `<div class="info">⏳ Importando ${esc(arq.name)}${antiga ? " + " + esc(antiga.name) : ""} (pode levar alguns minutos)…</div>`;
     const fd = new FormData();
     fd.append("arquivo", arq);
+    if (antiga) fd.append("antiga", antiga);
     try {
       const r = await finUpload("/api/fin/importar-consipa", fd);
       finInvalidar();
@@ -577,11 +584,12 @@ async function finCadImportar(box) {
       res.innerHTML = `<div class="destaque">✔ <b>${r.lancamentos}</b> lançamentos importados (${r.parcelas} parcelas).<br>
         ${r.ja_existiam ? `${r.ja_existiam} já existiam e foram pulados.<br>` : ""}
         <b class="fin-sem-cat">${r.a_revisar} a revisar</b> — veja na aba Revisar.<br>
-        <span class="info">${r.linhas_ignoradas} linhas de inventário/configuração não entram (não são despesa nem receita).</span></div>`;
+        <span class="info">${r.linhas_ignoradas} linhas de inventário/configuração não entram (não são despesa nem receita).</span>
+        ${r.planilha_antiga ? `<br><span class="info">Planilha antiga: ${r.planilha_antiga.antiga_incluidas} lançamentos de antes de
+          ${fmt.data(r.planilha_antiga.corte)} incluídos; ${r.planilha_antiga.antiga_repetidas} repetidos ficaram de fora.</span>` : ""}</div>`;
     } catch (err) {
       res.innerHTML = `<div class="fin-alerta">⚠ ${esc(err.message)}</div>`;
     }
-    e.target.value = "";
   };
 }
 

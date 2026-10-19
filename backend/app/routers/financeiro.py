@@ -9,6 +9,7 @@ from ..models import Usuario
 from ..models_financeiro import FinConta, FinContribuinte, FinFazenda
 from ..services import (
     fin_consipa,
+    fin_graficos,
     fin_cripto,
     fin_extrato,
     fin_lancamentos,
@@ -166,6 +167,13 @@ def resultado(inicio: str = "", fim: str = "", visao: str = "caixa", status: str
                                         "fazenda": fazenda, "setor": setor})
 
 
+@router.get("/graficos")
+def graficos(ano: str = "", visao: str = "caixa", fazenda: str = "", status: str = "todos",
+             db: Session = Depends(get_db)):
+    """Receita × despesa por ano e por mês, despesa por setor e maiores categorias."""
+    return fin_graficos.graficos(db, {"ano": ano, "visao": visao, "fazenda": fazenda, "status": status})
+
+
 @router.post("/resultado/detalhe")
 def resultado_detalhe(dados: dict = Body(...), db: Session = Depends(get_db)):
     return fin_resultado.detalhar(db, dados.get("filtros") or {}, dados.get("caminho") or [], dados.get("mes"))
@@ -191,10 +199,12 @@ def recorrente_editar(rid: int, dados: dict = Body(...), db: Session = Depends(g
 # ---------------------------------------------------------------- importação da CONSIPA
 
 @router.post("/importar-consipa")
-async def importar_consipa(arquivo: UploadFile = File(...), db: Session = Depends(get_db),
-                           usuario: Usuario = Depends(requer_dono)):
+async def importar_consipa(arquivo: UploadFile = File(...), antiga: UploadFile | None = File(None),
+                           db: Session = Depends(get_db), usuario: Usuario = Depends(requer_dono)):
+    """CONSIPA atual + (opcional) planilha antiga com os anos anteriores."""
     conteudo = await _ler(arquivo)
-    return _executar(fin_consipa.importar, db, conteudo, usuario.nome)
+    conteudo_antiga = await _ler(antiga) if antiga is not None else None
+    return _executar(fin_consipa.importar, db, conteudo, usuario.nome, conteudo_antiga)
 
 
 # ---------------------------------------------------------------- notas fiscais

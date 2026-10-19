@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=71 / cache v63.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=72 / cache v64.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -319,6 +319,15 @@ de cada animal. Serviço: `app/services/manejos.py`.
   testes) — o primeiro uso real precisa ser acompanhado. Chave de criptografia: `FIN_CHAVE` no
   .env (sem ela usa o AUTH_SECRET; trocar obriga a reenviar os certificados).
 - Upload (certificado, planilha, XML, OFX) não vai pro log de auditoria (`(arquivo enviado)`).
+- **Planilha antiga** (`fin_consipa.ler_planilha_antiga/combinar`): lê qualquer aba com o
+  cabeçalho da CONSIPA achando as colunas pelo NOME (versões antigas não têm FAZENDA); "VALOR
+  TOTAL" quebrado (#REF!) é recalculado: qtde × unitário × (kg/@) × (1 − desconto) ÷ parcelas.
+  Corte = 1º mês em que a CONSIPA tem ≥80% das linhas da antiga (deu jan/2025); antes dele vale
+  a antiga, sem repetir o que já está na CONSIPA nem o que está copiado em outra aba.
+  Fontes reais (out/2026): "SISTEMA CONSIPA 4.39_2804 - Atualizado.xlsm" + "Leticia dados
+  antigos.xlsx" (2021–2024). A versão "Carlos" é anterior à "Atualizado" — não importar.
+- **Gráficos** (`fin_graficos.py`, `static/financeiro-graficos.js`): SVG puro, mesmo gerador
+  `_linhas` do Resultado (os números batem). Cores receita #2a78d6 / despesa #eb6834 (validadas).
 - Importar CONSIPA: Cadastros › Importar CONSIPA (idempotente por `chave_origem`). Totais de
   2025 batem centavo a centavo com a planilha (despesa R$ 3.555.070,06 / receita R$ 4.266.963,84).
 
