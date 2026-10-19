@@ -1,21 +1,22 @@
 // Service worker do app: guarda a casca do app (HTML/CSS/JS) pra abrir sem internet.
-const CACHE = "gado-agua-do-tigre-v58";
+const CACHE = "gado-agua-do-tigre-v59";
 const ARQUIVOS = [
   "/",
-  "/static/style.css?v=66",
-  "/static/app.js?v=66",
-  "/static/fila-offline.js?v=66",
-  "/static/mangueira.js?v=66",
-  "/static/planilha.js?v=66",
-  "/static/venda-gancho.js?v=66",
-  "/static/cria.js?v=66",
-  "/static/campo.js?v=66",
-  "/static/pastos-historico.js?v=66",
-  "/static/pastos-indicadores.js?v=66",
-  "/static/alertas.js?v=66",
-  "/static/pastos.js?v=66",
-  "/static/financeiro.js?v=66",
-  "/static/financeiro-notas.js?v=66",
+  "/static/style.css?v=67",
+  "/static/app.js?v=67",
+  "/static/fila-offline.js?v=67",
+  "/static/mangueira.js?v=67",
+  "/static/planilha.js?v=67",
+  "/static/venda-gancho.js?v=67",
+  "/static/cria.js?v=67",
+  "/static/campo.js?v=67",
+  "/static/pastos-historico.js?v=67",
+  "/static/pastos-indicadores.js?v=67",
+  "/static/alertas.js?v=67",
+  "/static/mapa-offline.js?v=67",
+  "/static/pastos.js?v=67",
+  "/static/financeiro.js?v=67",
+  "/static/financeiro-notas.js?v=67",
   "/static/vendor/leaflet/leaflet.js",
   "/static/vendor/leaflet/leaflet.css",
   "/static/manifest.json",
@@ -28,10 +29,15 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// Imagens de satélite do mapa ficam num cache próprio, que NÃO é apagado quando sai versão
+// nova do app (o "mapa salvo pra usar sem sinal" sobrevive às atualizações).
+const CACHE_MAPA = "gado-mapa-tiles";
+const SERVIDOR_TILES = "server.arcgisonline.com";
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((nomes) =>
-      Promise.all(nomes.filter((n) => n !== CACHE).map((n) => caches.delete(n)))
+      Promise.all(nomes.filter((n) => n !== CACHE && n !== CACHE_MAPA).map((n) => caches.delete(n)))
     ).then(() => self.clients.claim())
   );
 });
@@ -41,6 +47,22 @@ self.addEventListener("fetch", (event) => {
   // Chamadas à API: sempre tenta a rede, nunca serve cache (dados mudam o tempo todo).
   if (request.url.includes("/api/")) return;
   if (request.method !== "GET") return;
+
+  // Mapa de satélite: usa o que está salvo no aparelho (rápido e funciona sem sinal);
+  // o que ainda não está salvo vem da internet e fica guardado pra próxima vez.
+  if (request.url.includes(SERVIDOR_TILES)) {
+    event.respondWith(
+      caches.open(CACHE_MAPA).then((cache) =>
+        cache.match(request.url).then((salvo) => salvo || fetch(request).then((resposta) => {
+          if (resposta.ok && resposta.type === "cors") cache.put(request.url, resposta.clone());
+          return resposta;
+        }))
+      )
+    );
+    return;
+  }
+  // Outros sites (fontes, etc.): não passa pelo cache do app.
+  if (new URL(request.url).origin !== self.location.origin) return;
 
   // Casca do app: tenta a rede primeiro (pra pegar atualizações), cai pro cache se offline.
   event.respondWith(

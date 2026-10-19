@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=66 / cache v58.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=67 / cache v59.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -250,6 +250,12 @@ de cada animal. Serviço: `app/services/manejos.py`.
   verao. Lavoura pura não é piquete (vai como "Outras áreas"). **Grupo** = `AreaPasto` (só
   organiza a lista; guarda se a terra é própria ou arrendada). Na importação: 1) o que é o
   arquivo, 2) uso, 3) pastagem (padrão + por linha, lista `pasto` da Config), grupo opcional.
+- **Mapa offline**: tiles da Esri com `crossOrigin` (CORS) num cache próprio `gado-mapa-tiles`
+  que o SW NÃO apaga na troca de versão; SW serve cache-first. "⬇ Salvar mapa da fazenda"
+  (`static/mapa-offline.js`) baixa zoom 13–17 da área dos piquetes/camadas (trava 4.000 imagens).
+  Não cachear tile sem CORS (resposta opaca conta ~7 MB de cota cada).
+- **Indicadores** (`services/indicadores_pasto.py`, `/api/pastos/indicadores`) e **alertas**
+  (`services/alertas.py`, `/api/pastos/alertas`, sininho em `static/alertas.js`).
 - Histórico do piquete: `GET /api/pastos/piquetes/{id}/historico` (ocupações com UA/ha da
   época, GMD do período, pasto da época, origem/partes) — botão 📜 na lista, mapa e edição.
 

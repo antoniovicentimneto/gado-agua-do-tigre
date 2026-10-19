@@ -937,3 +937,8 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .al-texto { flex: 1 1 220px; }
 .al-botoes { display: flex; gap: 6px; }
 .al-botoes button { width: auto; min-height: 44px; }
+
+/* ---- Mapa offline */
+.pt-btn-offline { width: 100%; margin: 8px 0 4px; }
+.mo-barra { height: 14px; background: #eee; border-radius: 7px; overflow: hidden; margin: 10px 0; }
+.mo-barra div { height: 100%; width: 0; background: var(--verde); transition: width 0.3s; }

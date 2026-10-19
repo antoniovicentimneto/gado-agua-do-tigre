@@ -745,7 +745,8 @@ function ptIniciarMapa() {
   // Imagem de satélite gratuita (Esri). Sem sinal os polígonos continuam aparecendo.
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { maxZoom: 19, attribution: "Imagens © Esri" },
+    // crossOrigin: a imagem vem com CORS e pode ser guardada no aparelho (mapa sem sinal).
+    { maxZoom: 19, attribution: "Imagens © Esri", crossOrigin: true },
   ).addTo(pt.mapa);
   // Ordem de baixo pra cima: outras áreas, divisa, piquetes, pinos dos lotes.
   pt.camadaUsos = L.featureGroup().addTo(pt.mapa);
@@ -1445,6 +1446,7 @@ document.querySelectorAll("[data-ptmodo]").forEach((b) => {
   b.onclick = () => ptMudarModo(b.dataset.ptmodo);
 });
 ptEl("pt-btn-importar").onclick = ptFormImportar;
+ptEl("pt-btn-offline").onclick = () => moAbrir();
 document.querySelectorAll("[data-camada]").forEach((c) => {
   c.onchange = () => {
     ptCamadasVisiveis[c.dataset.camada] = c.checked;
