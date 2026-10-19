@@ -199,6 +199,7 @@ function ptRenderLista() {
             </div>
             <div class="pt-card-botoes">
               <button type="button" class="pt-editar" data-historico="${p.id}" title="Histórico">📜</button>
+              <button type="button" class="pt-editar" data-solo="${p.id}" title="Solo e insumos">🧪</button>
               ${ptEhDono() ? `<button type="button" class="pt-editar" data-editar="${p.id}" title="Editar">⚙</button>` : ""}
             </div>
           </div>
@@ -214,6 +215,9 @@ function ptRenderLista() {
     b.onclick = () => ptConfirmarMover(Number(b.dataset.levar));
   });
   ptMassaLigarCartoes(box);
+  box.querySelectorAll("[data-solo]").forEach((b) => {
+    b.onclick = () => ptSoloPiquete(Number(b.dataset.solo));
+  });
   box.querySelectorAll("[data-historico]").forEach((b) => {
     b.onclick = () => ptHistoricoPiquete(Number(b.dataset.historico));
   });
@@ -1035,8 +1039,10 @@ function ptFichaPiquete(p) {
     <p class="pt-status ${p.status}">${ptTextoStatus(p)}</p>
     ${p.lotes.length ? `<p>Toque num lote para mudá-lo de lugar:</p><div class="pt-lotes" id="pt-f-lotes">${p.lotes.map((l) => ptBotaoLote(l, p.id)).join("")}</div>` : ""}
     <button type="button" class="secundario" id="pt-f-historico" style="width:100%;margin-top:14px">📜 Histórico do piquete</button>
+    <button type="button" class="secundario" id="pt-f-solo" style="width:100%;margin-top:8px">🧪 Solo e insumos</button>
     ${ptEhDono() ? '<button type="button" class="secundario" id="pt-f-editar" style="width:100%;margin-top:8px">⚙ Editar piquete</button>' : ""}`);
   ptEl("pt-f-historico").onclick = () => ptHistoricoPiquete(p.id);
+  ptEl("pt-f-solo").onclick = () => ptSoloPiquete(p.id);
   document.querySelectorAll("#pt-f-lotes .pt-lote").forEach((b) => {
     b.onclick = () => { ptFecharModal(); ptSelecionar(Number(b.dataset.loteId), p.id); };
   });

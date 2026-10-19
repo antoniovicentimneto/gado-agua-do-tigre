@@ -474,3 +474,6 @@ from . import models_financeiro  # noqa: E402,F401
 
 # Modelos do manejo de campo (sal no cocho e sanidade).
 from . import models_campo  # noqa: E402,F401
+
+# Modelos de solo e insumos (análise de solo, aplicações por piquete).
+from . import models_solo  # noqa: E402,F401

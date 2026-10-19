@@ -16,6 +16,7 @@ from ..services import peso_estimado as pe
 from ..services import indicadores_pasto as ind
 from ..services import alertas as svc_alertas
 from ..services import cronograma as svc_crono
+from ..services import solo as svc_solo
 from ..services.auth import requer_dono, usuario_atual
 
 router = APIRouter(prefix="/api/pastos", tags=["pastos"], dependencies=[Depends(usuario_atual)])
@@ -27,7 +28,7 @@ def _executar(funcao, *args, **kwargs):
     """Erro de regra de negócio vira 400 com a mensagem amigável (sem stack trace)."""
     try:
         return funcao(*args, **kwargs)
-    except (svc.ErroPasto, geo.ArquivoInvalido) as e:
+    except (svc.ErroPasto, geo.ArquivoInvalido, svc_solo.ErroSolo) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -299,3 +300,46 @@ def unir_piquetes(dados: dict = Body(...), db: Session = Depends(get_db),
 def editar_piquetes_em_massa(dados: dict = Body(...), db: Session = Depends(get_db),
                              _dono=Depends(requer_dono)):
     return _executar(hist.editar_em_massa, db, dados.get("ids") or [], dados)
+
+
+
+# ---------------------------------------------------------------- Solo e insumos
+
+@router.get("/solo")
+def resumo_solo(db: Session = Depends(get_db)):
+    """Última análise de solo de cada piquete (V%, pH, P, K...)."""
+    return svc_solo.resumo_solo(db)
+
+
+@router.get("/piquetes/{piquete_id}/solo")
+def solo_piquete(piquete_id: int, db: Session = Depends(get_db)):
+    return _executar(svc_solo.solo_do_piquete, db, piquete_id)
+
+
+@router.post("/piquetes/{piquete_id}/analises", status_code=201)
+def nova_analise(piquete_id: int, dados: dict = Body(...), db: Session = Depends(get_db),
+                 _dono=Depends(requer_dono)):
+    return _executar(svc_solo.salvar_analise, db, piquete_id, dados)
+
+
+@router.delete("/analises/{analise_id}")
+def apagar_analise(analise_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    return _executar(svc_solo.apagar_analise, db, analise_id)
+
+
+@router.get("/calagem")
+def calagem(v1: float, ctc: float, v2: float, prnt: float, hectares: float | None = None):
+    """Necessidade de calcário (t/ha) pela saturação por bases, e o total pro piquete."""
+    nc = _executar(svc_solo.necessidade_calagem, v1, ctc, v2, prnt)
+    return {"t_ha": nc, "total_t": round(nc * hectares, 2) if hectares else None}
+
+
+@router.post("/piquetes/{piquete_id}/aplicacoes", status_code=201)
+def nova_aplicacao(piquete_id: int, dados: dict = Body(...), db: Session = Depends(get_db),
+                   usuario: Usuario = Depends(usuario_atual)):
+    return _executar(svc_solo.registrar_aplicacao, db, piquete_id, dados, usuario.nome)
+
+
+@router.delete("/aplicacoes/{aplicacao_id}")
+def apagar_aplicacao(aplicacao_id: int, db: Session = Depends(get_db), _dono=Depends(requer_dono)):
+    return _executar(svc_solo.apagar_aplicacao, db, aplicacao_id)

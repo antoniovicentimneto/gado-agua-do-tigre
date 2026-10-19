@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=70 / cache v62.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=71 / cache v63.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -258,6 +258,22 @@ de cada animal. Serviço: `app/services/manejos.py`.
   (`services/alertas.py`, `/api/pastos/alertas`, sininho em `static/alertas.js`).
 - Histórico do piquete: `GET /api/pastos/piquetes/{id}/historico` (ocupações com UA/ha da
   época, GMD do período, pasto da época, origem/partes) — botão 📜 na lista, mapa e edição.
+
+## Pastos — módulos inspirados no Rotatínuo (app da consultoria)
+
+- **Cronograma** (`services/cronograma.py`, `CronogramaItem` em models_campo): fila de próximos
+  piquetes por lote com dias previstos; `LotePiquete.dias_previstos` guarda o planejado da
+  ocupação atual (vale no alerta "mudar lote"). "Mover agora" = `mover` + tira o item da fila.
+- **Unir / editar em massa** (`pastos_historico.unir/editar_em_massa`): unir encerra os
+  originais (`destino_id` → novo) com a área antiga; sem Desfazer (igual dividir).
+- **Cocho dividido**: `SalgaCocho.grupo` liga as linhas da mesma salga repartida pelas
+  cabeças; consumo calculado POR SAL (mineral e proteinado não se misturam); faixa por sal
+  em `ConfigValor` `faixas_sal` → alerta `sal_fora_da_faixa`. Sem valores padrão (vêm do rótulo).
+- **Solo** (`models_solo.py`, `services/solo.py`): análise (SB, CTC, V%, m%), calagem por
+  saturação por bases NC=(V2−V1)×CTC÷PRNT, aplicações de insumos com custo/ha. NÃO calcula P/K
+  (depende do manual regional). Telas em `static/pastos-solo.js` (botão 🧪 no piquete).
+- Datas vindas da tela em `Body(dict)` chegam como TEXTO: converter com `date.fromisoformat`.
+- Em handlers `async (ev)`, ler `ev.currentTarget` ANTES de qualquer `await` (depois vira null).
 
 ## Campo: sal no cocho e sanidade
 

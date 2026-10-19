@@ -81,6 +81,13 @@ function ptDesenharIndicadores() {
         <td>${x.lotacao != null ? ptNum(x.lotacao, 2) : "—"}</td><td>${x.descanso_medio != null ? ptNum(x.descanso_medio, 1) : "—"}</td></tr>`).join("")}
     </table></div>`;
   ptLigarIndicadores();
+  ptSoloResumoHTML().then((html) => {
+    if (!html || pt.modo !== "indicadores") return;
+    box.insertAdjacentHTML("beforeend", html);
+    box.querySelectorAll("[data-solo]").forEach((a) => {
+      a.onclick = (e) => { e.preventDefault(); ptSoloPiquete(Number(a.dataset.solo)); };
+    });
+  });
 }
 
 function ptLigarIndicadores() {
