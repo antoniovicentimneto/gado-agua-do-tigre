@@ -123,7 +123,7 @@ async function finTelaGraficos(alvo) {
 
     <h3 class="fg-titulo">Maiores categorias de despesa — ${esc(f.ano)}</h3>
     ${fgRanking(d.por_categoria, FG_COR.despesa)}
-    <p class="info">"(sem categoria)" são lançamentos que ainda estão na aba Revisar. Toque/passe o mouse nas colunas para ver os valores.
+    <p class="info">"(sem categoria)" são lançamentos classificados só até o grupo (categoria é opcional). Toque/passe o mouse nas colunas para ver os valores.
       Os números batem com a aba Resultado (mesma visão).</p>
     <div id="fg-dica" class="fg-dica escondido"></div>`;
   ["ano", "visao", "fazenda"].forEach((c) => {

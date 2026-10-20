@@ -82,11 +82,30 @@ def test_mudar_total_refaz_parcelas_mantendo_quantidade(fdb):
     assert lanc.alterado_por == "Antonio"
 
 
-def test_sem_categoria_vai_pra_revisao_e_sai_quando_conferido(fdb):
+def test_sem_categoria_nao_vai_pra_revisao(fdb):
+    # categoria é opcional: com setor e grupo o lançamento está classificado
     lanc = _lanc(fdb, categoria="")
-    assert lanc.revisar and lanc.revisar_motivo == "Sem categoria"
-    lanc = svc.atualizar(fdb, lanc.id, {"categoria": "Mercado - gastos da fazenda", "conferido": True}, "Letícia")
     assert not lanc.revisar
+
+
+def test_sem_grupo_vai_pra_revisao_e_sai_quando_conferido(fdb):
+    lanc = _lanc(fdb, categoria="", grupo="")
+    assert lanc.revisar and lanc.revisar_motivo == "Sem grupo"
+    grupo = "Materiais de consumo, operação e manutenção"
+    lanc = svc.atualizar(fdb, lanc.id, {"grupo": grupo, "conferido": True}, "Letícia")
+    assert not lanc.revisar
+
+
+def test_limpar_revisao_antiga_so_por_categoria(fdb):
+    lanc = _lanc(fdb, categoria="")
+    lanc.revisar, lanc.revisar_motivo = True, "Sem categoria"
+    outro = _lanc(fdb, categoria="")
+    outro.revisar, outro.revisar_motivo = True, "Sem categoria; Era 'Agricultura' na CONSIPA"
+    fdb.commit()
+    assert svc.limpar_revisao_sem_categoria(fdb) == 2
+    assert not lanc.revisar and lanc.revisar_motivo is None
+    assert outro.revisar and outro.revisar_motivo == "Era 'Agricultura' na CONSIPA"
+    assert svc.limpar_revisao_sem_categoria(fdb) == 0
 
 
 def test_excluir_nao_apaga_e_some_da_lista(fdb):
@@ -221,7 +240,7 @@ def test_importar_consipa_agrupa_parcelas_e_aplica_decisoes(fdb):
     luz = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao == "luz"))
     assert luz.grupo == "Materiais de consumo, operação e manutenção" and luz.revisar
     div = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao == "diversos"))
-    assert div.categoria is None and div.revisar_motivo == "Sem categoria"
+    assert div.categoria is None and not div.revisar  # categoria é opcional
     # Frisia e Frísia viram o mesmo fornecedor
     assert sal.fornecedor_id == div.fornecedor_id
     # Rodar de novo não duplica

@@ -17,7 +17,7 @@ from sqlalchemy import String, select
 from sqlalchemy.orm import Session
 
 from ..models_financeiro import FinFornecedor, FinLancamento, FinParcela, FinPlano
-from .fin_lancamentos import normalizar
+from .fin_lancamentos import motivo_classificacao, normalizar
 from .fin_plano import SETORES_CONSIPA, ErroFinanceiro, garantir_cadastros, limpar_nome
 
 ABA = "CentralReal"
@@ -289,8 +289,9 @@ def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
         motivos.append("Categoria estava em outro grupo (corrigido na importação)")
     grupo = limpar_nome(central)[1] if central else None
     cat = limpar_nome(categoria)[1] if categoria else None
-    if not cat:
-        motivos.append("Sem categoria")
+    # categoria vazia é aceita; falta de setor/grupo vai pra revisão
+    if motivo_classificacao(setor, grupo):
+        motivos.append(motivo_classificacao(setor, grupo))
     if setor_original == "AGRICULTURA" and tipo == "despesa":
         motivos.append("Era 'Agricultura' na CONSIPA")
     if setor_original == "CONFIGURAÇÕES":

@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=73 / cache v65.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=74 / cache v66.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -307,7 +307,8 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - **Serviços** `services/fin_*.py`; rotas `/api/fin/*` (`routers/financeiro.py`, router inteiro
   com `requer_dono`). Frontend `static/financeiro.js` (lançar, resultado, lançamentos, revisar,
   recorrentes) e `static/financeiro-notas.js` (notas, extrato, cadastros).
-- Regras: sem categoria = `revisar=True` (vermelho, aba Revisar); excluir = `excluido=True`
+- Regras: sem SETOR ou GRUPO = `revisar=True` (vermelho, aba Revisar) — categoria é opcional
+  (pedido do Antonio, out/2026; `motivo_classificacao`, limpeza antiga no start do main.py); excluir = `excluido=True`
   com motivo (nunca apaga); parcela `pago=None` = automático (venceu = realizado), `False` = a
   confirmar (recorrentes). Resultado: visão **caixa** (vencimento) ou **competência** (compra).
 - **Horários** do Financeiro gravados em UTC (`agora_utc()`, saída com `Z` via `iso_utc()`); a

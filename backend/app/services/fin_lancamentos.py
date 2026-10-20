@@ -244,14 +244,43 @@ def _aplicar(db: Session, lanc: FinLancamento, dados: dict, usuario: str) -> Non
     if abs(soma - total) > 0.05:
         raise ErroFinanceiro(f"A soma das parcelas (R$ {soma:.2f}) não bate com o total (R$ {total:.2f})")
 
-    # Sai da fila de revisão quando tem categoria e alguém salvou conferindo.
+    # Sai da fila de revisão quando alguém salvou conferindo. Categoria é opcional
+    # (detalhe demais); o que precisa estar preenchido é setor e grupo.
     if dados.get("conferido"):
         lanc.revisar, lanc.revisar_motivo = False, None
-    if not lanc.categoria:
-        lanc.revisar, lanc.revisar_motivo = True, "Sem categoria"
+    falta = motivo_classificacao(lanc.setor, lanc.grupo)
+    if falta:
+        lanc.revisar, lanc.revisar_motivo = True, falta
     garantir_categoria(db, lanc.tipo, lanc.setor, lanc.grupo, lanc.categoria)
     if lanc.fornecedor_id:
         aprender_fornecedor(db.get(FinFornecedor, lanc.fornecedor_id), lanc)
+
+
+def motivo_classificacao(setor: str | None, grupo: str | None) -> str | None:
+    """Motivo de revisão quando falta setor ou grupo (categoria não é obrigatória)."""
+    if not setor:
+        return "Sem setor"
+    if not grupo:
+        return "Sem grupo"
+    return None
+
+
+def limpar_revisao_sem_categoria(db: Session) -> int:
+    """Tira da fila de revisão o que só estava lá por falta de categoria (idempotente)."""
+    mudou = 0
+    for lc in db.scalars(select(FinLancamento).where(FinLancamento.revisar.is_(True))):
+        motivos = [m.strip() for m in (lc.revisar_motivo or "").split(";") if m.strip()]
+        if "Sem categoria" not in motivos:
+            continue
+        motivos = [m for m in motivos if m != "Sem categoria"]
+        falta = motivo_classificacao(lc.setor, lc.grupo)
+        if falta and falta not in motivos:
+            motivos.insert(0, falta)
+        lc.revisar, lc.revisar_motivo = bool(motivos), "; ".join(motivos) or None
+        mudou += 1
+    if mudou:
+        db.commit()
+    return mudou
 
 
 def criar(db: Session, dados: dict, usuario: str, origem: str = "manual", commit=True) -> FinLancamento:
@@ -429,7 +458,8 @@ def gerar_recorrentes(db: Session, hoje: date | None = None) -> int:
                     categoria=r.categoria, fornecedor_id=r.fornecedor_id, fornecedor_nome=r.fornecedor_nome,
                     descricao=r.descricao, valor_total=r.valor or 0, conta=r.conta, origem="recorrente",
                     recorrente_id=r.id, recorrente_mes=chave, criado_por="automático",
-                    revisar=not r.categoria, revisar_motivo=None if r.categoria else "Sem categoria")
+                    revisar=bool(motivo_classificacao(r.setor, r.grupo)),
+                    revisar_motivo=motivo_classificacao(r.setor, r.grupo))
                 lanc.parcelas.append(FinParcela(numero=1, vencimento=venc, valor=r.valor or 0, pago=False))
                 db.add(lanc)
                 criados += 1

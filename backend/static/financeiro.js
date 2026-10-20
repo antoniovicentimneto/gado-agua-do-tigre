@@ -198,7 +198,9 @@ function finOpcoes(lista, valor, vazio = "—") {
 }
 
 function finCaminho(l) {
-  if (!l.categoria) return `<span class="fin-sem-cat">sem categoria</span> <span class="info">${esc([l.setor, l.grupo].filter(Boolean).join(" › "))}</span>`;
+  // categoria é opcional: sem ela mostra só setor › grupo (vermelho só se faltar setor/grupo)
+  if (!l.setor || !l.grupo) return `<span class="fin-sem-cat">sem ${l.setor ? "grupo" : "setor"}</span> <span class="info">${esc([l.setor, l.grupo].filter(Boolean).join(" › "))}</span>`;
+  if (!l.categoria) return `<span class="info">${esc([l.setor, l.grupo].join(" › "))}</span>`;
   return `${esc(l.categoria)} <span class="info">${esc([l.setor, l.grupo].filter(Boolean).join(" › "))}</span>`;
 }
 
@@ -349,33 +351,68 @@ function finLigarFormulario(raiz, l, aoSalvar) {
     const total = finNum($("#fl-valor").value);
     const soma = parcelas.reduce((s, p) => s + (Number(p.valor) || 0), 0);
     const difere = Math.abs(soma - total) > 0.05;
-    $("#fl-parcelas").innerHTML = parcelas.map((p, i) => `
+    const alerta = difere ? `<div class="fin-alerta">A soma das parcelas (${finBRL(soma)}) não bate com o total (${finBRL(total)}).
+        <a href="#" id="fl-redividir">Dividir de novo</a></div>` : "";
+    const caixa = $("#fl-parcelas");
+    const linhas = caixa.querySelectorAll(".fin-parcela");
+    // Mesmo nº de parcelas: atualiza os campos NO LUGAR. Recriar os campos (innerHTML) no
+    // "change" do valor — que dispara quando se clica no vencimento — jogava fora o campo
+    // clicado e o cursor sumia no meio da digitação da data.
+    if (linhas.length === parcelas.length) {
+      parcelas.forEach((p, i) => {
+        const d = linhas[i].querySelector('[data-campo="vencimento"]');
+        const v = linhas[i].querySelector('[data-campo="valor"]');
+        if (d !== document.activeElement && d.value !== p.vencimento) d.value = p.vencimento;
+        if (v !== document.activeElement) v.value = String(p.valor).replace(".", ",");
+      });
+      const velho = caixa.querySelector(".fin-alerta");
+      if (velho) velho.remove();
+      if (alerta) caixa.insertAdjacentHTML("beforeend", alerta);
+      const red = $("#fl-redividir");
+      if (red) red.onclick = (e) => { e.preventDefault(); gerarParcelas(); };
+      return;
+    }
+    caixa.innerHTML = parcelas.map((p, i) => `
       <div class="fin-parcela">
         <span>${i + 1}ª</span>
         <input type="date" data-i="${i}" data-campo="vencimento" value="${p.vencimento}">
         <input inputmode="decimal" data-i="${i}" data-campo="valor" value="${String(p.valor).replace(".", ",")}">
         ${p.pago === false ? `<span class="fin-pill amarelo">a confirmar</span>` : ""}
-      </div>`).join("") +
-      (difere ? `<div class="fin-alerta">A soma das parcelas (${finBRL(soma)}) não bate com o total (${finBRL(total)}).
-        <a href="#" id="fl-redividir">Dividir de novo</a></div>` : "");
-    $("#fl-parcelas").querySelectorAll("input").forEach((inp) => {
+      </div>`).join("") + alerta;
+    caixa.querySelectorAll("input").forEach((inp) => {
       inp.onchange = () => {
         const p = parcelas[Number(inp.dataset.i)];
-        if (inp.dataset.campo === "valor") p.valor = finNum(inp.value);
-        else {
-          p.vencimento = inp.value;
-          // mudou o 1º vencimento: os outros acompanham (de mês em mês)
-          if (Number(inp.dataset.i) === 0 && !parcelasEditadas) parcelas.forEach((x, i) => { if (i) x.vencimento = finSomarMeses(inp.value, i); });
+        if (inp.dataset.campo === "valor") {
+          p.valor = finNum(inp.value);
+          parcelasEditadas = true;
+          desenharParcelas();
+          return;
         }
-        parcelasEditadas = true;
-        desenharParcelas();
+        // Data: o navegador dispara "change" a cada parte digitada (dia, mês...).
+        // Não redesenhar aqui — redesenhar tira o foco e não deixa terminar de digitar o ano.
+        // Ano ainda pela metade ("0002", "0020"...): espera terminar de digitar.
+        if (!inp.value || Number(inp.value.slice(0, 4)) < 1900) return;
+        p.vencimento = inp.value;
+        // mexer numa parcela que não é a 1ª conta como edição manual
+        if (Number(inp.dataset.i) > 0) { parcelasEditadas = true; return; }
+        // mudou o 1º vencimento: os outros acompanham (de mês em mês), atualizados no lugar
+        if (!parcelasEditadas) {
+          parcelas.forEach((x, i) => {
+            if (!i) return;
+            x.vencimento = finSomarMeses(inp.value, i);
+            const outro = $(`#fl-parcelas input[data-i="${i}"][data-campo="vencimento"]`);
+            if (outro) outro.value = x.vencimento;
+          });
+        }
       };
     });
     const red = $("#fl-redividir");
     if (red) red.onclick = (e) => { e.preventDefault(); gerarParcelas(); };
   };
   if (!parcelas.length) gerarParcelas(); else desenharParcelas();
-  $("#fl-n").onchange = () => { parcelasEditadas = false; gerarParcelas(); };
+  // Ao digitar (e não ao sair do campo): o "change" no blur recriava os vencimentos bem
+  // na hora do clique neles e o cursor sumia.
+  $("#fl-n").oninput = () => { if (!$("#fl-n").value) return; parcelasEditadas = false; gerarParcelas(); };
   $("#fl-valor").onchange = () => { if (!parcelasEditadas || parcelas.length === 1) gerarParcelas(); else desenharParcelas(); };
   $("#fl-data").onchange = () => { if (!parcelasEditadas) { parcelas = []; gerarParcelas(); } };
 
@@ -408,7 +445,7 @@ function finLigarFormulario(raiz, l, aoSalvar) {
   $("#fl-form").onsubmit = async (ev) => {
     ev.preventDefault();
     const dados = montarDados();
-    if (!dados.categoria && !window.confirm("Sem categoria: o lançamento vai pra fila 'Revisar'. Salvar assim mesmo?")) return;
+    if ((!dados.setor || !dados.grupo) && !window.confirm("Sem setor ou grupo: o lançamento vai pra fila 'Revisar'. Salvar assim mesmo?")) return;
     await finOcupado($("#fl-salvar"), "Salvando…", async () => {
       const salvo = l.id ? await api.put(`/api/fin/lancamentos/${l.id}`, dados) : await api.post("/api/fin/lancamentos", dados);
       finInvalidar();
@@ -641,7 +678,7 @@ async function finDesenharResultado(alvo, soRedesenhar = false) {
   box.innerHTML = `<div class="fin-tabela fin-arvore"><table>
     <thead><tr><th class="fin-col-nome">Conta</th>${r.meses.map((m) => `<th class="num">${finMes(m)}</th>`).join("")}<th class="num">Total</th></tr></thead>
     <tbody>${linhas.map((ln) => `
-      <tr class="fin-nivel-${ln.nivel} ${ln.no.nome === "(sem categoria)" ? "fin-linha-revisar" : ""}">
+      <tr class="fin-nivel-${ln.nivel} ${ln.no.nome === "(vazio)" ? "fin-linha-revisar" : ""}">
         <td class="fin-col-nome" style="padding-left:${6 + ln.nivel * 14}px">
           ${ln.temFilhos ? `<button type="button" class="fin-abre" data-chave="${esc(ln.chave)}">${ln.aberto ? "▾" : "▸"}</button>` : `<span class="fin-abre-vazio"></span>`}
           ${ln.nivel === 0 ? `<b>${rotTipo[ln.no.nome] || esc(ln.no.nome)}</b>` : esc(ln.no.nome)}
@@ -713,7 +750,7 @@ async function finTelaRevisar(alvo) {
   const porId = Object.fromEntries(lancs.map((l) => [l.id, l]));
   alvo.innerHTML = `
     <div class="fin-cards">
-      <a href="#fr-revisar" class="fin-card vermelho"><span>${revisar.length}</span>a revisar (sem categoria ou importados com aviso)</a>
+      <a href="#fr-revisar" class="fin-card vermelho"><span>${revisar.length}</span>a revisar (sem setor/grupo ou importados com aviso)</a>
       <a href="#fr-confirmar" class="fin-card amarelo"><span>${conf.a_confirmar.length}</span>recorrentes a confirmar</a>
       <a href="#fr-dup" class="fin-card"><span>${conf.duplicados.length}</span>possíveis duplicados</a>
     </div>
@@ -732,7 +769,7 @@ async function finTelaRevisar(alvo) {
   const boxC = alvo.querySelector("#frc-lista");
   boxC.innerHTML = conf.a_confirmar.length ? conf.a_confirmar.map((l) => {
     const p = l.parcelas.find((x) => x.pago === false);
-    return `<div class="fin-item"><div><b>${esc(l.descricao)}</b> <span class="info">${finData(p.vencimento)} · ${esc(l.fornecedor_nome || "")} · ${esc(l.categoria || "sem categoria")}</span></div>
+    return `<div class="fin-item"><div><b>${esc(l.descricao)}</b> <span class="info">${finData(p.vencimento)} · ${esc(l.fornecedor_nome || "")} · ${esc(l.categoria || l.grupo || "")}</span></div>
       <div class="fin-item-acoes"><input inputmode="decimal" value="${String(p.valor).replace(".", ",")}" data-p="${p.id}">
       <button type="button" data-ok="${p.id}">✔</button><button type="button" class="secundario" data-abrir="${l.id}">abrir</button></div></div>`;
   }).join("") : `<div class="info">Nada a confirmar.</div>`;

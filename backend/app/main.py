@@ -27,6 +27,20 @@ def _migrar_capim() -> None:
 
 _migrar_capim()
 
+
+def _migrar_revisao_financeiro() -> None:
+    """Lançamentos que estavam em 'Revisar' só por falta de categoria saem da fila."""
+    from .database import SessaoLocal
+    from .services.fin_lancamentos import limpar_revisao_sem_categoria
+    db = SessaoLocal()
+    try:
+        limpar_revisao_sem_categoria(db)
+    finally:
+        db.close()
+
+
+_migrar_revisao_financeiro()
+
 app = FastAPI(title="Gado Água do Tigre", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(api.router)
