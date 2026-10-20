@@ -29,6 +29,7 @@ COLUNAS_NOVAS = [
     ("lotes", "cor", "VARCHAR(9)"),
     ("lotes", "icone", "VARCHAR(8)"),
     ("fin_lancamentos", "dup_ok", "BOOLEAN DEFAULT FALSE"),
+    ("fin_parcelas", "valor_previsto", "FLOAT"),
     ("piquetes", "origem_id", "INTEGER REFERENCES piquetes(id)"),
     ("piquetes", "encerrado_em", "DATE"),
     ("piquetes", "uso", "VARCHAR(20)"),

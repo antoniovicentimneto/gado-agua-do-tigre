@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=74 / cache v66.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=75 / cache v67.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -310,7 +310,11 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - Regras: sem SETOR ou GRUPO = `revisar=True` (vermelho, aba Revisar) — categoria é opcional
   (pedido do Antonio, out/2026; `motivo_classificacao`, limpeza antiga no start do main.py); excluir = `excluido=True`
   com motivo (nunca apaga); parcela `pago=None` = automático (venceu = realizado), `False` = a
-  confirmar (recorrentes). Resultado: visão **caixa** (vencimento) ou **competência** (compra).
+  confirmar (recorrentes e lançamentos marcados "Valores previstos" — ex.: salário do ano todo).
+  Confirmar com valor diferente guarda `FinParcela.valor_previsto`. Selo amarelo "previsto" ×
+  verde "realizado" (`finSeloParcela`). CONSIPA: STATUS PREVISTO entra `pago=False`; reimportar
+  marca os já importados só se a parcela ainda estiver no automático. Resultado: visão **caixa**
+  (vencimento) ou **competência** (compra).
 - **Horários** do Financeiro gravados em UTC (`agora_utc()`, saída com `Z` via `iso_utc()`); a
   tela converte pra hora local (`finLocal`). Não usar `datetime.now()` aqui.
 - **SEFAZ** (`fin_sefaz.py`): NFeDistribuicaoDFe (distNSU/consChNFe) + evento Ciência da

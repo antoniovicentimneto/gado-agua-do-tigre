@@ -298,6 +298,8 @@ function finHtmlFormulario(l, opcoes = {}) {
         <div><label>Parcelas</label><input id="fl-n" type="number" min="1" max="60" value="${parcelas ? parcelas.length : 1}"></div>
       </div>
       <label>Vencimentos</label>
+      <label class="check"><input type="checkbox" id="fl-previsto" ${(l.parcelas || []).some((p) => p.pago === false) ? "checked" : ""}>
+        Valores <b>previstos</b> — confirmar o valor real mês a mês (ex.: salário lançado pro ano todo)</label>
       <div id="fl-parcelas" class="fin-parcelas"></div>
       <label>Observação</label><input id="fl-obs" value="${esc(l.observacao || "")}">
       ${l.id ? `<div class="info">Lançado por ${esc(l.criado_por || "—")} em ${finDataHora(l.criado_em)}${l.alterado_por ? ` · alterado por ${esc(l.alterado_por)} em ${finDataHora(l.alterado_em)}` : ""} · origem: ${esc(l.origem)}${l.nf_chave ? ` · chave ${esc(l.nf_chave)}` : ""}</div>` : ""}
@@ -306,6 +308,16 @@ function finHtmlFormulario(l, opcoes = {}) {
           : `<input id="fl-motivo" placeholder="Motivo (ex.: lançado em dobro)"><button type="button" id="fl-excluir" class="perigo">Excluir</button>`}
       </div>` : ""}
     </form>`;
+}
+
+// Selo da parcela: previsto (amarelo, falta confirmar) × realizado (verde, confirmado).
+function finSeloParcela(p) {
+  if (p.pago === false) return `<span class="fin-pill amarelo" title="Valor previsto — falta confirmar o real">previsto</span>`;
+  if (p.pago === true) {
+    const dif = p.valor_previsto != null ? ` <span class="info">previsto ${finBRL(p.valor_previsto)}</span>` : "";
+    return `<span class="fin-pill verde" title="Valor confirmado">realizado</span>${dif}`;
+  }
+  return "";
 }
 
 function finNum(txt) {
@@ -326,7 +338,7 @@ function finSomarMeses(iso, n) {
 function finLigarFormulario(raiz, l, aoSalvar) {
   const $ = (s) => raiz.querySelector(s);
   let tipo = l.tipo || "despesa";
-  let parcelas = (l.parcelas || []).map((p) => ({ vencimento: p.vencimento, valor: p.valor, pago: p.pago }));
+  let parcelas = (l.parcelas || []).map((p) => ({ vencimento: p.vencimento, valor: p.valor, pago: p.pago, valor_previsto: p.valor_previsto }));
   let parcelasEditadas = !!l.id;
   const classe = finLigarClasse(raiz, "fl", () => tipo, l);
 
@@ -343,7 +355,8 @@ function finLigarFormulario(raiz, l, aoSalvar) {
     const total = finNum($("#fl-valor").value);
     const inicio = (parcelas[0] && parcelas[0].vencimento) || $("#fl-data").value || hojeLocal();
     const base = Math.round((total / n) * 100) / 100;
-    parcelas = Array.from({ length: n }, (_, i) => ({ vencimento: finSomarMeses(inicio, i), valor: base }));
+    const previsto = $("#fl-previsto").checked ? false : null;
+    parcelas = Array.from({ length: n }, (_, i) => ({ vencimento: finSomarMeses(inicio, i), valor: base, pago: previsto }));
     if (n) parcelas[n - 1].valor = Math.round((total - base * (n - 1)) * 100) / 100;
     desenharParcelas();
   };
@@ -364,6 +377,7 @@ function finLigarFormulario(raiz, l, aoSalvar) {
         const v = linhas[i].querySelector('[data-campo="valor"]');
         if (d !== document.activeElement && d.value !== p.vencimento) d.value = p.vencimento;
         if (v !== document.activeElement) v.value = String(p.valor).replace(".", ",");
+        linhas[i].querySelector(".fl-status").innerHTML = finSeloParcela(p);
       });
       const velho = caixa.querySelector(".fin-alerta");
       if (velho) velho.remove();
@@ -377,7 +391,7 @@ function finLigarFormulario(raiz, l, aoSalvar) {
         <span>${i + 1}ª</span>
         <input type="date" data-i="${i}" data-campo="vencimento" value="${p.vencimento}">
         <input inputmode="decimal" data-i="${i}" data-campo="valor" value="${String(p.valor).replace(".", ",")}">
-        ${p.pago === false ? `<span class="fin-pill amarelo">a confirmar</span>` : ""}
+        <span class="fl-status">${finSeloParcela(p)}</span>
       </div>`).join("") + alerta;
     caixa.querySelectorAll("input").forEach((inp) => {
       inp.onchange = () => {
@@ -410,6 +424,12 @@ function finLigarFormulario(raiz, l, aoSalvar) {
     if (red) red.onclick = (e) => { e.preventDefault(); gerarParcelas(); };
   };
   if (!parcelas.length) gerarParcelas(); else desenharParcelas();
+  $("#fl-previsto").onchange = () => {
+    const marcado = $("#fl-previsto").checked;
+    // o que já foi confirmado (pago) não muda
+    parcelas.forEach((p) => { if (p.pago !== true) p.pago = marcado ? false : null; });
+    desenharParcelas();
+  };
   // Ao digitar (e não ao sair do campo): o "change" no blur recriava os vencimentos bem
   // na hora do clique neles e o cursor sumia.
   $("#fl-n").oninput = () => { if (!$("#fl-n").value) return; parcelasEditadas = false; gerarParcelas(); };
@@ -438,7 +458,7 @@ function finLigarFormulario(raiz, l, aoSalvar) {
     descricao: $("#fl-descricao").value.trim(), valor_total: finNum($("#fl-valor").value),
     conta: $("#fl-conta").value || null, forma_pagamento: $("#fl-forma").value || null,
     nf_numero: $("#fl-nf").value.trim() || null, observacao: $("#fl-obs").value.trim() || null,
-    parcelas: parcelas.map((p) => ({ vencimento: p.vencimento, valor: p.valor, pago: p.pago ?? null })),
+    parcelas: parcelas.map((p) => ({ vencimento: p.vencimento, valor: p.valor, pago: p.pago ?? null, valor_previsto: p.valor_previsto ?? null })),
     conferido: true,
   });
 
@@ -542,7 +562,9 @@ const FIN_COLUNAS_LANC = [
   { id: "parcelas", rotulo: "Parcelas", valor: (l) => l.parcelas.length, num: true,
     html: (l) => {
       const prox = l.parcelas.find((p) => !p.realizado);
-      return `${l.parcelas.length}x${prox ? ` <span class="info">próx. ${finData(prox.vencimento)}</span>` : ""}`;
+      const prev = l.parcelas.filter((p) => p.pago === false).length;
+      return `${l.parcelas.length}x${prox ? ` <span class="info">próx. ${finData(prox.vencimento)}</span>` : ""}` +
+        (prev ? ` <span class="fin-pill amarelo" title="Valor previsto, falta confirmar o real">${prev} previsto${prev > 1 ? "s" : ""}</span>` : "");
     } },
   { id: "fazenda", rotulo: "Fazenda", valor: (l) => l.fazenda, html: (l) => esc(l.fazenda || "—") },
   { id: "conta", rotulo: "Conta", valor: (l) => l.conta, html: (l) => esc(l.conta || "—") },
@@ -751,11 +773,12 @@ async function finTelaRevisar(alvo) {
   alvo.innerHTML = `
     <div class="fin-cards">
       <a href="#fr-revisar" class="fin-card vermelho"><span>${revisar.length}</span>a revisar (sem setor/grupo ou importados com aviso)</a>
-      <a href="#fr-confirmar" class="fin-card amarelo"><span>${conf.a_confirmar.length}</span>recorrentes a confirmar</a>
+      <a href="#fr-confirmar" class="fin-card amarelo"><span>${conf.a_confirmar.length}</span>previstos a confirmar</a>
       <a href="#fr-dup" class="fin-card"><span>${conf.duplicados.length}</span>possíveis duplicados</a>
     </div>
-    <div class="fin-secao" id="fr-confirmar"><h3>Recorrentes a confirmar</h3>
-      <div class="info">Confira o valor real do mês e toque em ✔. Se não houve a despesa, abra e exclua.</div>
+    <div class="fin-secao" id="fr-confirmar"><h3>Previstos a confirmar</h3>
+      <div class="info">Recorrentes e lançamentos com valor <b>previsto</b> que já venceram (ou vencem este mês).
+        Corrija pro valor real e toque em ✔ — o app guarda o previsto pra comparar. Se não houve a despesa, abra e exclua.</div>
       <div id="frc-lista"></div></div>
     <div class="fin-secao" id="fr-dup"><h3>Possíveis duplicados</h3>
       <div class="info">Mesma nota, ou mesmo fornecedor, valor e descrição idêntica com até 3 dias de diferença

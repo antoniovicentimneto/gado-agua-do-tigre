@@ -14,7 +14,7 @@ from collections import defaultdict
 from datetime import date, datetime
 
 from sqlalchemy import String, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models_financeiro import FinFornecedor, FinLancamento, FinParcela, FinPlano
 from .fin_lancamentos import motivo_classificacao, normalizar
@@ -235,6 +235,7 @@ def importar(db: Session, conteudo: bytes, usuario: str, antiga: bytes | None = 
     plano = {(p.tipo, p.setor, p.grupo, p.categoria) for p in db.scalars(select(FinPlano))}
 
     criados = pulados = revisar = parcelas_total = 0
+    previstos_existentes: dict[str, list[dict]] = {}
     for chave, rows in grupos.items():
         rows.sort(key=lambda x: _dt(x["data_fluxo"]) or _dt(x["data"]))
         n = max(1, int(float(rows[0]["n_parcelas"] or 1)))
@@ -244,20 +245,43 @@ def importar(db: Session, conteudo: bytes, usuario: str, antiga: bytes | None = 
             origem = hashlib.sha1(repr((chave, bloco_i)).encode()).hexdigest()
             if origem in ja_importadas:
                 pulados += 1
+                if any(_previsto(p) for p in bloco):
+                    previstos_existentes[origem] = bloco
                 continue
             lanc = _montar(bloco, usuario, origem, fornecedores, plano, db)
             db.add(lanc)
             criados += 1
             parcelas_total += len(lanc.parcelas)
             revisar += lanc.revisar
+    marcados = _marcar_previstos(db, previstos_existentes)
     db.flush()
     _aprender_padroes(db)
     db.commit()
     r = {"lancamentos": criados, "parcelas": parcelas_total, "ja_existiam": pulados,
-         "a_revisar": revisar, "linhas_ignoradas": ignoradas}
+         "a_revisar": revisar, "linhas_ignoradas": ignoradas, "previstos_marcados": marcados}
     if info_antiga:
         r["planilha_antiga"] = info_antiga
     return r
+
+
+def _previsto(r: dict) -> bool:
+    return str(r.get("status") or "").strip().upper() == "PREVISTO"
+
+
+def _marcar_previstos(db: Session, blocos: dict[str, list[dict]]) -> int:
+    """Lançamentos já importados: parcela que na planilha está PREVISTO e no app ainda está no
+    automático vira "a confirmar". O que alguém já confirmou no app não é mexido."""
+    if not blocos:
+        return 0
+    marcados = 0
+    q = (select(FinLancamento).where(FinLancamento.chave_origem.in_(list(blocos)))
+         .options(selectinload(FinLancamento.parcelas)))
+    for lc in db.scalars(q):
+        for p, r in zip(sorted(lc.parcelas, key=lambda x: x.numero), blocos[lc.chave_origem]):
+            if _previsto(r) and p.pago is None:
+                p.pago = False
+                marcados += 1
+    return marcados
 
 
 def _caber(obj):
@@ -325,7 +349,8 @@ def _montar(bloco, usuario, origem, fornecedores, plano, db) -> FinLancamento:
     lanc.fornecedor = forn  # ligado abaixo (fornecedor pode ser novo, ainda sem id)
     for i, p in enumerate(bloco, start=1):
         lanc.parcelas.append(FinParcela(numero=i, vencimento=_dt(p["data_fluxo"]) or lanc.data,
-                                        valor=round(float(p["valor"]), 2)))
+                                        valor=round(float(p["valor"]), 2),
+                                        pago=False if _previsto(p) else None))
     lanc.valor_total = round(sum(p.valor for p in lanc.parcelas), 2)
     return _caber(lanc)
 

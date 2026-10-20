@@ -135,6 +135,9 @@ class FinParcela(Base):
     valor: Mapped[float] = mapped_column(Float)
     conta: Mapped[str | None] = mapped_column(String(80))  # vazia = a do lançamento
     pago: Mapped[bool | None] = mapped_column(Boolean)  # None = automático (vencimento <= hoje)
+    # Valor que estava previsto quando a parcela "a confirmar" foi confirmada com outro valor
+    # (ex.: salário lançado pro ano todo e corrigido mês a mês). Nulo = não mudou.
+    valor_previsto: Mapped[float | None] = mapped_column(Float)
 
     lancamento: Mapped[FinLancamento] = relationship(back_populates="parcelas")
 

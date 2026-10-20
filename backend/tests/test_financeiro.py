@@ -108,6 +108,18 @@ def test_limpar_revisao_antiga_so_por_categoria(fdb):
     assert svc.limpar_revisao_sem_categoria(fdb) == 0
 
 
+def test_confirmar_previsto_guarda_o_valor_previsto(fdb):
+    lanc = _lanc(fdb, valor_total=3000, n_parcelas=3, pago=False, descricao="salário Romário")
+    p1, p2 = lanc.parcelas[0], lanc.parcelas[1]
+    svc.marcar_parcela(fdb, p1.id, True, "1080,50")
+    svc.marcar_parcela(fdb, p2.id, True, "1000")  # igual ao previsto: não guarda
+    assert p1.valor == 1080.5 and p1.valor_previsto == 1000
+    assert p2.valor_previsto is None
+    assert lanc.valor_total == 3080.5
+    d = svc.dict_lancamento(lanc)
+    assert d["parcelas"][0]["valor_previsto"] == 1000 and d["parcelas"][2]["pago"] is False
+
+
 def test_excluir_nao_apaga_e_some_da_lista(fdb):
     lanc = _lanc(fdb)
     svc.excluir(fdb, lanc.id, "lançado em dobro", "Antonio")
@@ -205,7 +217,7 @@ def test_recorrente_gera_todo_mes_sem_duplicar(fdb):
 
 # ---------------------------------------------------------------- importação da CONSIPA
 
-def _planilha_consipa() -> bytes:
+def _planilha_consipa(status_2a="REALIZADO") -> bytes:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "CentralReal"
@@ -217,7 +229,7 @@ def _planilha_consipa() -> bytes:
                 n_parcelas=2, qtde=1, valor_unit=1000, conta="Sicoob")
     ws.append(linha(**base, data_fluxo=date(2025, 5, 10), setor="PECUÁRIA DE LEITE",
                     central="1.02. ALIMENTOS", categoria="1.02.16. MINERAIS", fornecedor="Frisia", valor=500))
-    ws.append(linha(**base, data_fluxo=date(2025, 6, 10), setor="PECUÁRIA DE LEITE",
+    ws.append(linha(**{**base, "status": status_2a}, data_fluxo=date(2025, 6, 10), setor="PECUÁRIA DE LEITE",
                     central="1.02. ALIMENTOS", categoria="1.02.16. MINERAIS", fornecedor="Frisia", valor=500))
     ws.append(linha(data=date(2025, 7, 1), data_fluxo=date(2025, 7, 1), es="1. DESPESA", setor="PESSOAL",
                     central="1.12. RETIRADA DE LUCRO", categoria="1.04.02. LUZ ELÉTRICA", fornecedor="Copel",
@@ -245,6 +257,22 @@ def test_importar_consipa_agrupa_parcelas_e_aplica_decisoes(fdb):
     assert sal.fornecedor_id == div.fornecedor_id
     # Rodar de novo não duplica
     assert fin_consipa.importar(fdb, _planilha_consipa(), "Antonio")["lancamentos"] == 0
+
+
+def test_consipa_previsto_entra_a_confirmar(fdb):
+    fin_consipa.importar(fdb, _planilha_consipa(status_2a="PREVISTO"), "Antonio")
+    sal = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao == "sal mineral"))
+    assert [p.pago for p in sal.parcelas] == [None, False]
+
+
+def test_reimportar_marca_previsto_sem_mexer_no_confirmado(fdb):
+    fin_consipa.importar(fdb, _planilha_consipa(), "Antonio")
+    sal = fdb.scalar(select(FinLancamento).where(FinLancamento.descricao == "sal mineral"))
+    sal.parcelas[0].pago = True  # alguém confirmou no app
+    fdb.commit()
+    r = fin_consipa.importar(fdb, _planilha_consipa(status_2a="PREVISTO"), "Antonio")
+    assert r["lancamentos"] == 0 and r["previstos_marcados"] == 1
+    assert [p.pago for p in sal.parcelas] == [True, False]
 
 
 def _planilha_antiga() -> bytes:

@@ -193,7 +193,9 @@ def montar_parcelas(dados: dict, total: float, data_compra: date) -> list[dict]:
         for i, p in enumerate(lista, start=1):
             out.append({"numero": i, "vencimento": _data(p.get("vencimento"), "vencimento"),
                         "valor": round(_num(p.get("valor")), 2), "conta": p.get("conta") or None,
-                        "pago": p.get("pago")})
+                        "pago": p.get("pago"),
+                        "valor_previsto": (round(_num(p["valor_previsto"]), 2)
+                                           if p.get("valor_previsto") not in (None, "") else None)})
         return out
     n = max(1, int(dados.get("n_parcelas") or 1))
     primeiro = _data(dados.get("primeiro_vencimento") or data_compra, "vencimento")
@@ -320,9 +322,13 @@ def marcar_parcela(db: Session, parcela_id: int, pago: bool | None, valor=None) 
     p = db.get(FinParcela, parcela_id)
     if p is None:
         raise ErroFinanceiro("Parcela não encontrada")
+    era_previsto = p.pago is False
     p.pago = pago
     if valor not in (None, ""):
         novo = round(_num(valor), 2)
+        # Confirmou com valor diferente do previsto: guarda o previsto pra comparar depois.
+        if era_previsto and pago and p.valor_previsto is None and abs(novo - p.valor) > 0.004:
+            p.valor_previsto = p.valor
         p.lancamento.valor_total = round(p.lancamento.valor_total - p.valor + novo, 2)
         p.valor = novo
     db.commit()
@@ -349,7 +355,7 @@ def dict_lancamento(lc: FinLancamento, hoje: date | None = None) -> dict:
         "alterado_por": lc.alterado_por, "alterado_em": iso_utc(lc.alterado_em),
         "recorrente_id": lc.recorrente_id,
         "parcelas": [{"id": p.id, "numero": p.numero, "vencimento": p.vencimento.isoformat(),
-                      "valor": p.valor, "conta": p.conta, "pago": p.pago,
+                      "valor": p.valor, "conta": p.conta, "pago": p.pago, "valor_previsto": p.valor_previsto,
                       "realizado": parcela_realizada(p, hoje)} for p in lc.parcelas],
     }
 
