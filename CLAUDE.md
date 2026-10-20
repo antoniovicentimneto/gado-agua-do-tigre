@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=77 / cache v69.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=78 / cache v70.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -339,6 +339,15 @@ de cada animal. Serviço: `app/services/manejos.py`.
   antigos.xlsx" (2021–2024). A versão "Carlos" é anterior à "Atualizado" — não importar.
 - **Gráficos** (`fin_graficos.py`, `static/financeiro-graficos.js`): SVG puro, mesmo gerador
   `_linhas` do Resultado (os números batem). Cores receita #2a78d6 / despesa #eb6834 (validadas).
+- **Fechamento de venda/compra** (`fin_fechamento.py`, `FinFechamento`, `static/financeiro-fechamento.js`):
+  botão "💰 Fechar venda/compra no Financeiro" no manejo (Rebanho › Manejos, só dono). Puxa cabeças/@/
+  bruto da mangueira; a pessoa completa com a nota. Venda = RECEITA bruta (Pecuária › Venda de animais
+  ou Abate) + cada desconto como DESPESA (Funrural/SENAR em Impostos, frete em Comercialização, comissão
+  em RH, GTA em Impostos), sem fornecedor nos descontos (não "ensina" o comprador). Compra = despesa
+  (Aquisição de rebanho › Bovinos) + custos extras. `FinLancamento.fechamento_id` liga os dois lados;
+  refazer exclui os antigos com motivo; selo "💰 no Financeiro / falta lançar" na lista de manejos.
+  Percentuais sugeridos: Funrural 1,3% e SENAR 0,2% (editáveis; vale o da nota). Fase 2 (não feita):
+  rateio por animal e lucro por animal.
 - Importar CONSIPA: Cadastros › Importar CONSIPA (idempotente por `chave_origem`). Totais de
   2025 batem centavo a centavo com a planilha (despesa R$ 3.555.070,06 / receita R$ 4.266.963,84).
 

@@ -814,6 +814,11 @@ async function carregarManejos() {
     document.getElementById("manejos-retentar").onclick = (ev) => { ev.preventDefault(); carregarManejos(); };
     return;
   }
+  // dono: quais vendas/compras já foram lançadas no Financeiro (selo no cartão)
+  let noFin = {};
+  if (usuarioAtual && usuarioAtual.papel === "dono") {
+    try { noFin = await api.get("/api/fin/fechamentos"); } catch (e) { noFin = {}; }
+  }
   box.innerHTML = "";
   if (!lista.length) { box.innerHTML = "<div class='info'>Nenhum manejo registrado ainda.</div>"; return; }
   lista.forEach((m) => {
@@ -826,6 +831,9 @@ async function carregarManejos() {
         <b>${fmt.data(m.data)}</b>
         <span class="tipo-manejo">${TIPO_MANEJO_LABEL[m.tipo] || m.tipo}</span>
         ${badgeStatus}
+        ${m.chave.startsWith("s:") && noFin[m.chave.slice(2)] ? `<span class="fin-pill verde" title="já lançado no Financeiro">💰 no Financeiro</span>`
+          : (["compra", "venda_fazenda", "venda_morto"].includes(m.tipo) && usuarioAtual && usuarioAtual.papel === "dono"
+            ? `<span class="fin-pill amarelo" title="falta lançar no Financeiro">💰 falta lançar</span>` : "")}
       </div>
       <div class="sub">${lotesTxt || (m.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
       <div class="card-manejo-numeros">
@@ -877,7 +885,8 @@ async function abrirManejo(chave) {
   ficha.innerHTML = `
     <h2>${TIPO_MANEJO_LABEL[s.tipo] || s.tipo} — ${fmt.data(s.data)}</h2>
     <div class="sub">${[...s.origens, ...s.sublotes].join(", ") || (s.tipo === "legado" ? "Histórico anterior ao app" : "")}</div>
-    ${ehDono && prefixo === "s" && s.tipo === "venda_morto" ? `<button id="manejo-fechar-venda" style="width:100%;margin-top:8px">💰 Fechar venda (dados do frigorífico)</button>` : ""}
+    ${ehDono && prefixo === "s" && s.tipo === "venda_morto" ? `<button id="manejo-fechar-venda" style="width:100%;margin-top:8px">🥩 Dados do frigorífico (carcaça por animal)</button>` : ""}
+    ${ehDono && prefixo === "s" && s.tipo !== "manejo" ? `<button id="manejo-financeiro" style="width:100%;margin-top:8px">💰 ${s.tipo === "compra" ? "Fechar compra" : "Fechar venda"} no Financeiro (nota, descontos)</button>` : ""}
     ${podeEditarManejo ? `<button id="manejo-editar" class="secundario" style="width:100%;margin-top:8px">✎ Editar manejo (lançar animal esquecido)</button>` : ""}
 
     <div class="grid-2 ficha-secao">
@@ -904,6 +913,11 @@ async function abrirManejo(chave) {
   ficha.querySelectorAll(".brinco-link").forEach((el) => {
     el.onclick = (e) => { e.preventDefault(); abrirFicha(parseInt(el.dataset.id), () => abrirManejo(chave)); };
   });
+
+  const btnFinanceiro = document.getElementById("manejo-financeiro");
+  if (btnFinanceiro) {
+    btnFinanceiro.onclick = () => abrirFechamentoFinanceiro(parseInt(valor), () => abrirManejo(chave));
+  }
 
   const btnFecharVenda = document.getElementById("manejo-fechar-venda");
   if (btnFecharVenda) {

@@ -105,6 +105,8 @@ class FinLancamento(Base):
     chave_origem: Mapped[str | None] = mapped_column(String(64), unique=True)  # evita importar 2x
     recorrente_id: Mapped[int | None] = mapped_column(ForeignKey("fin_recorrentes.id"))
     recorrente_mes: Mapped[str | None] = mapped_column(String(7))  # AAAA-MM gerado
+    # Veio do fechamento de uma venda/compra de gado (manejo da mangueira).
+    fechamento_id: Mapped[int | None] = mapped_column(ForeignKey("fin_fechamentos.id"), index=True)
     # Fila de revisão: aparece em vermelho até alguém conferir.
     revisar: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     revisar_motivo: Mapped[str | None] = mapped_column(String(200))
@@ -244,3 +246,29 @@ class FinMovimento(Base):
     parcela_id: Mapped[int | None] = mapped_column(ForeignKey("fin_parcelas.id"))
     ignorado: Mapped[bool] = mapped_column(Boolean, default=False)
     importado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class FinFechamento(Base):
+    """Acerto de uma venda ou compra de gado: liga o manejo da mangueira ao Financeiro.
+
+    Venda: receita bruta + cada desconto da nota (Funrural, SENAR, frete...) como despesa.
+    Compra: despesa da compra + custos extras (frete, comissão, GTA) como despesas."""
+    __tablename__ = "fin_fechamentos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sessao_id: Mapped[int] = mapped_column(ForeignKey("sessoes_pesagem.id"), unique=True, index=True)
+    tipo: Mapped[str] = mapped_column(String(10))  # venda | compra
+    data: Mapped[date] = mapped_column(Date)
+    contraparte: Mapped[str | None] = mapped_column(String(150))  # comprador / vendedor
+    cabecas: Mapped[int] = mapped_column(Integer, default=0)
+    peso_total: Mapped[float | None] = mapped_column(Float)
+    arrobas: Mapped[float | None] = mapped_column(Float)
+    valor_bruto: Mapped[float] = mapped_column(Float)
+    valor_liquido: Mapped[float] = mapped_column(Float)  # venda: a receber; compra: custo total
+    descontos: Mapped[str | None] = mapped_column(Text)  # JSON: [{nome, valor, percentual, descontado...}]
+    nf_numero: Mapped[str | None] = mapped_column(String(20))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    criado_por: Mapped[str | None] = mapped_column(String(100))
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    alterado_por: Mapped[str | None] = mapped_column(String(100))
+    alterado_em: Mapped[datetime | None] = mapped_column(DateTime)

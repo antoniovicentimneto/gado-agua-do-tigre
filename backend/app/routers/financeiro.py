@@ -12,6 +12,7 @@ from ..services import (
     fin_graficos,
     fin_cripto,
     fin_extrato,
+    fin_fechamento,
     fin_lancamentos,
     fin_nfe_xml,
     fin_notas,
@@ -137,6 +138,30 @@ def lancamento_excluir(lid: int, dados: dict = Body(default={}), db: Session = D
 def lancamento_restaurar(lid: int, db: Session = Depends(get_db), usuario: Usuario = Depends(requer_dono)):
     _executar(fin_lancamentos.restaurar, db, lid, usuario.nome)
     return {"ok": True}
+
+
+@router.get("/fechamento/{sessao_id}")
+def fechamento_resumo(sessao_id: int, db: Session = Depends(get_db)):
+    """Números do manejo de venda/compra + fechamento já lançado (se houver)."""
+    return _executar(fin_fechamento.resumo, db, sessao_id)
+
+
+@router.put("/fechamento/{sessao_id}")
+def fechamento_salvar(sessao_id: int, dados: dict = Body(...), db: Session = Depends(get_db),
+                      usuario: Usuario = Depends(requer_dono)):
+    return _executar(fin_fechamento.salvar, db, sessao_id, dados, usuario.nome)
+
+
+@router.delete("/fechamento/{sessao_id}")
+def fechamento_desfazer(sessao_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(requer_dono)):
+    _executar(fin_fechamento.desfazer, db, sessao_id, usuario.nome)
+    return {"ok": True}
+
+
+@router.get("/fechamentos")
+def fechamentos(db: Session = Depends(get_db)):
+    """Selo 'lançado no Financeiro' por manejo (sessao_id → valores)."""
+    return fin_fechamento.por_sessao(db)
 
 
 @router.put("/parcelas/{pid}")
