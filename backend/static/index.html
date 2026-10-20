@@ -11,7 +11,7 @@
   <link rel="icon" href="/static/icon.png" sizes="256x256" />
   <link rel="preload" href="/static/vendor/manrope/manrope-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=76" />
+  <link rel="stylesheet" href="/static/style.css?v=77" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -78,6 +78,7 @@
   <section id="aba-mangueira" class="aba ativa">
     <!-- Abertura / retomada de sessão -->
     <div id="mg-abertura">
+      <div class="mg-abertura-form">
       <h2>Nova pesagem na mangueira</h2>
 
       <label>Tipo de sessão</label>
@@ -121,6 +122,7 @@
       </div>
 
       <button id="mg-iniciar" style="width:100%;margin-top:12px">Iniciar pesagem</button>
+      </div>
 
       <div id="mg-abertas"></div>
     </div>
@@ -506,25 +508,25 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=76"></script>
-  <script src="/static/fila-offline.js?v=76"></script>
-  <script src="/static/mangueira.js?v=76"></script>
-  <script src="/static/planilha.js?v=76"></script>
-  <script src="/static/venda-gancho.js?v=76"></script>
-  <script src="/static/cria.js?v=76"></script>
+  <script src="/static/app.js?v=77"></script>
+  <script src="/static/fila-offline.js?v=77"></script>
+  <script src="/static/mangueira.js?v=77"></script>
+  <script src="/static/planilha.js?v=77"></script>
+  <script src="/static/venda-gancho.js?v=77"></script>
+  <script src="/static/cria.js?v=77"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=76"></script>
-  <script src="/static/pastos-historico.js?v=76"></script>
-  <script src="/static/pastos-indicadores.js?v=76"></script>
-  <script src="/static/alertas.js?v=76"></script>
-  <script src="/static/mapa-offline.js?v=76"></script>
-  <script src="/static/pastos-cronograma.js?v=76"></script>
-  <script src="/static/pastos-massa.js?v=76"></script>
-  <script src="/static/pastos-solo.js?v=76"></script>
-  <script src="/static/pastos.js?v=76"></script>
-  <script src="/static/financeiro.js?v=76"></script>
-  <script src="/static/financeiro-notas.js?v=76"></script>
-  <script src="/static/financeiro-graficos.js?v=76"></script>
+  <script src="/static/campo.js?v=77"></script>
+  <script src="/static/pastos-historico.js?v=77"></script>
+  <script src="/static/pastos-indicadores.js?v=77"></script>
+  <script src="/static/alertas.js?v=77"></script>
+  <script src="/static/mapa-offline.js?v=77"></script>
+  <script src="/static/pastos-cronograma.js?v=77"></script>
+  <script src="/static/pastos-massa.js?v=77"></script>
+  <script src="/static/pastos-solo.js?v=77"></script>
+  <script src="/static/pastos.js?v=77"></script>
+  <script src="/static/financeiro.js?v=77"></script>
+  <script src="/static/financeiro-notas.js?v=77"></script>
+  <script src="/static/financeiro-graficos.js?v=77"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.
