@@ -5,17 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gado Água do Tigre</title>
   <link rel="manifest" href="/static/manifest.json" />
-  <meta name="theme-color" content="#2e7d32" />
-  <link rel="apple-touch-icon" href="/static/icon.png" />
-  <link rel="icon" href="/static/icon.png" />
+  <meta name="theme-color" content="#275E60" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="icon" href="/static/marca/icone.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/icon.png" sizes="256x256" />
+  <link rel="preload" href="/static/vendor/manrope/manrope-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=75" />
+  <link rel="stylesheet" href="/static/style.css?v=76" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
   <div id="tela-login" class="tela-login escondido">
     <div class="login-caixa">
-      <h1>🐂 Gado Água do Tigre</h1>
+      <h1><img src="/static/marca/logo-mostarda-bege.svg" alt="Fazenda Água do Tigre" /></h1>
+      <div class="login-app">Controle do gado</div>
 
       <div id="login-form-area">
         <h2 id="login-titulo">Entrar</h2>
@@ -44,15 +47,18 @@
   <!-- APP -->
   <div id="app-conteudo" class="escondido">
   <header>
-    <h1>🐂 Gado Água do Tigre</h1>
-    <div class="header-usuario">
-      <button id="btn-sino" class="btn-sino" title="Alertas">🔔<span></span></button>
-      <span id="usuario-logado-nome"></span>
-      <button id="btn-logout" class="secundario">Saída</button>
+    <div class="topo">
+      <h1>
+        <img class="marca-simbolo" src="/static/marca/simbolo-creme.svg" alt="Água do Tigre" />
+        <span class="marca-divisor"></span>
+        <span class="marca-nome"><b>Gado</b><small>Fazenda Água do Tigre</small></span>
+      </h1>
+      <div class="header-usuario">
+        <button id="btn-sino" class="btn-sino" title="Alertas">🔔<span></span></button>
+        <span id="usuario-logado-nome"></span>
+        <button id="btn-logout" class="secundario">Saída</button>
+      </div>
     </div>
-  </header>
-
-  <div id="fila-status-global" class="fila-status escondido"></div>
 
   <nav class="abas">
     <button data-aba="mangueira" class="ativa">Mangueira</button>
@@ -64,6 +70,9 @@
     <button data-aba="config" id="aba-btn-config" class="escondido">Config</button>
     <button data-aba="usuarios" id="aba-btn-usuarios" class="escondido">Usuários</button>
   </nav>
+  </header>
+
+  <div id="fila-status-global" class="fila-status escondido"></div>
 
   <!-- ABA MANGUEIRA (lançamento de peso da sessão) -->
   <section id="aba-mangueira" class="aba ativa">
@@ -497,25 +506,25 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=75"></script>
-  <script src="/static/fila-offline.js?v=75"></script>
-  <script src="/static/mangueira.js?v=75"></script>
-  <script src="/static/planilha.js?v=75"></script>
-  <script src="/static/venda-gancho.js?v=75"></script>
-  <script src="/static/cria.js?v=75"></script>
+  <script src="/static/app.js?v=76"></script>
+  <script src="/static/fila-offline.js?v=76"></script>
+  <script src="/static/mangueira.js?v=76"></script>
+  <script src="/static/planilha.js?v=76"></script>
+  <script src="/static/venda-gancho.js?v=76"></script>
+  <script src="/static/cria.js?v=76"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=75"></script>
-  <script src="/static/pastos-historico.js?v=75"></script>
-  <script src="/static/pastos-indicadores.js?v=75"></script>
-  <script src="/static/alertas.js?v=75"></script>
-  <script src="/static/mapa-offline.js?v=75"></script>
-  <script src="/static/pastos-cronograma.js?v=75"></script>
-  <script src="/static/pastos-massa.js?v=75"></script>
-  <script src="/static/pastos-solo.js?v=75"></script>
-  <script src="/static/pastos.js?v=75"></script>
-  <script src="/static/financeiro.js?v=75"></script>
-  <script src="/static/financeiro-notas.js?v=75"></script>
-  <script src="/static/financeiro-graficos.js?v=75"></script>
+  <script src="/static/campo.js?v=76"></script>
+  <script src="/static/pastos-historico.js?v=76"></script>
+  <script src="/static/pastos-indicadores.js?v=76"></script>
+  <script src="/static/alertas.js?v=76"></script>
+  <script src="/static/mapa-offline.js?v=76"></script>
+  <script src="/static/pastos-cronograma.js?v=76"></script>
+  <script src="/static/pastos-massa.js?v=76"></script>
+  <script src="/static/pastos-solo.js?v=76"></script>
+  <script src="/static/pastos.js?v=76"></script>
+  <script src="/static/financeiro.js?v=76"></script>
+  <script src="/static/financeiro-notas.js?v=76"></script>
+  <script src="/static/financeiro-graficos.js?v=76"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

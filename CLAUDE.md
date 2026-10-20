@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=75 / cache v67.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=76 / cache v68.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -99,6 +99,12 @@ backend/
   importar.py / atualizar.py / restaurar.py / migrar_para_nuvem.py
 render.yaml            # blueprint do Render
 ```
+
+**Visual (out/2026):** identidade da Água do Tigre (skill `marca-agua-do-tigre`) — tokens no `:root` do
+`style.css` (verde #275E60, creme #FFF4E6, escuro #0E1B1A + "cores da casa" mostarda #D4A73A e marrom
+#4A3428, mostarda nunca como texto sobre creme). Logos em `static/marca/`, fonte Manrope local em
+`static/vendor/manrope/` (offline), ícones `icon-192/512.png`. Cores com significado (status do pasto,
+cor do lote, receita/despesa, previsto amarelo × realizado verde) não seguem a marca.
 
 Frontend: **vanilla JS, sem framework**. `app.js` = geral (abas, rebanho, ficha, config,
 usuários, cache de animais). `mangueira.js` = tela de pesagem. Comunicação via objeto `api`

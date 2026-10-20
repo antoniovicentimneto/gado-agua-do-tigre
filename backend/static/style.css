@@ -1,19 +1,43 @@
 /* Estilo mobile-first do app de controle de gado. */
+/* Fonte Manrope guardada no próprio app (funciona sem sinal no campo). */
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/static/vendor/manrope/manrope-latin.woff2") format("woff2");
+}
+
+/* Identidade da Fazenda Água do Tigre (skill marca-agua-do-tigre).
+   Verde, escuro, creme, verde-médio e verde-claro são do caderno de marca;
+   mostarda e marrom são "cores da casa" (jaqueta), fora do caderno. */
 :root {
-  --verde: #2e7d32;
-  --verde-claro: #e8f5e9;
-  --cinza: #6b7280;
-  --borda: #e0e0e0;
-  --bg: #f5f6f5;
-  --texto: #1f2937;
-  --vermelho: #c0392b;
+  --adt-verde: #275E60;
+  --adt-escuro: #0E1B1A;
+  --adt-creme: #FFF4E6;
+  --adt-verde-medio: #4E8989;
+  --adt-verde-claro: #89ADAC;
+  --mostarda: #D4A73A;        /* só sobre marrom, verde ou escuro (sobre creme não se lê) */
+  --marrom: #4A3428;          /* couro */
+  --marrom-texto: #6B4A33;    /* marrom para texto sobre creme */
+
+  --verde: var(--adt-verde);  /* ação principal, cabeçalho */
+  --verde-forte: #1D4849;     /* botão pressionado */
+  --verde-claro: #E7EFEE;     /* fundos de destaque */
+  --cinza: #3E4643;           /* texto suave, escuro o bastante pro sol */
+  --borda: #D9E3E1;
+  --borda-campo: var(--adt-verde-claro);
+  --bg: var(--adt-creme);
+  --texto: var(--adt-escuro);
+  --vermelho: #B3261E;
+  --raio: 12px;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
   background: var(--bg);
   color: var(--texto);
   padding-bottom: 40px;
@@ -21,42 +45,53 @@ body {
 
 header {
   background: var(--verde);
-  color: #fff;
-  padding: 14px 16px;
+  color: var(--adt-creme);
+  padding: 10px 16px 0;
   position: sticky;
   top: 0;
   z-index: 5;
 }
-header h1 { margin: 0; font-size: 1.2rem; }
+.topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+header h1 { margin: 0; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.marca-simbolo { height: 28px; width: auto; display: block; flex: 0 0 auto; }
+.marca-divisor { width: 2px; height: 28px; background: var(--mostarda); border-radius: 2px; flex: 0 0 auto; }
+.marca-nome { line-height: 1.1; min-width: 0; }
+.marca-nome b { display: block; font-size: 1.05rem; font-weight: 800; }
+.marca-nome small {
+  display: block; font-size: 0.66rem; font-weight: 600; letter-spacing: 1.5px;
+  text-transform: uppercase; opacity: 0.88; white-space: nowrap;
+}
 
 .abas {
   display: flex;
-  background: #fff;
-  border-bottom: 1px solid var(--borda);
-  position: sticky;
-  top: 50px;
-  z-index: 4;
+  gap: 2px;
+  margin: 10px -16px 0;
+  padding: 0 12px;
   /* 6 abas (dono) não cabem no celular: rola de lado em vez de alargar a página. */
   overflow-x: auto;
   scrollbar-width: none;
 }
 .abas::-webkit-scrollbar { display: none; }
 .abas button {
-  flex: 1 0 auto;
-  padding: 12px;
+  flex: 0 0 auto;
+  padding: 11px 15px;
   border: none;
+  border-radius: 12px 12px 0 0;
   background: none;
   font-size: 0.95rem;
-  color: var(--cinza);
-  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  color: #CFE0DE;
+  white-space: nowrap;
 }
 .abas button.ativa {
+  background: var(--bg);
   color: var(--verde);
-  border-bottom-color: var(--verde);
-  font-weight: 600;
+  font-weight: 800;
+  box-shadow: inset 0 3px 0 var(--mostarda);
 }
 
-.aba { display: none; padding: 14px; }
+.aba { display: none; padding: 14px; max-width: 1400px; margin: 0 auto; }
+.aba > h2 { font-size: 1.25rem; font-weight: 800; margin: 6px 0 12px; }
 .aba.ativa { display: block; }
 
 .filtros {
@@ -70,20 +105,26 @@ header h1 { margin: 0; font-size: 1.2rem; }
   min-width: 120px;
 }
 
-input, select, button {
+input, select, button, textarea {
   padding: 11px;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
+  border: 1px solid var(--borda-campo);
+  border-radius: 10px;
   font-size: 1rem;
+  font-family: inherit;
   background: #fff;
+  color: var(--texto);
+}
+input:focus, select:focus, textarea:focus {
+  outline: 3px solid var(--adt-verde-claro); outline-offset: 0; border-color: var(--verde);
 }
 button {
   background: var(--verde);
-  color: #fff;
+  color: var(--adt-creme);
   border: none;
-  font-weight: 600;
+  font-weight: 700;
+  cursor: pointer;
 }
-button:active { opacity: 0.85; }
+button:active { background: var(--verde-forte); }
 #btn-novo { flex: 0 0 auto; }
 
 .info { color: var(--cinza); font-size: 0.85rem; margin: 6px 0; }
@@ -99,7 +140,7 @@ button:active { opacity: 0.85; }
 
 /* Cartão de lote */
 .card-lote {
-  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  background: #fff; border: 1px solid var(--borda); border-radius: var(--raio);
   padding: 14px; margin-bottom: 8px; display: flex; justify-content: space-between;
   align-items: center; cursor: pointer;
 }
@@ -112,7 +153,7 @@ button:active { opacity: 0.85; }
 
 /* Cartão de manejo (histórico) */
 .card-manejo {
-  background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+  background: #fff; border: 1px solid var(--borda); border-radius: var(--raio);
   padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
 }
 .card-manejo-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -183,13 +224,22 @@ button:active { opacity: 0.85; }
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .card {
   background: #fff; border: 1px solid var(--borda);
-  border-radius: 10px; padding: 16px; text-align: center;
+  border-radius: var(--raio); padding: 14px 16px; text-align: left;
 }
-.card .num { font-size: 1.7rem; font-weight: 700; color: var(--verde); }
-.card .rotulo { color: var(--cinza); font-size: 0.85rem; }
+.card .num { font-size: 1.7rem; font-weight: 800; color: var(--texto); font-variant-numeric: tabular-nums; }
+.card .rotulo {
+  color: var(--cinza); font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+}
+/* Os dois primeiros cards do painel em destaque: marrom e verde com friso mostarda. */
+.cards .card:nth-child(1), .cards .card:nth-child(2) {
+  background: var(--marrom); border-color: var(--marrom); box-shadow: inset 0 -4px 0 var(--mostarda);
+}
+.cards .card:nth-child(2) { background: var(--verde); border-color: var(--verde); }
+.cards .card:nth-child(1) .num, .cards .card:nth-child(2) .num { color: var(--adt-creme); }
+.cards .card:nth-child(1) .rotulo, .cards .card:nth-child(2) .rotulo { color: var(--mostarda); }
 
 .botao-link {
-  display: inline-block; background: var(--verde); color: #fff;
+  display: inline-block; background: var(--verde); color: var(--adt-creme);
   padding: 14px 18px; border-radius: 8px; text-decoration: none; font-weight: 600;
 }
 .botao-link:active { opacity: 0.85; }
@@ -215,8 +265,12 @@ button:active { opacity: 0.85; }
 }
 .ficha-secao { margin: 14px 0; }
 .ficha-secao h3 { margin: 0 0 8px; font-size: 1rem; }
-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--borda); }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borda); }
+th {
+  background: var(--verde-claro); color: var(--cinza); font-size: 0.72rem; font-weight: 800;
+  letter-spacing: 0.6px; text-transform: uppercase;
+}
 .pesagem-apagar {
   background: none; color: var(--vermelho); padding: 2px 8px; font-size: 1rem;
   border: none; line-height: 1;
@@ -256,7 +310,7 @@ button.perigo { background: var(--vermelho); color: #fff; }
 .aba label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 0.9rem; }
 .aba label.check { font-weight: 400; }
 #aba-mangueira select, #aba-mangueira input[type=date] { width: 100%; }
-button.secundario { background: #fff; color: var(--verde); border: 1px solid var(--verde); }
+button.secundario { background: #fff; color: var(--verde); border: 2px solid var(--verde); }
 
 #mg-sublotes-lista input { width: 100%; margin-bottom: 6px; }
 
@@ -273,9 +327,10 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 
 .mg-colunas { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .mg-col {
-  background: #fff; border: 1px solid var(--borda); border-radius: 12px; padding: 12px;
+  background: #fff; border: 1px solid var(--borda); border-radius: var(--raio); padding: 14px;
+  box-shadow: 0 1px 2px rgba(14, 27, 26, 0.04);
 }
-.mg-col h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.mg-col h3 { margin: 0 0 8px; font-size: 1rem; font-weight: 800; }
 .mg-centro { order: -1; }  /* no celular, o lançamento vem primeiro */
 
 .mg-lista { max-height: 46vh; overflow-y: auto; }
@@ -384,7 +439,7 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
   padding: 2px 8px; font-size: 0.75rem; border-radius: 6px;
   background: var(--verde-claro); color: var(--verde);
 }
-.mg-ordem button.ativo { background: var(--verde); color: #fff; }
+.mg-ordem button.ativo { background: var(--verde); color: var(--adt-creme); }
 .mg-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 7px 6px; border-bottom: 1px solid var(--borda); font-size: 0.9rem;
@@ -403,14 +458,18 @@ button.secundario { background: #fff; color: var(--verde); border: 1px solid var
 
 .mg-lotes-ativos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .mg-lotes-ativos button {
-  background: #fff; color: var(--texto); border: 1px solid var(--borda);
-  padding: 8px 12px; font-weight: 600; font-size: 0.9rem;
+  background: #fff; color: var(--texto); border: 2px solid var(--borda-campo); border-radius: 999px;
+  padding: 10px 16px; font-weight: 700; font-size: 0.95rem;
 }
-.mg-lotes-ativos button.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
+.mg-lotes-ativos button.ativo { background: var(--verde); color: var(--adt-creme); border-color: var(--verde); }
 
 #mg-form { display: flex; flex-direction: column; gap: 8px; }
-#mg-brinco, #mg-peso { font-size: 1.3rem; text-align: center; padding: 14px; }
-#mg-enviar { font-size: 1.2rem; padding: 16px; }
+/* Brinco e peso grandes e contrastados: o peão digita no sol. */
+#mg-brinco, #mg-peso {
+  font-size: 1.6rem; font-weight: 800; text-align: center; padding: 16px;
+  border: 2px solid var(--borda-campo); border-radius: 12px;
+}
+#mg-enviar { font-size: 1.35rem; font-weight: 800; padding: 20px; border-radius: 14px; letter-spacing: 0.5px; }
 button:disabled { opacity: 0.6; cursor: wait; }
 .mg-info-animal { min-height: 20px; font-size: 0.85rem; color: var(--cinza); text-align: center; }
 .mg-info-animal.fora { color: var(--vermelho); font-weight: 600; }
@@ -475,20 +534,33 @@ button:disabled { opacity: 0.6; cursor: wait; }
   padding: 20px; background: var(--bg);
 }
 .login-caixa {
-  background: #fff; border: 1px solid var(--borda); border-radius: 16px;
-  padding: 24px; width: 100%; max-width: 380px;
+  background: #fff; border: 1px solid var(--borda); border-radius: 18px;
+  padding: 0 24px 24px; width: 100%; max-width: 380px; overflow: hidden;
 }
-.login-caixa h1 { text-align: center; font-size: 1.3rem; margin: 0 0 18px; }
+/* Topo do login como a jaqueta: logo mostarda e bege sobre marrom, friso mostarda. */
+.login-caixa h1 {
+  margin: 0 -24px 6px; padding: 28px 24px 24px; background: var(--marrom);
+  border-bottom: 4px solid var(--mostarda);
+}
+.login-caixa h1 img { display: block; width: 190px; height: auto; margin: 0 auto; }
+.login-app {
+  text-align: center; font-size: 0.75rem; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--cinza); margin: 16px 0 6px;
+}
 .login-caixa h2 { font-size: 1rem; margin: 0 0 6px; }
 .login-caixa input { width: 100%; margin-bottom: 2px; }
+.login-caixa label { display: block; margin: 10px 0 4px; font-weight: 700; font-size: 0.9rem; }
 .login-caixa .info { min-height: 18px; color: var(--vermelho); }
 
 /* Cabeçalho com usuário logado */
-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .header-usuario { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; flex: 0 0 auto; }
 .header-usuario button {
-  padding: 6px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.15);
-  color: #fff; border: 1px solid rgba(255,255,255,0.5);
+  padding: 6px 12px; font-size: 0.8rem; background: rgba(255,244,230,0.12); border-radius: 999px;
+  color: var(--adt-creme); border: 1px solid rgba(255,244,230,0.45); white-space: nowrap;
+}
+@media (max-width: 480px) {
+  #usuario-logado-nome { display: none; }
+  .marca-nome small { letter-spacing: 0.6px; }
 }
 
 /* Lista de usuários (aba Usuários) */
@@ -607,8 +679,8 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 }
 .pt-lote b { display: block; font-size: 1rem; }
 .pt-lote small { color: var(--cinza); }
-.pt-lote.selecionado { background: var(--verde); color: #fff; }
-.pt-lote.selecionado small { color: #e8f5e9; }
+.pt-lote.selecionado { background: var(--verde); color: var(--adt-creme); }
+.pt-lote.selecionado small { color: var(--adt-creme); }
 .pt-levar {
   width: 100%; margin-top: 10px; min-height: 52px; font-size: 1rem; font-weight: 700;
 }
@@ -784,7 +856,7 @@ body.pt-arrastando { overflow: hidden; touch-action: none; }
 .fin-tabela th { position: sticky; top: 0; background: #fafafa; cursor: pointer; user-select: none; white-space: nowrap; }
 .fin-tabela th:hover { color: var(--verde); }
 .fin-tabela tbody tr { cursor: pointer; }
-.fin-tabela tbody tr:hover { background: #f6faf6; }
+.fin-tabela tbody tr:hover { background: #F4F8F7; }
 .fin-tabela td { vertical-align: top; }
 .fin-tabela .num, .fin-arvore .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fin-tabela .info { display: inline; font-size: 0.78rem; }
@@ -925,7 +997,7 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 /* ---- Sininho de alertas */
 .btn-sino { width: auto; background: rgba(255,255,255,0.15); color: #fff; padding: 6px 10px; position: relative; }
 .btn-sino span { font-size: 0.75rem; margin-left: 2px; }
-.btn-sino.tem span { background: #fdd835; color: #1f2937; border-radius: 999px; padding: 1px 6px; }
+.btn-sino.tem span { background: var(--mostarda); color: var(--adt-escuro); border-radius: 999px; padding: 1px 6px; }
 .btn-sino.urgente span { background: #e53935; color: #fff; }
 .al-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   border: 1px solid var(--borda); border-left-width: 6px; border-radius: 10px; padding: 10px; margin: 8px 0; }
