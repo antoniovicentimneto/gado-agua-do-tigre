@@ -1341,6 +1341,11 @@ async function abrirFicha(id, voltar = null) {
 
     <div class="ficha-secao">
       <h3>Pesagens (${a.pesagens.length})</h3>
+      <div class="ficha-nova-pesagem">
+        <input type="date" id="f-np-data" value="${hojeLocal()}" title="data da pesagem" />
+        <input type="number" step="0.1" min="1" id="f-np-peso" placeholder="Novo peso (kg)" inputmode="decimal" />
+      </div>
+      <div class="info">Nova pesagem avulsa: digite o peso e toque em “Salvar modificações”. Se já houver pesagem nessa data, o peso dela é trocado.</div>
       <table><thead><tr><th>Data</th><th>Peso</th><th></th></tr></thead><tbody>${pesagens || "<tr><td colspan=3>Sem pesagens</td></tr>"}</tbody></table>
     </div>
 
@@ -1375,7 +1380,7 @@ async function abrirFicha(id, voltar = null) {
   fichaAvisoSalvo = "";
   const btnSalvarTudo = document.getElementById("f-salvar-tudo");
   // Campos que são de consulta/ação própria e não contam como "modificação a salvar".
-  const NAO_SALVAM = new Set(["gp-inicio", "gp-fim", "v-rend", "v-arroba", "f-vinc-busca", "cf-desmama-data"]);
+  const NAO_SALVAM = new Set(["gp-inicio", "gp-fim", "v-rend", "v-arroba", "f-vinc-busca", "cf-desmama-data", "f-np-data"]);
   ficha.oninput = ficha.onchange = (ev) => {
     if (!document.getElementById("f-salvar-tudo") || NAO_SALVAM.has(ev.target.id)) return;
     fichaSuja = true;
@@ -1572,12 +1577,21 @@ async function salvarFicha(a, id) {
     if (isNaN(peso) || peso <= 0) { alert("Tem um peso inválido na lista de pesagens."); return; }
     pesos.push({ pesagemId: inp.closest("tr").dataset.id, peso });
   }
+  // nova pesagem avulsa (vai pra fila offline se não houver rede; o servidor não duplica por data)
+  let pesagemNova = null;
+  const novoPeso = val("f-np-peso");
+  if (novoPeso) {
+    const peso = parseFloat(String(novoPeso).replace(",", "."));
+    if (isNaN(peso) || peso <= 0) { alert("O novo peso está inválido."); return; }
+    if (!$("f-np-data").value) { alert("Informe a data da nova pesagem."); return; }
+    pesagemNova = { data: $("f-np-data").value, peso };
+  }
   const lote = valorLote("ficha-lote");
   const loteMudou = !!lote && lote !== (a.lote_atual || "");
 
   const temAnimal = Object.keys(animal).length > 0, temCria = Object.keys(cria).length > 0;
   const precisaRede = temCria || prenhezMudou || denticao || pesos.length || loteMudou;
-  if (!temAnimal && !precisaRede) { msg.textContent = "Nada foi modificado."; return; }
+  if (!temAnimal && !pesagemNova && !precisaRede) { msg.textContent = "Nada foi modificado."; return; }
 
   // Guarda os dados do animal na fila offline (e no cache local, pra tela já mostrar).
   const animalNaFila = () => {
@@ -1586,22 +1600,29 @@ async function salvarFicha(a, id) {
     cacheUpsertAnimal({ id, brinco: a.brinco, ...animal });
     persistirCacheAnimaisAtual();
   };
+  const pesagemNaFila = () => {
+    filaAdicionar({ metodo: "POST", url: `/api/animais/${id}/pesagens`, corpo: pesagemNova,
+                    rotulo: `Pesagem brinco ${a.brinco}: ${pesagemNova.peso} kg` });
+    $("f-np-peso").value = "";
+  };
   const avisoSemRede = (guardou) =>
-    (guardou ? "Sem rede: os dados do animal ficaram guardados e serão enviados sozinhos. " : "Sem rede. ") +
+    (guardou ? "Sem rede: o que foi lançado ficou guardado e serão enviados sozinhos. " : "Sem rede. ") +
     (precisaRede ? "Mãe, nascimento, prenhez, dentição, pesos e lote precisam de internet — salve de novo quando tiver sinal." : "");
 
   if (!redeBoa()) {
     if (temAnimal) animalNaFila();
+    if (pesagemNova) pesagemNaFila();
     fichaSuja = precisaRede;
-    msg.textContent = avisoSemRede(temAnimal);
+    msg.textContent = avisoSemRede(temAnimal || !!pesagemNova);
     if (!precisaRede) btn.classList.remove("pendente");
     return;
   }
 
   btn.disabled = true; btn.textContent = "Salvando...";
-  let animalEnviado = !temAnimal;
+  let animalEnviado = !temAnimal, pesagemEnviada = !pesagemNova;
   try {
     if (temAnimal) { await api.put("/api/animais/" + id, animal, PRAZO_LANCAMENTO_MS * 2); animalEnviado = true; }
+    if (pesagemNova) { await api.post(`/api/animais/${id}/pesagens`, pesagemNova, PRAZO_LANCAMENTO_MS); pesagemEnviada = true; }
     if (temCria) await api.put(`/api/cria/mae/${id}`, cria);
     if (prenhezMudou) {
       await api.put(`/api/cria/prenhez/${id}`, { prenhez: prenhez || null, data: new Date().toLocaleDateString("sv-SE") });
@@ -1617,7 +1638,8 @@ async function salvarFicha(a, id) {
     if (e instanceof TypeError) {
       marcarRedeRuim();
       if (!animalEnviado) animalNaFila();
-      msg.textContent = avisoSemRede(!animalEnviado);
+      if (!pesagemEnviada) pesagemNaFila();
+      msg.textContent = avisoSemRede(!animalEnviado || !pesagemEnviada);
       return;
     }
     alert("Erro ao salvar: " + e.message);
@@ -1650,94 +1672,9 @@ async function simularVenda(id, tipo) {
   }
 }
 
-// ----------------------------------------------------------- Pesagem rápida
+// Data de hoje do aparelho (usada também em campo.js). A antiga aba "Pesar" saiu:
+// peso avulso agora se lança na ficha do animal (Pesagens › Nova pesagem).
 const hoje = hojeLocal();
-document.getElementById("pesar-data").value = hoje;
-
-// Mostra dados do animal ao digitar o brinco (igual à mangueira).
-let pesarEscolhido = null;   // animal_id escolhido quando há brinco repetido
-// Consulta LOCAL no cache (instantânea, sem internet a cada tecla / sem trocar brinco errado).
-document.getElementById("pesar-brinco").oninput = () => {
-  pesarEscolhido = null;
-  document.getElementById("pesar-escolha").classList.add("escondido");
-  const brinco = document.getElementById("pesar-brinco").value.trim();
-  const box = document.getElementById("pesar-info");
-  if (!brinco) { box.textContent = ""; box.className = "mg-info-animal"; return; }
-  const cands = animaisPorBrinco(brinco);
-  if (!cands.length) {
-    box.textContent = "⚠ brinco não cadastrado"; box.className = "mg-info-animal fora"; return;
-  }
-  if (cands.length > 1) {
-    box.textContent = `⚠ ${cands.length} animais com esse brinco — escolha ao salvar`;
-    box.className = "mg-info-animal fora";
-    return;
-  }
-  const a = cands[0];
-  const gmd = a.gmd == null ? "—" : a.gmd.toFixed(3);
-  box.textContent = `${a.tipo || ""}${a.raca ? " · " + a.raca : ""} · ${a.lote || "sem lote"} · ${textoUltimaPesagem(a)} · GMD ${gmd}${textoCarencia(a)}`;
-  box.className = emCarencia(a) ? "mg-info-animal fora" : "mg-info-animal";
-};
-
-async function salvarPesagemRapida(animalId) {
-  const brinco = document.getElementById("pesar-brinco").value.trim();
-  const peso = parseFloat(document.getElementById("pesar-peso").value);
-  const data = document.getElementById("pesar-data").value;
-  const msg = document.getElementById("pesar-msg");
-  if (!brinco || !peso || !data) return;
-
-  const btn = document.querySelector("#form-pesar button[type=submit]");
-  const textoOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Salvando...";
-  try {
-    const r = await api.post("/api/pesagem-rapida", { brinco, peso, data, animal_id: animalId });
-    if (r.ambiguidade) {
-      mostrarEscolhaPesarRapida(r.animais);
-      return;
-    }
-    if (r.animal) {
-      cacheUpsertAnimal({
-        id: r.animal.id, brinco: r.animal.brinco, tipo: r.animal.tipo, raca: r.animal.raca,
-        lote: r.animal.lote_atual, ultimo_peso: r.animal.ultimo_peso, gmd: r.animal.gmd,
-        data_ultimo: r.animal.data_ultimo,
-      });
-    }
-    const li = document.createElement("li");
-    li.textContent = `✓ Brinco ${brinco}: ${peso} kg`;
-    document.getElementById("pesar-historico").prepend(li);
-    msg.textContent = "Salvo!";
-    document.getElementById("pesar-brinco").value = "";
-    document.getElementById("pesar-peso").value = "";
-    document.getElementById("pesar-info").textContent = "";
-    document.getElementById("pesar-escolha").classList.add("escondido");
-    pesarEscolhido = null;
-    document.getElementById("pesar-brinco").focus();
-  } catch (e) {
-    msg.textContent = "Erro: " + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = textoOriginal;
-  }
-}
-
-function mostrarEscolhaPesarRapida(animais) {
-  const box = document.getElementById("pesar-escolha");
-  box.innerHTML = `<p>Qual animal pesar?</p><div class="acoes"></div>`;
-  const acoes = box.querySelector(".acoes");
-  animais.forEach((a) => {
-    const b = document.createElement("button");
-    b.className = "secundario";
-    b.textContent = `${a.tipo || "?"} · ${a.lote_atual || "sem lote"} · ${fmt.peso(a.ultimo_peso)}`;
-    b.onclick = () => { pesarEscolhido = a.id; salvarPesagemRapida(a.id); };
-    acoes.appendChild(b);
-  });
-  box.classList.remove("escondido");
-}
-
-document.getElementById("form-pesar").onsubmit = (ev) => {
-  ev.preventDefault();
-  salvarPesagemRapida(pesarEscolhido);
-};
 
 // ----------------------------------------------------------- Painel
 async function carregarPainel() {

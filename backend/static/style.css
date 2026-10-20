@@ -176,12 +176,8 @@ button:active { opacity: 0.85; }
 .linha-pesar { display: flex; gap: 8px; margin-top: 6px; }
 .linha-pesar input { flex: 1; }
 .linha-pesar button { flex: 0 0 90px; }
-#pesar-data { width: 100%; margin-top: 4px; }
-#pesar-historico { list-style: none; padding: 0; }
-#pesar-historico li {
-  background: #fff; border: 1px solid var(--borda);
-  border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 0.9rem;
-}
+/* Nova pesagem avulsa na ficha do animal */
+.ficha-nova-pesagem { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
 
 /* Painel */
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

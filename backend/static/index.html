@@ -59,7 +59,6 @@
     <button data-aba="pastos">Pastos</button>
     <button data-aba="sanidade">Sanidade</button>
     <button data-aba="rebanho">Rebanho</button>
-    <button data-aba="pesar">Pesar</button>
     <button data-aba="painel">Painel</button>
     <button data-aba="financeiro" id="aba-btn-financeiro" class="escondido">Financeiro</button>
     <button data-aba="config" id="aba-btn-config" class="escondido">Config</button>
@@ -327,24 +326,6 @@
     <div id="lista-manejos" style="display:none"></div>
     <div id="lista-planilha" style="display:none"></div>
     <div id="lista-cria" style="display:none"></div>
-  </section>
-
-  <!-- ABA PESAR -->
-  <section id="aba-pesar" class="aba">
-    <h2>Pesagem rápida</h2>
-    <label>Data da pesagem</label>
-    <input type="date" id="pesar-data" />
-    <form id="form-pesar">
-      <div class="linha-pesar">
-        <input id="pesar-brinco" placeholder="Brinco" inputmode="numeric" autocomplete="off" />
-        <input id="pesar-peso" placeholder="Peso (kg)" inputmode="decimal" />
-        <button type="submit">Salvar</button>
-      </div>
-    </form>
-    <div id="pesar-info" class="mg-info-animal"></div>
-    <div id="pesar-escolha" class="mg-alerta escondido"></div>
-    <div id="pesar-msg" class="info"></div>
-    <ul id="pesar-historico"></ul>
   </section>
 
   <!-- ABA PAINEL -->
