@@ -151,6 +151,17 @@ def xml_cons_chave(c: FinContribuinte, chave: str) -> str:
                      f"<nfeDadosMsg>{dist}</nfeDadosMsg></nfeDistDFeInteresse>")
 
 
+def _c14n(elemento) -> bytes:
+    """C14N do elemento como documento próprio (com os namespaces que ele herda).
+
+    Não usar etree.tostring(elemento, method="c14n") direto num pedaço da árvore: o libxml2
+    escreve xmlns="" em netos (ex.: <descEvento xmlns="">), o resumo (DigestValue) sai
+    diferente do que a SEFAZ calcula e ela recusa com 297 "Assinatura difere do calculado"."""
+    from lxml import etree
+
+    return etree.tostring(etree.fromstring(etree.tostring(elemento)), method="c14n")
+
+
 def assinar_evento(xml_evento: str, chave_privada, certificado) -> str:
     """Assinatura XMLDSig (RSA-SHA1, C14N) do infEvento — padrão exigido pela NF-e."""
     from lxml import etree
@@ -158,7 +169,7 @@ def assinar_evento(xml_evento: str, chave_privada, certificado) -> str:
     raiz = etree.fromstring(xml_evento.encode("utf-8"))
     for evento in raiz.iter(f"{{{NS_NFE}}}evento"):
         inf = evento.find(f"{{{NS_NFE}}}infEvento")
-        digest = base64.b64encode(sha1(etree.tostring(inf, method="c14n")).digest()).decode()
+        digest = base64.b64encode(sha1(_c14n(inf)).digest()).decode()
         ds = f"{{{NS_DS}}}"
         sig = etree.SubElement(evento, ds + "Signature", nsmap={None: NS_DS})
         si = etree.SubElement(sig, ds + "SignedInfo")
@@ -171,7 +182,7 @@ def assinar_evento(xml_evento: str, chave_privada, certificado) -> str:
         etree.SubElement(trs, ds + "Transform", Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315")
         etree.SubElement(ref, ds + "DigestMethod", Algorithm="http://www.w3.org/2000/09/xmldsig#sha1")
         etree.SubElement(ref, ds + "DigestValue").text = digest
-        valor = chave_privada.sign(etree.tostring(si, method="c14n"), padding.PKCS1v15(), hashes.SHA1())
+        valor = chave_privada.sign(_c14n(si), padding.PKCS1v15(), hashes.SHA1())
         etree.SubElement(sig, ds + "SignatureValue").text = base64.b64encode(valor).decode()
         x509 = etree.SubElement(etree.SubElement(sig, ds + "KeyInfo"), ds + "X509Data")
         der = certificado.public_bytes(serialization.Encoding.DER)

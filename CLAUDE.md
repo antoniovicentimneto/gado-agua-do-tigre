@@ -327,7 +327,8 @@ de cada animal. Serviço: `app/services/manejos.py`.
   Operação 210210 assinado (XMLDSig RSA-SHA1/C14N com lxml). Exige e-CPF/e-CNPJ A1 do próprio
   documento. Limite da SEFAZ: 1 consulta/hora (cStat 137/656 → `pode_consultar_apos`) — vale só pra busca
   de NOVAS (distNSU); a Ciência e o XML por chave (`_completar`) rodam a cada clique, então nota que
-  veio só com resumo baixa inteira sem esperar. Recusa da Ciência (cStat/xMotivo) fica em `ultimo_retorno`. Só NF-e
+  veio só com resumo baixa inteira sem esperar. Recusa da Ciência (cStat/xMotivo) fica em `ultimo_retorno`. **C14N:** usar `_c14n()` (reparse do
+  trecho); `tostring(el, method="c14n")` direto põe `xmlns=""` no descEvento → rejeição 297. Só NF-e
   modelo 55; NFC-e e NFS-e não vêm. Testado só com SEFAZ simulada (`transporte` trocado nos
   testes) — o primeiro uso real precisa ser acompanhado. Chave de criptografia: `FIN_CHAVE` no
   .env (sem ela usa o AUTH_SECRET; trocar obriga a reenviar os certificados).

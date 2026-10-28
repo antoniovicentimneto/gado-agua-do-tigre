@@ -178,10 +178,17 @@ def test_evento_ciencia_assinado_confere():
     assert inf.get("Id") == f"ID210210{CHAVE}01"
     assert raiz.find(".//n:CPF", ns).text == CPF
     digest = raiz.find(".//d:DigestValue", ns).text
-    assert digest == base64.b64encode(sha1(etree.tostring(inf, method="c14n")).digest()).decode()
-    si = raiz.find(".//d:SignedInfo", ns)
-    assinatura = base64.b64decode(raiz.find(".//d:SignatureValue", ns).text)
-    cert.public_key().verify(assinatura, etree.tostring(si, method="c14n"), padding.PKCS1v15(), hashes.SHA1())
+    # Confere como a SEFAZ: no XML que vai no SOAP, canonizando o infEvento por conta própria
+    # (o C14N do libxml2 num pedaço da árvore punha xmlns="" no descEvento -> rejeição 297).
+    soap = etree.fromstring(fin_sefaz._envelope(f"<nfeDadosMsg>{assinado}</nfeDadosMsg>").encode())
+    inf_soap = soap.find(".//n:infEvento", ns)
+    c14n = etree.tostring(inf_soap, method="c14n", exclusive=True)
+    assert b'xmlns=""' not in c14n
+    assert digest == base64.b64encode(sha1(c14n).digest()).decode()
+    si = soap.find(".//d:SignedInfo", ns)
+    assinatura = base64.b64decode(soap.find(".//d:SignatureValue", ns).text)
+    cert.public_key().verify(assinatura, etree.tostring(si, method="c14n", exclusive=True),
+                             padding.PKCS1v15(), hashes.SHA1())
 
 
 def _soap(corpo):
