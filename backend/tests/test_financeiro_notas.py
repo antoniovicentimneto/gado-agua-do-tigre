@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models_financeiro import FinContribuinte, FinLancamento, FinNota
-from app.services.fin_plano import agora_utc
+from app.services.fin_plano import ErroFinanceiro, agora_utc
 from app.services import fin_cripto, fin_extrato, fin_lancamentos, fin_nfe_xml, fin_notas, fin_plano, fin_sefaz
 
 CHAVE = "41261012345678000195550010000123451000123456"
@@ -123,6 +123,21 @@ def test_lancar_nota_dividida_e_aprender(fdb):
     fdb.commit()
     sug = fin_notas.detalhe(fdb, outra.id)["sugestao"]
     assert [s["categoria"] for s in sug["itens"]] == ["Minerais", "Cercas"]
+
+
+def test_partes_por_centro_de_custo_sem_categoria(fdb):
+    nota = fin_notas.guardar_nota(fdb, nfe_xml())
+    fdb.commit()
+    with pytest.raises(ErroFinanceiro):  # parte sem grupo
+        fin_notas.lancar(fdb, nota.id, {"partes": [
+            {"itens": [1], "fazenda": "Água do Tigre", "setor": "Pecuária", "grupo": "Alimentos"},
+            {"itens": [2], "fazenda": "Castro", "setor": "Sede"}]}, "Letícia")
+    fin_notas.lancar(fdb, nota.id, {"partes": [
+        {"itens": [1], "fazenda": "Água do Tigre", "setor": "Pecuária", "grupo": "Alimentos"},
+        {"itens": [2], "fazenda": "Castro", "setor": "Sede", "grupo": "Gastos gerais"}]}, "Letícia")
+    lancs = fdb.scalars(select(FinLancamento).order_by(FinLancamento.valor_total.desc())).all()
+    assert [(lc.fazenda, lc.grupo, lc.categoria, lc.revisar) for lc in lancs] == [
+        ("Água do Tigre", "Alimentos", None, False), ("Castro", "Gastos gerais", None, False)]
 
 
 def test_nota_ja_lancada_a_mao_nao_volta_pra_caixa(fdb):

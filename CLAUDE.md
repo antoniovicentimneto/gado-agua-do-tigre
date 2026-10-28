@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=79 / cache v71.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=80 / cache v72.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -332,6 +332,10 @@ de cada animal. Serviço: `app/services/manejos.py`.
   modelo 55; NFC-e e NFS-e não vêm. Testado só com SEFAZ simulada (`transporte` trocado nos
   testes) — o primeiro uso real precisa ser acompanhado. Chave de criptografia: `FIN_CHAVE` no
   .env (sem ela usa o AUTH_SECRET; trocar obriga a reenviar os certificados).
+- **Nota dividida em partes** (centros de custo): botão "✂ Dividir em partes" na nota; cartões Parte A/B/C
+  (fazenda/setor/grupo, categoria opcional) e botões A/B/C em cada produto. Abre já dividida se os produtos
+  já foram lançados em grupos diferentes. Cada parte = 1 lançamento; frete/desconto/parcelas rateados pelo
+  valor dos itens (`fin_notas.lancar`, que valida todas as partes antes de criar).
 - Upload (certificado, planilha, XML, OFX) não vai pro log de auditoria (`(arquivo enviado)`).
 - **Planilha antiga** (`fin_consipa.ler_planilha_antiga/combinar`): lê qualquer aba com o
   cabeçalho da CONSIPA achando as colunas pelo NOME (versões antigas não têm FAZENDA); "VALOR

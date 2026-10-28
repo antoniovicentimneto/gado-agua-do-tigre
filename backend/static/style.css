@@ -1087,3 +1087,10 @@ body.pt-com-barra .pt-toast { bottom: 250px; }
 .fg-valor { font-size: 0.8rem; text-align: right; color: var(--texto); }
 .fg-dica { position: fixed; z-index: 30; background: #263238; color: #fff; padding: 8px 10px; border-radius: 8px;
   font-size: 0.8rem; pointer-events: none; max-width: 220px; }
+
+/* ---- Financeiro › nota dividida em partes (centros de custo) */
+.nl-parte { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: #fff; }
+.nl-parte-topo { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.nl-parte-btns { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.nl-mini { min-width: 34px; padding: 4px 8px; font-size: 0.85rem; background: #fff; color: var(--verde); border: 1px solid var(--verde); }
+.nl-mini.ativa { background: var(--verde); color: #fff; }

@@ -125,7 +125,8 @@ def dict_nota(db: Session, nota: FinNota, com_sugestao: bool = False) -> dict:
     out = {"id": nota.id, "chave": nota.chave, "origem": nota.origem, "situacao": nota.situacao,
            "emitente_doc": nota.emitente_doc, "emitente_nome": nota.emitente_nome, "numero": nota.numero,
            "data_emissao": nota.data_emissao.isoformat() if nota.data_emissao else None,
-           "valor": nota.valor, "completa": bool(nota.xml), "ciencia": nota.ciencia_em is not None, "lancamento_id": nota.lancamento_id,
+           "valor": nota.valor, "completa": bool(nota.xml), "ciencia": nota.ciencia_em is not None,
+           "lancamento_id": nota.lancamento_id,
            "contribuinte_id": nota.contribuinte_id,
            "recebida_em": iso_utc(nota.recebida_em)}
     if com_sugestao:
@@ -190,12 +191,16 @@ def lancar(db: Session, nota_id: int, dados: dict, usuario: str) -> dict:
         raise ErroFinanceiro("Cada item da nota precisa estar em uma (e só uma) das partes")
     totais = _ratear(valores_partes, total_nota)
 
+    # Categoria é opcional (decisão do Antonio); setor e grupo — o centro de custo — não.
+    # Confere TODAS as partes antes de criar qualquer lançamento.
+    for parte in partes:
+        if not (parte.get("setor") or dados.get("setor")) or not (parte.get("grupo") or dados.get("grupo")):
+            raise ErroFinanceiro("Escolha o setor e o grupo" + (" de todas as partes" if len(partes) > 1 else ""))
+
     forn = lanc_svc.achar_ou_criar_fornecedor(db, dados.get("fornecedor_nome") or nota.emitente_nome,
                                               nota.emitente_doc)
     criados = []
     for parte, total_parte in zip(partes, totais):
-        if not parte.get("categoria"):
-            raise ErroFinanceiro("Escolha a categoria (todas as partes)")
         valores = _ratear([float(p.get("valor") or 0) for p in parcelas], total_parte)
         descr = parte.get("descricao") or dados.get("descricao") or _descricao_itens(parte.get("itens"), itens)
         lanc = lanc_svc.criar(db, {
@@ -230,6 +235,8 @@ def _aprender(db: Session, doc: str, parte: dict, itens: list[dict], inteira: bo
         for c in CAMPOS_CLASSE:
             if parte.get(c):
                 setattr(r, c, parte.get(c))
+        if parte.get("grupo") and not parte.get("categoria"):
+            r.categoria = None  # mudou o grupo sem categoria: não deixa a categoria antiga de outro grupo
         r.vezes = (r.vezes or 0) + 1
         db.add(r)
         db.flush()

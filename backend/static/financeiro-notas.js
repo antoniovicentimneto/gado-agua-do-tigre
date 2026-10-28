@@ -128,16 +128,19 @@ async function finAbrirNota(id, alvoTela) {
         : "A SEFAZ ainda não registrou a ciência desta nota — veja o motivo em Cadastros › CPF/CNPJ (último retorno)."}
         Dá pra lançar já pelo total, se preferir.</div>` : ""}
       ${geral.origem ? `<div class="fin-sugestao">✨ Sugestão: <b>${esc(geral.categoria)}</b> — ${esc(geral.origem)}</div>` : ""}
-      ${podeDividir ? `<label class="check"><input type="checkbox" id="nl-dividir"> Dividir por produto (cada um numa categoria)</label>` : ""}
+      ${podeDividir ? `<button type="button" id="nl-dividir" class="secundario">✂ Dividir em partes (um centro de custo pra cada)</button>` : ""}
       <div id="nl-geral">${finHtmlClasse("nl", base)}</div>
+      <div id="nl-partes" class="escondido">
+        <div class="info">Cada parte vira um lançamento com o seu centro de custo (fazenda, setor e grupo — categoria é opcional).
+          Marque abaixo, em cada produto, a parte dele. Frete, desconto e parcelas da nota são repartidos pelo valor dos produtos.</div>
+        <div id="nl-partes-lista"></div>
+        <button type="button" id="nl-mais-parte" class="secundario">+ parte</button>
+      </div>
       ${n.itens && n.itens.length ? `<div class="fin-secao"><h3>Produtos</h3><div class="fin-tabela"><table>
-        <thead><tr><th>Produto</th><th class="num">Qtde</th><th class="num">Valor</th><th class="nl-col-cat escondido">Categoria</th></tr></thead>
-        <tbody>${n.itens.map((it, i) => {
-          const s = (sug.itens || [])[i];
-          return `<tr><td>${esc(it.descricao || "")} <span class="info">NCM ${esc(it.ncm || "—")}</span></td>
+        <thead><tr><th>Produto</th><th class="num">Qtde</th><th class="num">Valor</th><th class="nl-col-parte escondido">Parte</th></tr></thead>
+        <tbody>${n.itens.map((it) => `<tr><td>${esc(it.descricao || "")} <span class="info">NCM ${esc(it.ncm || "—")}</span></td>
             <td class="num">${(it.qtde || 0).toLocaleString("pt-BR")} ${esc(it.unidade || "")}</td><td class="num">${finBRL(it.valor)}</td>
-            <td class="nl-col-cat escondido"><select class="nl-item-cat" data-n="${it.n}" data-sug="${esc(s ? JSON.stringify(s) : "")}"></select></td></tr>`;
-        }).join("")}</tbody></table></div></div>` : ""}
+            <td class="nl-col-parte escondido"><span class="nl-parte-btns" data-n="${it.n}"></span></td></tr>`).join("")}</tbody></table></div></div>` : ""}
       <div class="fin-grid">
         <div><label>Conta (banco/cartão)</label><select id="nl-conta">${finOpcoes(finAtivos(fin.cad.contas).map((c) => c.nome), geral.conta)}</select></div>
         <div><label>Forma de pagamento</label><select id="nl-forma">${finOpcoes(["Pix", "Boleto", "Cartão de crédito", "Cartão de débito", "Dinheiro", "Transferência", "Débito automático", "Cheque", "Outros"], n.forma_pagamento)}</select></div>
@@ -168,23 +171,64 @@ async function finAbrirNota(id, alvoTela) {
       parc.push({ vencimento: finSomarMeses(ult ? ult.vencimento : hojeLocal(), 1), valor: 0 });
       desenharParc();
     };
-    // Selects de categoria por produto (dividir): "Setor › Grupo › Categoria" do plano.
-    const opcoesPlano = fin.cad.plano.filter((p) => p.tipo === "despesa" && p.ativo !== false);
-    const rotuloPlano = (p) => `${p.categoria} (${p.setor} › ${p.grupo})`;
-    corpo.querySelectorAll(".nl-item-cat").forEach((sel) => {
-      const s = sel.dataset.sug ? JSON.parse(sel.dataset.sug) : null;
-      sel.innerHTML = `<option value="">— escolha —</option>` + opcoesPlano.map((p) =>
-        `<option value="${p.id}" ${s && s.categoria === p.categoria && s.setor === p.setor && s.grupo === p.grupo ? "selected" : ""}>${esc(rotuloPlano(p))}</option>`).join("");
-    });
+    // ---- Dividir em partes (centros de custo): cartões Parte A/B/C + botões A/B/C em cada produto.
+    const LETRAS = "ABCDEF";
+    const partesUI = [];          // [{classe}] — classe = seletores fazenda/setor/grupo/categoria da parte
+    const itemParte = {};         // n do produto -> índice da parte
+    let dividindo = false;
+    const somaItens = (n.itens || []).reduce((s, it) => s + (it.valor || 0), 0) || n.valor;
+    const desenharBotoes = () => {
+      corpo.querySelectorAll(".nl-parte-btns").forEach((box) => {
+        const nItem = Number(box.dataset.n);
+        box.innerHTML = partesUI.map((_, i) => `<button type="button" class="nl-mini ${itemParte[nItem] === i ? "ativa" : ""}"
+          data-i="${i}" title="Parte ${LETRAS[i]}">${LETRAS[i]}</button>`).join("");
+        box.querySelectorAll("button").forEach((b) => {
+          b.onclick = () => { itemParte[nItem] = Number(b.dataset.i); desenharBotoes(); };
+        });
+      });
+      // total de cada parte (já com frete/desconto da nota repartidos)
+      partesUI.forEach((_, i) => {
+        const v = (n.itens || []).filter((it) => itemParte[it.n] === i).reduce((s, it) => s + (it.valor || 0), 0);
+        const el = corpo.querySelector(`#nl-parte-${i} .nl-parte-total`);
+        if (el) el.textContent = `${finBRL(v * n.valor / somaItens)} · ${(n.itens || []).filter((it) => itemParte[it.n] === i).length} produto(s)`;
+      });
+    };
+    const novaParte = (classe0) => {
+      const i = partesUI.length;
+      if (i >= LETRAS.length) return;
+      $("#nl-partes-lista").insertAdjacentHTML("beforeend", `<div class="nl-parte" id="nl-parte-${i}">
+        <div class="nl-parte-topo"><b>Parte ${LETRAS[i]}</b> <span class="info nl-parte-total"></span></div>
+        ${finHtmlClasse(`nlp${i}`, classe0)}</div>`);
+      partesUI.push({ classe: finLigarClasse(corpo, `nlp${i}`, () => "despesa", classe0) });
+      desenharBotoes();
+    };
     const div = $("#nl-dividir");
     if (div) {
-      div.onchange = () => {
-        corpo.querySelectorAll(".nl-col-cat").forEach((el) => el.classList.toggle("escondido", !div.checked));
-        $("#nl-geral").querySelectorAll("#nl-setor, #nl-grupo, #nl-categoria").forEach((el) => { el.closest("div").classList.toggle("escondido", div.checked); });
+      const ligarDivisao = (ligar) => {
+        dividindo = ligar;
+        div.textContent = ligar ? "↩ Não dividir (nota inteira num centro de custo)" : "✂ Dividir em partes (um centro de custo pra cada)";
+        $("#nl-geral").classList.toggle("escondido", ligar);
+        $("#nl-partes").classList.toggle("escondido", !ligar);
+        corpo.querySelectorAll(".nl-col-parte").forEach((el) => el.classList.toggle("escondido", !ligar));
+        if (ligar && !partesUI.length) {
+          // Abre com as classificações que esses produtos já tiveram; senão A = a da nota e B vazia.
+          const chaves = [];
+          (n.itens || []).forEach((it, k) => {
+            const s = (sug.itens || [])[k];
+            const ch = s ? `${s.fazenda || ""}|${s.setor}|${s.grupo}|${s.categoria || ""}` : null;
+            if (ch && !chaves.includes(ch) && chaves.length < LETRAS.length) { chaves.push(ch); novaParte({ ...base, ...s }); }
+            itemParte[it.n] = ch ? chaves.indexOf(ch) : 0;
+          });
+          if (!partesUI.length) novaParte({ ...base, ...classe.valores() });
+          if (partesUI.length < 2) novaParte({ fazenda: base.fazenda });
+          desenharBotoes();
+        }
       };
-      // Produtos que já foram lançados em categorias diferentes: já abre dividido.
-      const cats = new Set((sug.itens || []).filter(Boolean).map((s) => `${s.setor}|${s.grupo}|${s.categoria}`));
-      if (cats.size > 1) { div.checked = true; div.onchange(); }
+      div.onclick = () => ligarDivisao(!dividindo);
+      $("#nl-mais-parte").onclick = () => novaParte({ fazenda: base.fazenda });
+      // Produtos que já foram lançados em centros de custo diferentes: já abre dividido.
+      const grupos = new Set((sug.itens || []).filter(Boolean).map((s) => `${s.setor}|${s.grupo}`));
+      if (grupos.size > 1) ligarDivisao(true);
     }
     const ver = $("#nl-ver");
     if (ver) ver.onclick = () => finAbrirLancamento(n.lancamento_id);
@@ -201,17 +245,17 @@ async function finAbrirNota(id, alvoTela) {
       ev.preventDefault();
       const v = classe.valores();
       let partes;
-      if (div && div.checked) {
-        const grupos = {};
-        for (const sel of corpo.querySelectorAll(".nl-item-cat")) {
-          const p = opcoesPlano.find((x) => String(x.id) === sel.value);
-          if (!p) { finMsg("Escolha a categoria de todos os produtos", true); sel.focus(); return; }
-          const k = p.id;
-          (grupos[k] = grupos[k] || { tipo: "despesa", fazenda: v.fazenda, setor: p.setor, grupo: p.grupo, categoria: p.categoria, itens: [] }).itens.push(Number(sel.dataset.n));
+      if (dividindo) {
+        partes = [];
+        for (let i = 0; i < partesUI.length; i++) {
+          const itens = (n.itens || []).filter((it) => itemParte[it.n] === i).map((it) => it.n);
+          if (!itens.length) continue;  // parte sem produto: ignora
+          const pv = partesUI[i].classe.valores();
+          if (!pv.setor || !pv.grupo) { finMsg(`Parte ${LETRAS[i]}: escolha o setor e o grupo`, true); return; }
+          partes.push({ tipo: "despesa", ...pv, itens });
         }
-        partes = Object.values(grupos);
       } else {
-        if (!v.categoria) { finMsg("Escolha a categoria", true); return; }
+        if (!v.setor || !v.grupo) { finMsg("Escolha o setor e o grupo", true); return; }
         partes = [{ tipo: base.tipo, ...v }];
       }
       const dados = { fazenda: v.fazenda, conta: $("#nl-conta").value || null, forma_pagamento: $("#nl-forma").value || null,
