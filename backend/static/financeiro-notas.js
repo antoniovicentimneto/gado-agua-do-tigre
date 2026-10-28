@@ -63,10 +63,15 @@ async function finBuscarSefaz(alvo, botao, silencioso = false) {
     const r = await api.post("/api/fin/notas/buscar-sefaz", {});
     finNotas.contribuintes = await api.get("/api/fin/contribuintes");
     const novas = r.reduce((s, x) => s + (x.novas || 0), 0);
+    const completas = r.reduce((s, x) => s + (x.completas || 0), 0);
+    const faltam = r.reduce((s, x) => s + (x.faltam || 0), 0);
     const erros = r.filter((x) => !x.ok);
-    if (!silencioso || novas || erros.length) {
-      finMsg(r.length ? `${novas} nota(s) nova(s)${erros.length ? " · " + erros.map((x) => x.mensagem).join("; ") : ""}`
-        : "A SEFAZ só deixa consultar 1 vez por hora — tente mais tarde", !!erros.length);
+    const avisos = r.filter((x) => x.ok && /recusad|não liberado|esperar/i.test(x.resumo || "")).map((x) => x.resumo);
+    if (!silencioso || novas || completas || erros.length || avisos.length) {
+      finMsg(r.length ? `${novas} nota(s) nova(s) · ${completas} XML completo(s) baixado(s)` +
+        (faltam ? ` · ${faltam} ainda só com o resumo` : "") +
+        ([...erros.map((x) => x.mensagem), ...avisos].length ? " · " + [...erros.map((x) => x.mensagem), ...avisos].join("; ") : "")
+        : "A SEFAZ só deixa buscar notas novas 1 vez por hora — tente mais tarde", !!(erros.length || avisos.length));
     }
     if (document.getElementById("fn-lista")) {
       const status = alvo.querySelector("#fn-status");
@@ -118,7 +123,10 @@ async function finAbrirNota(id, alvoTela) {
           : `<button type="button" id="nl-ignorar" class="secundario">${n.situacao === "ignorada" ? "Voltar pra caixa" : "Ignorar"}</button>
              <button type="submit" id="nl-lancar">Lançar</button>`}</div></div>
       <div class="info">Nota ${esc(n.numero || "—")} · emitida em ${finData(n.data_emissao)} · ${finFmtDoc(n.emitente_doc)} · chave ${esc(n.chave)}</div>
-      ${!n.completa ? `<div class="fin-alerta">Chegou só o resumo desta nota. A ciência já foi enviada à SEFAZ e o XML completo (itens e vencimentos) chega na próxima busca. Dá pra lançar já pelo total, se preferir.</div>` : ""}
+      ${!n.completa ? `<div class="fin-alerta">Chegou só o resumo desta nota. ${n.ciencia
+        ? "A ciência já foi registrada na SEFAZ; o XML completo (itens e vencimentos) baixa no próximo “Buscar na SEFAZ” — não precisa esperar 1 hora pra isso."
+        : "A SEFAZ ainda não registrou a ciência desta nota — veja o motivo em Cadastros › CPF/CNPJ (último retorno)."}
+        Dá pra lançar já pelo total, se preferir.</div>` : ""}
       ${geral.origem ? `<div class="fin-sugestao">✨ Sugestão: <b>${esc(geral.categoria)}</b> — ${esc(geral.origem)}</div>` : ""}
       ${podeDividir ? `<label class="check"><input type="checkbox" id="nl-dividir"> Dividir por produto (cada um numa categoria)</label>` : ""}
       <div id="nl-geral">${finHtmlClasse("nl", base)}</div>
@@ -384,7 +392,7 @@ async function finCadCpf(box) {
     if (b) {
       b.onclick = () => finOcupado(b, "Buscando…", async () => {
         const r = await api.post(`/api/fin/contribuintes/${id}/buscar`, {});
-        finMsg(r.ok ? `✔ ${r.novas} nota(s) nova(s) — veja em Notas` : r.mensagem, !r.ok);
+        finMsg(r.ok ? `✔ ${r.novas} nota(s) nova(s), ${r.completas || 0} XML completo(s) — ${r.resumo || ""}` : r.mensagem, !r.ok);
         finCadCpf(box);
       });
     }

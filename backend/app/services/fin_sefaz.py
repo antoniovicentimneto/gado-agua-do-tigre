@@ -9,6 +9,9 @@ Fluxo (NT 2014.002 — NFeDistribuicaoDFe + Manifestação do Destinatário):
 
 Exige certificado digital A1 (e-CPF ou e-CNPJ) do próprio CPF/CNPJ consultado.
 Regra da SEFAZ: sem documento novo (cStat 137) ou consumo indevido (656) -> esperar 1 h.
+A espera vale só para a busca de documentos NOVOS (distNSU). A Ciência e a busca do XML
+completo pela chave continuam rodando a cada clique — assim as notas que chegaram só com o
+resumo baixam inteiras sem esperar a próxima hora.
 """
 from __future__ import annotations
 
@@ -46,6 +49,10 @@ CODIGOS_UF = {"RO": "11", "AC": "12", "AM": "13", "RR": "14", "PA": "15", "AP": 
               "SC": "42", "RS": "43", "MS": "50", "MT": "51", "GO": "52", "DF": "53"}
 ESPERA = timedelta(hours=1, minutes=5)  # a SEFAZ pede 1 h; 5 min de folga
 MAX_LOTES_POR_CONSULTA = 20  # 20 x 50 = até 1000 documentos por vez
+# Durante a espera de 1 h, completar (ciência + XML por chave) no máximo a cada 5 min — a tela
+# de Notas busca sozinha ao abrir e, sem freio, viraria "consumo indevido" (656).
+INTERVALO_COMPLETAR = timedelta(minutes=5)
+_ultimo_completar: dict[int, datetime] = {}
 
 
 class ErroSefaz(Exception):
@@ -222,13 +229,25 @@ def pode_consultar(c: FinContribuinte, agora: datetime | None = None) -> bool:
     return c.pode_consultar_apos is None or agora >= c.pode_consultar_apos
 
 
+def _pendentes_xml(db: Session, c: FinContribuinte) -> int:
+    return len(db.scalars(select(FinNota.id).where(FinNota.contribuinte_id == c.id,
+                                                   FinNota.xml.is_(None))).all())
+
+
 def sincronizar(db: Session, c: FinContribuinte, forcar_espera: bool = True) -> dict:
-    """Uma rodada completa: baixa documentos novos, dá ciência e busca os XML completos."""
+    """Uma rodada completa: baixa documentos novos, dá ciência e busca os XML completos.
+    Durante a espera de 1 h da SEFAZ, pula só a busca de novos e completa as pendentes."""
     agora = agora_utc()
+    chave_priv, cert, pem_cert, pem_chave = _credenciais(c)
     if forcar_espera and not pode_consultar(c, agora):
         falta = int((c.pode_consultar_apos - agora).total_seconds() // 60) + 1
-        return {"ok": False, "mensagem": f"A SEFAZ só deixa consultar de novo daqui a {falta} min", "novas": 0}
-    chave_priv, cert, pem_cert, pem_chave = _credenciais(c)
+        aviso = f"Notas novas: a SEFAZ só deixa buscar de novo daqui a {falta} min"
+        ultimo = _ultimo_completar.get(c.id)
+        if not _pendentes_xml(db, c) or (ultimo and agora - ultimo < INTERVALO_COMPLETAR):
+            return {"ok": False, "mensagem": aviso, "novas": 0}
+        _ultimo_completar[c.id] = agora
+        extra = _completar(db, c, chave_priv, cert, pem_cert, pem_chave)
+        return {"ok": True, "novas": 0, **extra, "mensagem": f"{aviso}. {extra['resumo']}"}
     url = URLS[c.ambiente]
     novas = 0
     ult = c.ult_nsu or "0"
@@ -255,11 +274,34 @@ def sincronizar(db: Session, c: FinContribuinte, forcar_espera: bool = True) -> 
     if cstat not in ("137", "138"):
         raise ErroSefaz(f"SEFAZ: {c.ultimo_retorno}")
 
-    ciencias = _dar_ciencia(db, c, chave_priv, cert, pem_cert, pem_chave)
-    completas = _buscar_completas(db, c, pem_cert, pem_chave)
+    extra = _completar(db, c, chave_priv, cert, pem_cert, pem_chave)
+    return {"ok": True, "novas": novas, **extra, "mensagem": f"{c.ultimo_retorno}. {extra['resumo']}"}
+
+
+def _completar(db: Session, c: FinContribuinte, chave_priv, cert, pem_cert, pem_chave) -> dict:
+    """Ciência + XML completo das notas que só têm o resumo. Erro aqui não perde o que já
+    foi baixado: vira aviso na tela (e fica gravado em "último retorno")."""
+    avisos = []
+    ciencias = completas = 0
+    try:
+        ciencias, aviso = _dar_ciencia(db, c, chave_priv, cert, pem_cert, pem_chave)
+        if aviso:
+            avisos.append(aviso)
+        db.commit()
+        completas, aviso = _buscar_completas(db, c, pem_cert, pem_chave)
+        if aviso:
+            avisos.append(aviso)
+    except ErroSefaz as e:
+        avisos.append(str(e))
+    faltam = _pendentes_xml(db, c)
+    resumo = f"{completas} nota(s) baixada(s) completas"
+    if faltam:
+        resumo += f"; {faltam} ainda só com o resumo"
+    if avisos:
+        resumo += " — " + " | ".join(avisos)
+    c.ultimo_retorno = f"{(c.ultimo_retorno or '').split(' || ')[0]} || {resumo}"[:300]
     db.commit()
-    return {"ok": True, "novas": novas, "ciencias": ciencias, "completas": completas,
-            "mensagem": c.ultimo_retorno}
+    return {"ciencias": ciencias, "completas": completas, "faltam": faltam, "resumo": resumo}
 
 
 def _chave_do_doc(xml: str) -> str | None:
@@ -274,35 +316,58 @@ def _chave_do_doc(xml: str) -> str | None:
     return (inf.get("Id") or "").replace("NFe", "") if inf is not None else None
 
 
-def _dar_ciencia(db: Session, c: FinContribuinte, chave_priv, cert, pem_cert, pem_chave) -> int:
-    pendentes = db.scalars(select(FinNota).where(FinNota.contribuinte_id == c.id, FinNota.xml.is_(None),
-                                                 FinNota.ciencia_em.is_(None)).limit(20)).all()
-    if not pendentes:
-        return 0
-    assinado = assinar_evento(xml_ciencia(c, [n.chave for n in pendentes]), chave_priv, cert)
-    corpo = f'<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">{assinado}</nfeDadosMsg>'
-    texto = transporte(URLS[c.ambiente]["evento"], _envelope(corpo), ACAO_EVENTO, pem_cert, pem_chave)
-    ret = _resposta(texto, "retEnvEvento")
-    por_chave = {n.chave: n for n in pendentes}
+def _dar_ciencia(db: Session, c: FinContribuinte, chave_priv, cert, pem_cert, pem_chave) -> tuple[int, str | None]:
+    """Manda a Ciência da Operação (até 20 notas por lote, várias rodadas). Devolve quantas
+    a SEFAZ registrou e, se recusou alguma, o motivo (cStat - xMotivo) pra mostrar na tela."""
     ok = 0
-    for r in ret.iter(f"{{{NS_NFE}}}infEvento"):
-        # 135/136 = registrado; 573 = já tinha ciência (duplicidade)
-        if _txt(r, "cStat") in ("135", "136", "573") and _txt(r, "chNFe") in por_chave:
-            por_chave[_txt(r, "chNFe")].ciencia_em = agora_utc()
-            ok += 1
-    return ok
+    recusas: dict[str, int] = {}
+    tentadas: set[str] = set()  # recusadas nesta rodada: não reenviar
+    for _ in range(5):
+        pendentes = db.scalars(select(FinNota).where(FinNota.contribuinte_id == c.id, FinNota.xml.is_(None),
+                                                     FinNota.ciencia_em.is_(None))
+                               .where(FinNota.chave.not_in(list(tentadas) or [""]))
+                               .limit(20)).all()
+        if not pendentes:
+            break
+        assinado = assinar_evento(xml_ciencia(c, [n.chave for n in pendentes]), chave_priv, cert)
+        corpo = f'<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">{assinado}</nfeDadosMsg>'
+        texto = transporte(URLS[c.ambiente]["evento"], _envelope(corpo), ACAO_EVENTO, pem_cert, pem_chave)
+        ret = _resposta(texto, "retEnvEvento")
+        lote = _txt(ret, "cStat")
+        if lote and lote not in ("128",):  # 128 = lote processado; outro = recusou o lote inteiro
+            return ok, f"Ciência recusada pela SEFAZ: {lote} - {_txt(ret, 'xMotivo')}"
+        por_chave = {n.chave: n for n in pendentes}
+        recusadas_agora = set(por_chave)
+        for r in ret.iter(f"{{{NS_NFE}}}infEvento"):
+            cst, ch = _txt(r, "cStat"), _txt(r, "chNFe")
+            # 135/136 = registrado; 573 = já tinha ciência (duplicidade)
+            if cst in ("135", "136", "573") and ch in por_chave:
+                por_chave[ch].ciencia_em = agora_utc()
+                recusadas_agora.discard(ch)
+                ok += 1
+            elif cst:
+                motivo = f"{cst} - {_txt(r, 'xMotivo')}"
+                recusas[motivo] = recusas.get(motivo, 0) + 1
+        tentadas.update(recusadas_agora)
+        db.flush()
+    aviso = None
+    if recusas:
+        aviso = "Ciência recusada: " + "; ".join(f"{m} ({n})" for m, n in recusas.items())
+    return ok, aviso
 
 
-def _buscar_completas(db: Session, c: FinContribuinte, pem_cert, pem_chave) -> int:
+def _buscar_completas(db: Session, c: FinContribuinte, pem_cert, pem_chave) -> tuple[int, str | None]:
     """Pede pela chave o XML das notas que já têm ciência mas ainda não chegaram completas."""
     pendentes = db.scalars(select(FinNota).where(FinNota.contribuinte_id == c.id, FinNota.xml.is_(None),
-                                                 FinNota.ciencia_em.is_not(None)).limit(10)).all()
+                                                 FinNota.ciencia_em.is_not(None)).limit(20)).all()
     ok = 0
+    aviso = None
     for n in pendentes:
         try:
             ret = ler_dist(transporte(URLS[c.ambiente]["dist"], xml_cons_chave(c, n.chave), ACAO_DIST,
                                       pem_cert, pem_chave))
-        except ErroSefaz:
+        except ErroSefaz as e:
+            aviso = str(e)
             break
         for d in ret["docs"]:
             if d["schema"].startswith("procNFe"):
@@ -310,8 +375,12 @@ def _buscar_completas(db: Session, c: FinContribuinte, pem_cert, pem_chave) -> i
                 ok += 1
         if ret["cStat"] == "656":
             c.pode_consultar_apos = agora_utc() + ESPERA
+            aviso = "SEFAZ pediu pra esperar 1 h (consumo indevido) antes de baixar mais XML"
             break
-    return ok
+        if ret["cStat"] not in ("138",) and not aviso:
+            # ex.: 632 = XML ainda não disponível logo após a ciência — tenta na próxima busca
+            aviso = f"XML completo ainda não liberado: {ret['cStat']} - {ret['xMotivo']}"
+    return ok, aviso
 
 
 def sincronizar_todos(db: Session) -> list[dict]:
@@ -319,7 +388,8 @@ def sincronizar_todos(db: Session) -> list[dict]:
     saida = []
     for c in db.scalars(select(FinContribuinte).where(FinContribuinte.ativo.is_(True),
                                                       FinContribuinte.cert_pfx.is_not(None))):
-        if not pode_consultar(c):
+        # Na espera de 1 h, só segue se houver nota pendente de XML (sincronizar completa ela).
+        if not pode_consultar(c) and not _pendentes_xml(db, c):
             continue
         try:
             saida.append({"documento": c.documento, **sincronizar(db, c)})

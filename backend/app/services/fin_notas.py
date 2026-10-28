@@ -125,7 +125,7 @@ def dict_nota(db: Session, nota: FinNota, com_sugestao: bool = False) -> dict:
     out = {"id": nota.id, "chave": nota.chave, "origem": nota.origem, "situacao": nota.situacao,
            "emitente_doc": nota.emitente_doc, "emitente_nome": nota.emitente_nome, "numero": nota.numero,
            "data_emissao": nota.data_emissao.isoformat() if nota.data_emissao else None,
-           "valor": nota.valor, "completa": bool(nota.xml), "lancamento_id": nota.lancamento_id,
+           "valor": nota.valor, "completa": bool(nota.xml), "ciencia": nota.ciencia_em is not None, "lancamento_id": nota.lancamento_id,
            "contribuinte_id": nota.contribuinte_id,
            "recebida_em": iso_utc(nota.recebida_em)}
     if com_sugestao:

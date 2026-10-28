@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=78 / cache v70.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=79 / cache v71.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -325,7 +325,9 @@ de cada animal. Serviço: `app/services/manejos.py`.
   tela converte pra hora local (`finLocal`). Não usar `datetime.now()` aqui.
 - **SEFAZ** (`fin_sefaz.py`): NFeDistribuicaoDFe (distNSU/consChNFe) + evento Ciência da
   Operação 210210 assinado (XMLDSig RSA-SHA1/C14N com lxml). Exige e-CPF/e-CNPJ A1 do próprio
-  documento. Limite da SEFAZ: 1 consulta/hora (cStat 137/656 → `pode_consultar_apos`). Só NF-e
+  documento. Limite da SEFAZ: 1 consulta/hora (cStat 137/656 → `pode_consultar_apos`) — vale só pra busca
+  de NOVAS (distNSU); a Ciência e o XML por chave (`_completar`) rodam a cada clique, então nota que
+  veio só com resumo baixa inteira sem esperar. Recusa da Ciência (cStat/xMotivo) fica em `ultimo_retorno`. Só NF-e
   modelo 55; NFC-e e NFS-e não vêm. Testado só com SEFAZ simulada (`transporte` trocado nos
   testes) — o primeiro uso real precisa ser acompanhado. Chave de criptografia: `FIN_CHAVE` no
   .env (sem ela usa o AUTH_SECRET; trocar obriga a reenviar os certificados).

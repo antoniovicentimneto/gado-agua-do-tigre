@@ -235,6 +235,54 @@ def test_sincronizar_com_sefaz_simulada(fdb, monkeypatch):
     assert not r2["ok"] and "min" in r2["mensagem"] and len(chamadas) == antes
 
 
+def _so_resumo(fdb, c):
+    """Nota que chegou só com o resumo (sem ciência) e o contribuinte na espera de 1 h."""
+    fin_sefaz._ultimo_completar.clear()
+    fin_notas.guardar_nota(fdb, res_xml(), origem="sefaz", contribuinte_id=c.id)
+    c.pode_consultar_apos = agora_utc() + timedelta(minutes=40)
+    fdb.commit()
+
+
+def test_na_espera_de_1h_ainda_baixa_o_xml_completo(fdb, monkeypatch):
+    c = _contribuinte(fdb)
+    fin_sefaz.guardar_certificado(fdb, c, _pfx()[0], "1234")
+    _so_resumo(fdb, c)
+    chamadas = []
+
+    def falsa(url, envelope, acao, pem_cert, pem_chave):
+        chamadas.append(envelope)
+        assert "<distNSU>" not in envelope  # busca de NOVAS respeita a espera
+        if "RecepcaoEvento" in url:
+            return _soap('<retEnvEvento xmlns="http://www.portalfiscal.inf.br/nfe"><cStat>128</cStat>'
+                         f"<retEvento><infEvento><cStat>135</cStat><chNFe>{CHAVE}</chNFe></infEvento></retEvento>"
+                         "</retEnvEvento>")
+        return _ret_dist("138", "2", "2", _doczip("2", "procNFe_v4.00.xsd", nfe_xml()))
+
+    monkeypatch.setattr(fin_sefaz, "transporte", falsa)
+    r = fin_sefaz.sincronizar(fdb, c)
+    assert r["ok"] and r["completas"] == 1 and r["faltam"] == 0 and "min" in r["mensagem"]
+    assert fdb.scalar(select(FinNota).where(FinNota.chave == CHAVE)).situacao == "completa"
+    assert len(chamadas) == 2
+    # nova tentativa logo em seguida não chama a SEFAZ de novo (freio de 5 min)
+    fdb.query(FinNota).filter(FinNota.chave == CHAVE).update({"xml": None})
+    fdb.commit()
+    fin_sefaz.sincronizar(fdb, c)
+    assert len(chamadas) == 2
+
+
+def test_ciencia_recusada_mostra_o_motivo(fdb, monkeypatch):
+    c = _contribuinte(fdb)
+    fin_sefaz.guardar_certificado(fdb, c, _pfx()[0], "1234")
+    _so_resumo(fdb, c)
+    monkeypatch.setattr(fin_sefaz, "transporte", lambda url, *a: _soap(
+        '<retEnvEvento xmlns="http://www.portalfiscal.inf.br/nfe"><cStat>128</cStat><retEvento><infEvento>'
+        f"<cStat>489</cStat><xMotivo>Rejeicao: CPF invalido</xMotivo><chNFe>{CHAVE}</chNFe></infEvento>"
+        "</retEvento></retEnvEvento>"))
+    r = fin_sefaz.sincronizar(fdb, c)
+    assert r["ciencias"] == 0 and r["faltam"] == 1
+    assert "489 - Rejeicao: CPF invalido" in c.ultimo_retorno and "489" in r["mensagem"]
+
+
 def test_sefaz_consumo_indevido_vira_erro_e_espera(fdb, monkeypatch):
     c = _contribuinte(fdb)
     fin_sefaz.guardar_certificado(fdb, c, _pfx()[0], "1234")
