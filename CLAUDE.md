@@ -247,7 +247,7 @@ de cada animal. Serviço: `app/services/manejos.py`.
 - **Peso estimado** (`services/peso_estimado.py`): entre pesagens, peso = último peso + GMD ×
   dias (máx. 120 dias; passou disso = "estimativa velha"). GMD = média do uGMD do LOTE; sem
   GMD, GMD de referência por época (`ConfigValor` chave `gmd_referencia_epocas`, editável em
-  Config; padrão águas out–mar 0,5 / seca abr–set 0,2). NUNCA vira pesagem; só cálculo.
+  Config; padrão de banco novo águas out–mar 0,5 / seca abr–set 0,2; na produção, medido na balança: jul–set 0,67 / out–jun 0,33). NUNCA vira pesagem; só cálculo.
   Pastos (UA, UA/ha, kg médio) usam o estimado e mostram "~"; `peso_medio_real` também vai.
 - **Foto da ocupação** (`LotePiquete`): na entrada guarda cabeças, peso (real/estimado),
   `entrada_estimada` e os **hectares do piquete naquela data**; na saída, cabeças/peso/

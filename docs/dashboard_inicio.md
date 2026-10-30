@@ -47,9 +47,9 @@ em 30/10/2026: 390 animais ativos, 5.568 pesagens, 2.985 lançamentos financeiro
 
 ## Achados nos dados (para o Antonio decidir)
 
-- **GMD de referência parece invertido.** A Config tem águas (out–mar) 0,5 e seca (abr–set) 0,2.
-  Na balança, jul–out de 2026 deu 0,65–0,80 kg/dia e nov/25–jun/26 deu 0,18–0,30. A estimativa de
-  peso de quem não tem GMD do lote usa esses valores. Não foi alterado.
+- **GMD de referência corrigido em 30/10/2026, a pedido do Antonio.** Era águas (out–mar) 0,5 e seca
+  (abr–set) 0,2. Passou a Inverno (jul–set) 0,67 e Resto do ano (out–jun) 0,33, média medida na balança
+  de jul/2024 a out/2026. O valor antigo está no log de alterações. Vale só para lote sem GMD próprio.
 - **Ganho caiu:** 0,367 kg/dia nos últimos 12 meses contra 0,526 nos 12 anteriores. A base do ano
   anterior tem menos animais pesados até mai/2025, então a queda pode estar exagerada.
 - **Mortalidade acima do limite:** 3,3% nos últimos 12 meses (13 mortos, 1 perdido). O limite de 2%
