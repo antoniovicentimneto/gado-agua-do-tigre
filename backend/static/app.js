@@ -113,12 +113,15 @@ function estaLogado() {
 
 // ----------------------------------------------------------- Login / primeiro acesso
 const USUARIO_KEY = "gat_usuario";
+const CHAVE_ABA_ATUAL = "gat_aba_atual";
 let usuarioAtual = null;
 
 function logout(expirou) {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USUARIO_KEY);
   usuarioAtual = null;
+  try { sessionStorage.removeItem(CHAVE_ABA_ATUAL); } catch (e) { /* bloqueado */ }
+  if (window.inLimpar) window.inLimpar();
   document.getElementById("app-conteudo").classList.add("escondido");
   document.getElementById("login-form-area").classList.remove("escondido");
   document.getElementById("setup-form-area").classList.add("escondido");
@@ -132,7 +135,7 @@ function aplicarPermissoes() {
   document.getElementById("aba-btn-usuarios").classList.toggle("escondido", !ehDono);
   document.getElementById("aba-btn-config").classList.toggle("escondido", !ehDono);
   document.getElementById("aba-btn-financeiro").classList.toggle("escondido", !ehDono);
-  document.getElementById("btn-exportar").classList.toggle("escondido", !ehDono);
+  document.getElementById("in-backup").classList.toggle("escondido", !ehDono);
   // Tipos de sessão de compra/venda na mangueira são só do dono.
   document.querySelectorAll("#mg-tipo option[value=compra], #mg-tipo option[value=venda_fazenda], #mg-tipo option[value=venda_morto]")
     .forEach((o) => (o.disabled = !ehDono));
@@ -657,7 +660,9 @@ document.querySelectorAll(".abas button").forEach((b) => {
     document.querySelectorAll(".aba").forEach((x) => x.classList.remove("ativa"));
     b.classList.add("ativa");
     document.getElementById("aba-" + b.dataset.aba).classList.add("ativa");
-    if (b.dataset.aba === "painel") carregarPainel();
+    // Recarga da página (versão nova, por exemplo) volta pra mesma aba, não pra tela inicial.
+    try { sessionStorage.setItem(CHAVE_ABA_ATUAL, b.dataset.aba); } catch (e) { /* bloqueado */ }
+    if (b.dataset.aba === "inicio" && window.inAbrir) window.inAbrir();
     if (b.dataset.aba === "usuarios") carregarUsuarios();
     if (b.dataset.aba === "config") carregarConfig();
     if (b.dataset.aba === "pastos" && window.ptAbrir) window.ptAbrir();
@@ -1690,15 +1695,13 @@ async function simularVenda(id, tipo) {
 // peso avulso agora se lança na ficha do animal (Pesagens › Nova pesagem).
 const hoje = hojeLocal();
 
-// ----------------------------------------------------------- Painel
-async function carregarPainel() {
-  const d = await api.get("/api/dashboard");
-  document.getElementById("cards-painel").innerHTML = `
-    <div class="card"><div class="num">${d.total}</div><div class="rotulo">Total</div></div>
-    <div class="card"><div class="num">${d.ativos}</div><div class="rotulo">Ativos</div></div>
-    <div class="card"><div class="num">${d.vendidos}</div><div class="rotulo">Vendidos</div></div>
-    <div class="card"><div class="num">${d.gmd_medio ?? "—"}</div><div class="rotulo">GMD médio</div></div>
-    <div class="card"><div class="num">${d.pesagens}</div><div class="rotulo">Pesagens</div></div>`;
+// Abre a aba em que a pessoa estava (se a página só recarregou) ou a tela inicial.
+function abrirAbaInicial() {
+  let salva = null;
+  try { salva = sessionStorage.getItem(CHAVE_ABA_ATUAL); } catch (e) { /* bloqueado */ }
+  const botao = salva && document.querySelector(`.abas button[data-aba="${salva}"]`);
+  const permitida = botao && !botao.classList.contains("escondido");
+  (permitida ? botao : document.querySelector('.abas button[data-aba="inicio"]')).click();
 }
 
 // Mostra a tela principal do app (chamado tanto no login quanto ao restaurar
@@ -1714,6 +1717,9 @@ function mostrarApp(dadosUsuario, offline) {
   carregarCacheAnimais().catch(() => {});   // pré-carrega os animais (consulta local)
   if (typeof mgInit === "function") mgInit();
   if (window.alCarregar) window.alCarregar();   // sininho de alertas
+  // Os scripts das abas carregam depois deste: só abre a aba com todos prontos.
+  if (document.readyState === "complete") abrirAbaInicial();
+  else window.addEventListener("load", abrirAbaInicial, { once: true });
 }
 
 // Início: se já tem token salvo, tenta validar; senão mostra a tela de login.

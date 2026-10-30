@@ -11,7 +11,7 @@
   <link rel="icon" href="/static/icon.png" sizes="256x256" />
   <link rel="preload" href="/static/vendor/manrope/manrope-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/static/style.css?v=80" />
+  <link rel="stylesheet" href="/static/style.css?v=81" />
 </head>
 <body>
   <!-- TELA DE LOGIN / PRIMEIRO ACESSO -->
@@ -61,11 +61,11 @@
     </div>
 
   <nav class="abas">
-    <button data-aba="mangueira" class="ativa">Mangueira</button>
+    <button data-aba="inicio" class="ativa">Início</button>
+    <button data-aba="mangueira">Mangueira</button>
     <button data-aba="pastos">Pastos</button>
     <button data-aba="sanidade">Sanidade</button>
     <button data-aba="rebanho">Rebanho</button>
-    <button data-aba="painel">Painel</button>
     <button data-aba="financeiro" id="aba-btn-financeiro" class="escondido">Financeiro</button>
     <button data-aba="config" id="aba-btn-config" class="escondido">Config</button>
     <button data-aba="usuarios" id="aba-btn-usuarios" class="escondido">Usuários</button>
@@ -74,8 +74,61 @@
 
   <div id="fila-status-global" class="fila-status escondido"></div>
 
+  <!-- ABA INÍCIO (a primeira tela: como a fazenda está e o que pede atenção) -->
+  <section id="aba-inicio" class="aba ativa">
+    <div class="in-topo">
+      <div class="in-topo-texto">
+        <h2 id="in-saudacao">Bom dia</h2>
+        <div class="info" id="in-atualizado"></div>
+      </div>
+      <button type="button" id="in-pesar" class="in-pesar">Iniciar pesagem</button>
+    </div>
+
+    <div id="in-hero" class="in-hero"></div>
+
+    <div class="in-duas">
+      <div class="in-bloco">
+        <h3 class="in-titulo">Pede atenção</h3>
+        <div id="in-atencao"></div>
+      </div>
+      <div class="in-bloco">
+        <h3 class="in-titulo">Rebanho por categoria</h3>
+        <div id="in-categorias"></div>
+      </div>
+    </div>
+
+    <div class="in-bloco">
+      <div class="in-titulo-linha">
+        <h3 class="in-titulo">Desempenho do gado</h3>
+        <div id="in-seletor-producao"></div>
+      </div>
+      <div id="in-producao"></div>
+    </div>
+
+    <div class="in-bloco escondido" id="in-bloco-financeiro">
+      <div class="in-titulo-linha">
+        <h3 class="in-titulo">Resultado da pecuária</h3>
+        <div id="in-seletor-financeiro"></div>
+      </div>
+      <div id="in-financeiro"></div>
+    </div>
+
+    <div class="in-bloco">
+      <h3 class="in-titulo">Lotes</h3>
+      <div id="in-lotes"></div>
+    </div>
+
+    <div class="ficha-secao" id="in-backup">
+      <h3>Backup / Exportar</h3>
+      <p class="info">Baixa uma planilha Excel completa (animais, pesos e datas) — sua cópia de fácil acesso, sempre atual.</p>
+      <a id="btn-exportar" href="/api/exportar/excel" class="botao-link">⬇ Exportar planilha Excel</a>
+    </div>
+
+    <div id="in-dica" class="fg-dica escondido"></div>
+  </section>
+
   <!-- ABA MANGUEIRA (lançamento de peso da sessão) -->
-  <section id="aba-mangueira" class="aba ativa">
+  <section id="aba-mangueira" class="aba">
     <!-- Abertura / retomada de sessão -->
     <div id="mg-abertura">
       <div class="mg-abertura-form">
@@ -339,18 +392,6 @@
     <div id="lista-cria" style="display:none"></div>
   </section>
 
-  <!-- ABA PAINEL -->
-  <section id="aba-painel" class="aba">
-    <h2>Painel do rebanho</h2>
-    <div id="cards-painel" class="cards"></div>
-
-    <div class="ficha-secao" style="margin-top:18px">
-      <h3>Backup / Exportar</h3>
-      <p class="info">Baixa uma planilha Excel completa (animais, pesos e datas) — sua cópia de fácil acesso, sempre atual.</p>
-      <a id="btn-exportar" href="/api/exportar/excel" class="botao-link">⬇ Exportar planilha Excel</a>
-    </div>
-  </section>
-
   <!-- ABA CONFIG (só dono) -->
   <!-- ABA FINANCEIRO (só dono): despesas e receitas, notas fiscais, extrato -->
   <section id="aba-financeiro" class="aba">
@@ -508,26 +549,27 @@
   </div>
   </div>
 
-  <script src="/static/app.js?v=80"></script>
-  <script src="/static/fila-offline.js?v=80"></script>
-  <script src="/static/mangueira.js?v=80"></script>
-  <script src="/static/planilha.js?v=80"></script>
-  <script src="/static/venda-gancho.js?v=80"></script>
-  <script src="/static/cria.js?v=80"></script>
+  <script src="/static/app.js?v=81"></script>
+  <script src="/static/fila-offline.js?v=81"></script>
+  <script src="/static/mangueira.js?v=81"></script>
+  <script src="/static/planilha.js?v=81"></script>
+  <script src="/static/venda-gancho.js?v=81"></script>
+  <script src="/static/cria.js?v=81"></script>
   <script src="/static/vendor/leaflet/leaflet.js"></script>
-  <script src="/static/campo.js?v=80"></script>
-  <script src="/static/pastos-historico.js?v=80"></script>
-  <script src="/static/pastos-indicadores.js?v=80"></script>
-  <script src="/static/alertas.js?v=80"></script>
-  <script src="/static/mapa-offline.js?v=80"></script>
-  <script src="/static/pastos-cronograma.js?v=80"></script>
-  <script src="/static/pastos-massa.js?v=80"></script>
-  <script src="/static/pastos-solo.js?v=80"></script>
-  <script src="/static/pastos.js?v=80"></script>
-  <script src="/static/financeiro.js?v=80"></script>
-  <script src="/static/financeiro-notas.js?v=80"></script>
-  <script src="/static/financeiro-graficos.js?v=80"></script>
-  <script src="/static/financeiro-fechamento.js?v=80"></script>
+  <script src="/static/campo.js?v=81"></script>
+  <script src="/static/pastos-historico.js?v=81"></script>
+  <script src="/static/pastos-indicadores.js?v=81"></script>
+  <script src="/static/alertas.js?v=81"></script>
+  <script src="/static/mapa-offline.js?v=81"></script>
+  <script src="/static/pastos-cronograma.js?v=81"></script>
+  <script src="/static/pastos-massa.js?v=81"></script>
+  <script src="/static/pastos-solo.js?v=81"></script>
+  <script src="/static/pastos.js?v=81"></script>
+  <script src="/static/financeiro.js?v=81"></script>
+  <script src="/static/financeiro-notas.js?v=81"></script>
+  <script src="/static/financeiro-graficos.js?v=81"></script>
+  <script src="/static/financeiro-fechamento.js?v=81"></script>
+  <script src="/static/inicio.js?v=81"></script>
   <script>
     // Registra o service worker e recarrega sozinho quando sai uma versão nova,
     // pra nunca ficar travado mostrando uma tela antiga em cache.

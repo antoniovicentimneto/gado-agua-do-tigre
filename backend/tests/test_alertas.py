@@ -55,7 +55,8 @@ def test_pesar_quando_estimativa_velha(db):
 
 
 def test_limites_configuraveis(db):
-    assert svc.carregar_limites(db) == {"ocupacao_max_dias": 7, "sal_dias": 7}
+    assert svc.carregar_limites(db) == {"ocupacao_max_dias": 7, "sal_dias": 7,
+                                        "mortalidade_max_pct": 2, "pesados_min_pct": 80}
     svc.salvar_limites(db, {"ocupacao_max_dias": 10})
     assert svc.carregar_limites(db)["ocupacao_max_dias"] == 10
     with pytest.raises(ValueError):

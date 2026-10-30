@@ -19,7 +19,8 @@ from . import peso_estimado as pe
 from .pastos import _hoje, painel
 
 CHAVE = "alertas_limites"
-PADRAO = {"ocupacao_max_dias": 7, "sal_dias": 7}
+# Os dois últimos são as faixas de cor da tela inicial (verde até o limite).
+PADRAO = {"ocupacao_max_dias": 7, "sal_dias": 7, "mortalidade_max_pct": 2, "pesados_min_pct": 80}
 
 # Outros módulos registram funções extras: f(db, hoje, dados_painel) -> list[dict]
 GERADORES_EXTRAS = []

@@ -38,6 +38,7 @@ function alAtualizarSino() {
   b.querySelector("span").textContent = pend.length || "";
   b.classList.toggle("tem", pend.length > 0);
   b.classList.toggle("urgente", pend.some((a) => a.nivel === "vermelho"));
+  if (window.inAtualizarAtencao) window.inAtualizarAtencao();   // a tela inicial mostra o mesmo total
 }
 
 const AL_ICONE = { vermelho: "🔴", amarelo: "🟡", verde: "🟢" };
@@ -97,6 +98,8 @@ async function alConfigLimites(boxId) {
     <div class="grid-2">
       <div><label>Máximo de dias do lote no piquete</label><input id="al-ocup" inputmode="numeric" value="${lim.ocupacao_max_dias}" /></div>
       <div><label>Avisar salga depois de (dias)</label><input id="al-sal" inputmode="numeric" value="${lim.sal_dias}" /></div>
+      <div><label>Mortalidade aceitável (% no período)</label><input id="al-mort" inputmode="numeric" value="${lim.mortalidade_max_pct}" /></div>
+      <div><label>Rebanho pesado em dia, mínimo (%)</label><input id="al-pesados" inputmode="numeric" value="${lim.pesados_min_pct}" /></div>
     </div>
     <p class="info">O máximo de dias pode ser diferente em cada piquete (⚙ do piquete). O aviso de salga só
       aparece para lotes que já tiveram salga registrada.</p>
@@ -109,6 +112,8 @@ async function alConfigLimites(boxId) {
       await api.put("/api/pastos/alertas/limites", {
         ocupacao_max_dias: document.getElementById("al-ocup").value,
         sal_dias: document.getElementById("al-sal").value,
+        mortalidade_max_pct: document.getElementById("al-mort").value,
+        pesados_min_pct: document.getElementById("al-pesados").value,
       });
       document.getElementById("al-msg").textContent = "✓ Salvo.";
       alCarregar();

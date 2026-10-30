@@ -60,7 +60,7 @@ Já corrigido em: `listar_animais`, `listar_lotes`, `dashboard`, `exportacao`, `
 
 Assets estáticos são versionados com `?v=N`. **A cada mudança em qualquer arquivo de
 `static/`, incrementar N** no `index.html` E no `service-worker.js` (a lista ARQUIVOS e o
-nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=80 / cache v72.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
+nome do CACHE `gado-agua-do-tigre-vX`). **Versão atual: v=81 / cache v73.** (Leaflet fica em `static/vendor/leaflet/`, sem versão no nome.)
 O SW é network-first (online sempre pega o novo) e há auto-reload no `controllerchange`,
 mas o navegador do usuário às vezes segura a versão antiga — se o usuário relatar que "não
 mudou", verificar com `curl` que o deploy terminou e orientar Ctrl+Shift+R (PC) / fechar e
@@ -88,6 +88,7 @@ backend/
     services/
       sessao.py        # lógica da mangueira (criar/registrar/vincular/finalizar)
       manejos.py       # histórico de manejos (sessões + pesagens legado)
+      inicio.py        # números da tela inicial (rebanho, desempenho, resultado)
       consultas.py     # lote_atual, montar_resumo, pontos_pesagem
       gmd.py           # cálculos de GMD/uGMD/período
       venda.py         # cálculo de venda (arroba)
@@ -170,7 +171,16 @@ usuários, cache de animais). `mangueira.js` = tela de pesagem. Comunicação vi
   (herda histórico; usa `pesagens.append` p/ não apagar por cascade).
 - **Brincos duplicados** existem (13): a pesagem mostra um seletor pra escolher qual animal.
 
-## Mangueira (tela principal)
+## Início (primeira tela, o dashboard)
+
+`services/inicio.py`, `routers/inicio.py` (`/api/inicio/*`), `static/inicio.js`. Estudo e contas em
+`docs/dashboard_inicio.md`. GMD do rebanho = kg ganhos ÷ animal-dias, sempre comparado com o MESMO
+período do ano anterior. Financeiro por setor, com a compra de gado separada do custeio.
+`/financeiro` é só dono; `/rebanho` e `/producao` escondem preço, compra e venda do peão. Abre com o
+último dado salvo no aparelho (`gat_cache_inicio`, apagado ao sair da conta) e atualiza por cima. Recarga
+da página volta pra mesma aba (`sessionStorage`), pra não tirar ninguém da mangueira quando sai versão nova.
+
+## Mangueira (lançamento de peso)
 
 Sessão de pesagem com 3 colunas (a pesar · lançamento brinco+peso+enviar · pesados). Lote
 ativo "grudado". Tipos: manejo/compra/venda_fazenda/venda_morto (compra/venda só dono).
